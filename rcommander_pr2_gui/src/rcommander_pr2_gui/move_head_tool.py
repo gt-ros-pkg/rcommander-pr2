@@ -1,7 +1,7 @@
 import rospy
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import rcommander_core.tool_utils as tu
+import rcommander.tool_utils as tu
 import numpy as np
 import smach
 

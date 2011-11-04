@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import roslib; roslib.load_manifest('rcommander_pr2_gui')
-import rcommander_core.rcommander as rc
+import rcommander.rcommander as rc
 import pr2_utils as pu
 import rospy
 import tf 

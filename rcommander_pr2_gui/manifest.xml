@@ -13,7 +13,7 @@
   <depend package="smach"/>
   <depend package="actionlib"/>
 
-  <depend package="rcommander_core"/>
+  <depend package="rcommander"/>
   <depend package="tts_server"/>
 
   <depend package="geometry_msgs"/>
@@ -31,16 +31,16 @@
   <depend package="ptp_arm_action"/>
 
   <export>
-      <rcommander plugin="rcommander_pr2.tuck_tool"          robot="pr2" tab="Manipulation"/> 
-      <rcommander plugin="rcommander_pr2.linear_move_tool"   robot="pr2" tab="Manipulation"/>
-      <rcommander plugin="rcommander_pr2.move_arm_tool"      robot="pr2" tab="Manipulation"/>
-      <rcommander plugin="rcommander_pr2.move_tool"          robot="pr2" tab="Manipulation"/>
-      <rcommander plugin="rcommander_pr2.gripper_tool"       robot="pr2" tab="Manipulation"/>
-      <rcommander plugin="rcommander_pr2.gripper_event_tool" robot="pr2" tab="Manipulation"/>
-      <rcommander plugin="rcommander_pr2.spine_tool"         robot="pr2" tab="Manipulation"/> 
-      <rcommander plugin="rcommander_pr2.navigate_tool"      robot="all" tab="Navigation"/>      
-      <rcommander plugin="rcommander_pr2.speak_tool"         robot="all" tab="Interaction"/>  
-      <rcommander plugin="rcommander_pr2.move_head_tool"     robot="pr2" tab="Interaction"/>  
+      <rcommander plugin="rcommander_pr2_gui.tuck_tool"          robot="pr2" tab="Manipulation"/> 
+      <rcommander plugin="rcommander_pr2_gui.linear_move_tool"   robot="pr2" tab="Manipulation"/>
+      <rcommander plugin="rcommander_pr2_gui.move_arm_tool"      robot="pr2" tab="Manipulation"/>
+      <rcommander plugin="rcommander_pr2_gui.move_tool"          robot="pr2" tab="Manipulation"/>
+      <rcommander plugin="rcommander_pr2_gui.gripper_tool"       robot="pr2" tab="Manipulation"/>
+      <rcommander plugin="rcommander_pr2_gui.gripper_event_tool" robot="pr2" tab="Manipulation"/>
+      <rcommander plugin="rcommander_pr2_gui.spine_tool"         robot="pr2" tab="Manipulation"/> 
+      <rcommander plugin="rcommander_pr2_gui.navigate_tool"      robot="all" tab="Navigation"/>      
+      <rcommander plugin="rcommander_pr2_gui.speak_tool"         robot="all" tab="Interaction"/>  
+      <rcommander plugin="rcommander_pr2_gui.move_head_tool"     robot="pr2" tab="Interaction"/>  
   </export>
 
 </package>
