@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import roslib; roslib.load_manifest('rcommander_pr2')
+import roslib; roslib.load_manifest('rcommander_pr2_gui')
 
 import tf 
 import rospy
