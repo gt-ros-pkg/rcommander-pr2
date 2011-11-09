@@ -1,5 +1,5 @@
 <stack>
-  <description brief="RCommander Core">Packages for running GUI which edits SMACH state machines.</description>
+  <description brief="RCommander PR2">Stack containing PR2 specific plugins and controllers for RCommander.</description>
   <author>Hai Nguyen / haidai@gmail.com</author>
   <license>BSD</license>  
   <review status="unreviewed" notes=""/>
