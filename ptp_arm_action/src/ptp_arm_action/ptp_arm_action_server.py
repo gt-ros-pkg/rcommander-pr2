@@ -40,12 +40,12 @@ class PTPArmActionServer:
     def __init__(self, name, arm):
         if arm == 'left':
             self.controller = 'l_cart'
-            self.joint_controller = 'l_arm_controller'
+            #self.joint_controller = 'l_arm_controller'
             #self.tool_frame = 'l_gripper_tool_frame'
             self.tool_frame = rospy.get_param('/l_cart/tip_name')
         elif arm == 'right':
             self.controller = 'r_cart'
-            self.joint_controller = 'r_arm_controller'
+            #self.joint_controller = 'r_arm_controller'
             #self.tool_frame = 'r_gripper_tool_frame'
             self.tool_frame = rospy.get_param('/r_cart/tip_name')
         else:
