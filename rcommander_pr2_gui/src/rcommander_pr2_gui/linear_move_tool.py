@@ -276,17 +276,31 @@ class LinearMovementSmach(smach.State):
             raise RuntimeError('Invalid motion type given.')
 
         #quat = self._quat
-        quat = self.quat
         if self.source_for_point != None:
-            trans, frame = userdata.point
-            if self.arm == 'left':
-                tip = rospy.get_param('/l_cart/tip_name')
-            if self.arm == 'right':
-                tip = rospy.get_param('/r_cart/tip_name')
+            p = userdata.point.pose.position
+            q = userdata.point.pose.orientation
+            trans = [p.x, p.y, p.z]
+            quat = [q.x, q.y, q.z, q.w]
+            frame = userdata.point.header.frame_id
+
+            #if self.arm == 'left':
+            #    tip = rospy.get_param('/l_cart/tip_name')
+            #    tool = 'l_gripper_tool_frame'
+            #if self.arm == 'right':
+            #    tip = rospy.get_param('/r_cart/tip_name')
+            #    tool = 'r_gripper_tool_frame'
+
+            #print 'point before', trans
+            #tip_T_tool = tr.tf_as_matrix(self.pr2.tf_listener.lookupTransform(tip, wrist, rospy.Time(0)))
+            #point_tip = tip_T_tool * tr.tf_as_matrix((trans,quat))
+            #trans, quat = matrix_as_tf(point_tip)
+            #print 'point after', trans
+
             quat = self.pr2.tf_listener.lookupTransform(frame, tip, rospy.Time(0))[1]
         else:
             trans = self.trans
             frame = self.frame
+            quat = self.quat
 
         pose = mat_to_pose(np.matrix(tr.translation_matrix(trans)) * np.matrix(tr.quaternion_matrix(quat)))
         goal.goal = stamp_pose(pose, frame)
