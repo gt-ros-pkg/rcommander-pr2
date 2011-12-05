@@ -6,7 +6,7 @@ import rcommander.tool_utils as tu
 import numpy as np
 import actionlib_msgs.msg as am
 import smach
-
+import functools as ft
 
 class JointSequenceTool(tu.ToolBase):
 
@@ -18,7 +18,37 @@ class JointSequenceTool(tu.ToolBase):
 
         self.status_bar_timer = QTimer()
         self.rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles)
+        self.limits = [self.rcommander.robot.left.get_limits(), self.rcommander.robot.left.get_limits()]
 
+    def _value_changed_validate(self, value, joint):
+        if self.arm_box.currentText() == 'left':
+            idx = 0
+            pref = 'l_'
+        else:
+            idx = 1
+            pref = 'r_'
+
+        limits = self.limits[idx]
+        jname = pref + joint
+        #print jname, value
+        if limits.has_key(jname):
+            exec('box = self.%s' % joint)
+            mina, maxa = limits[jname]
+            v = np.radians(value)
+            #print '  HAS KEY', mina, maxa, 'curent value', v
+            if v < mina or v > maxa:
+                self.set_invalid_color(joint, True)
+            else:
+                self.set_invalid_color(joint, False)
+
+    def set_invalid_color(self, joint_name, invalid):
+        if invalid:
+            palette = QPalette(QColor(255, 0, 0, 255))
+            palette.setColor(QPalette.Text, QColor(255, 0, 0, 255))
+        else:
+            palette = QPalette(QColor(0, 0, 0, 255))
+            palette.setColor(QPalette.Text, QColor(0, 0, 0, 255))
+        exec('self.%s.setPalette(palette)' % joint_name)
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
@@ -36,12 +66,15 @@ class JointSequenceTool(tu.ToolBase):
             box.setMinimum(-9999999)
             box.setMaximum(9999999)
             formlayout.addRow("&%s" % name, box)
-
+            vchanged_func = ft.partial(self._value_changed_validate, joint=name)
+            self.rcommander.connect(box, SIGNAL('valueChanged(double)'), vchanged_func)
+            #palette.setColor(QPalette.Inactive, QPalette.Base, QColor(255, 0, 0, 255))
+            #palette.setColor(QPalette.Active, QPalette.Base, QColor(255, 0, 0, 255))
+            #palette.setColor(QPalette.Highlight, QColor(255, 0, 0, 255))
             #exec("self.%s.setSingleStep(.5)" % name)
             #exec("formlayout.addRow(\"&\" + name, self.%s)" % name)
 
         #self.pose_button = QPushButton(self.list_widget_buttons)
-
         self.time_box = QDoubleSpinBox(pbox)
         self.time_box.setMinimum(0)
         self.time_box.setMaximum(1000.)
@@ -172,11 +205,15 @@ class JointSequenceTool(tu.ToolBase):
         self._set_joints_to_fields(joint_angs)
         self.time_box.setValue(self.joint_angs_list[idx]['time'])
 
+        self.update_checkbox.setCheckState(False)
+        self.status_bar_timer.stop()
+        self.pose_button.setEnabled(True)
+
     def add_joint_set_cb(self):
         #Create a new string, check to see whether it's in the current list
         name = self._create_name()
         #self.list_widget.addItem(name)
-        self.joint_angs_list.append({'name':name, 'time': self.time_box.value(), 'angs': self._read_joints_from_fields()})
+        self.joint_angs_list.append({'name':name, 'time': self.time_box.value(), 'angs': self._read_joints_from_fields(True)})
         self._refill_list_widget(self.joint_angs_list)
 
     def _find_index_of(self, name):
@@ -230,8 +267,8 @@ class JointSequenceTool(tu.ToolBase):
             return
         el = self.joint_angs_list[idx]
         self.joint_angs_list[idx] = {'name': el['name'],
-            'time': self.time_box.value(), 
-            'angs': self._read_joints_from_fields()}
+                                     'time': self.time_box.value(), 
+                                     'angs': self._read_joints_from_fields(True)}
 
     def remove_pose_cb(self):
         idx = self._selected_idx()
@@ -245,11 +282,25 @@ class JointSequenceTool(tu.ToolBase):
             self.joint_angs_list.pop(idx)
         self._refill_list_widget(self.joint_angs_list)
 
-    def _read_joints_from_fields(self):
+    def _read_joints_from_fields(self, limit_ranges=False):
+        if self.arm_box.currentText() == 'left':
+            idx = 0
+            pref = 'l_'
+        else:
+            idx = 1
+            pref = 'r_'
+
+        limits = self.limits[idx]
         joints = []
         for name in self.joint_name_fields:
             #exec('rad = np.radians(float(str(self.%s.text())))' % name)
             exec('rad = np.radians(self.%s.value())' % name)
+            if limit_ranges and limits.has_key(pref+name):
+                mn, mx = limits[pref+name]
+                nrad = max(min(rad, mx-.005), mn+.005)
+                #if rad != nrad:
+                #    print pref+name, nrad, rad
+                rad = nrad
             joints.append(rad)
         return joints
 

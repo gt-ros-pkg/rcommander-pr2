@@ -9,6 +9,7 @@ import std_msgs.msg as stdm
 import pr2_controllers_msgs.msg as pm
 import geometry_msgs.msg as gm
 import time
+from kinematics_msgs.srv import GetKinematicSolverInfo
 from pycontroller_manager.pycontroller_manager import ControllerManager
 
 #Test this
@@ -200,7 +201,7 @@ class Joint:
 
 class PR2Arm(Joint):
 
-    def __init__(self, joint_provider, tf_listener, arm, use_kinematics=True):
+    def __init__(self, joint_provider, tf_listener, arm):
         joint_controller_name = arm + '_arm_controller'
         cart_controller_name = arm + '_cart'
         Joint.__init__(self, joint_controller_name, joint_provider)
@@ -217,9 +218,11 @@ class PR2Arm(Joint):
         else:
             self.full_arm_name = 'right'
 
-        if use_kinematics:
-            self.kinematics = pr2k.PR2ArmKinematics(self.full_arm_name, self.tf_listener)
+
+        #if use_kinematics:
+            #self.kinematics = pr2k.PR2ArmKinematics(self.full_arm_name, self.tf_listener)
         #self.ik_utilities = iku.IKUtilities(self.full_arm_name, self.tf_listener) 
+        self.limits_dict = self._limits()
 
         self.POSTURES = {
             'off':          np.matrix([]),
@@ -231,6 +234,21 @@ class PR2Arm(Joint):
             'elbowdownr':   np.matrix([-0.028262077316910873, 1.2946342642324222, -0.25785640577652386, -1.5498884526859626]).T, 
             'elbowdownl':   np.matrix([-0.0088195719039858515, 1.2834828245284853, 0.20338442004843196, -1.5565279256852611]).T
             }
+
+    def get_limits(self):
+        return self.limits_dict
+
+    def _limits(self):
+        proxy = rospy.ServiceProxy('/pr2_%s_arm_kinematics/get_ik_solver_info' % self.full_arm_name, GetKinematicSolverInfo)
+        #import pdb
+        #pdb.set_trace()
+        info = proxy().kinematic_solver_info
+        limit_dict = {}
+        for idx, name in enumerate(info.joint_names):
+            limit = info.limits[idx]
+            if limit.has_position_limits:
+                limit_dict[name] = [limit.min_position, limit.max_position]
+        return limit_dict
 
     def set_posture(self, posture_mat):
         self.cart_posure_pub(stdm.Float64MultiArray(data=posture_mat.A1.tolist()))
@@ -352,8 +370,8 @@ class PR2:
         self.tf_listener = tf_listener
         jl = GenericListener('joint_state_listener', sm.JointState, 'joint_states', 100)
         joint_provider = ft.partial(jl.read, allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
-        self.left = PR2Arm(joint_provider, tf_listener, 'l', use_kinematics=False)
-        self.right = PR2Arm(joint_provider, tf_listener, 'r', use_kinematics=False)
+        self.left = PR2Arm(joint_provider, tf_listener, 'l')
+        self.right = PR2Arm(joint_provider, tf_listener, 'r')
         self.torso = PR2Torso(joint_provider)
         self.head = PR2Head(joint_provider)
         self.controller_manager = ControllerManager()
