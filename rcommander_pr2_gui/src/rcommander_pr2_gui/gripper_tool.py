@@ -2,7 +2,7 @@
 import rcommander.tool_utils as tu
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import time
+#import time
 import pr2_common_action_msgs.msg as ca 
 import functools as ft
 import pr2_controllers_msgs.msg as pm
