@@ -29,6 +29,7 @@
   <depend package="trajectory_msgs"/>
   <depend package="object_manipulator"/>
   <depend package="ptp_arm_action"/>
+  <depend package="kinematics_msgs"/>
 
   <export>
       <rcommander plugin="rcommander_pr2_gui.tuck_tool"          robot="pr2" tab="Manipulation"/> 
