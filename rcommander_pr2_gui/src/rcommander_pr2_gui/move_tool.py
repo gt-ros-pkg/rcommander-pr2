@@ -18,10 +18,10 @@ class JointSequenceTool(tu.ToolBase):
 
         self.status_bar_timer = QTimer()
         self.rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles)
-        self.limits = [self.rcommander.robot.left.get_limits(), self.rcommander.robot.left.get_limits()]
+        self.limits = [self.rcommander.robot.left.get_limits(), self.rcommander.robot.right.get_limits()]
 
     def _value_changed_validate(self, value, joint):
-        if self.arm_box.currentText() == 'left':
+        if str(self.arm_box.currentText()) == 'left':
             idx = 0
             pref = 'l_'
         else:
@@ -30,12 +30,10 @@ class JointSequenceTool(tu.ToolBase):
 
         limits = self.limits[idx]
         jname = pref + joint
-        #print jname, value
         if limits.has_key(jname):
             exec('box = self.%s' % joint)
             mina, maxa = limits[jname]
             v = np.radians(value)
-            #print '  HAS KEY', mina, maxa, 'curent value', v
             if v < mina or v > maxa:
                 self.set_invalid_color(joint, True)
             else:
