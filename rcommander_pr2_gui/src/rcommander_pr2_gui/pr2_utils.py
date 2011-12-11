@@ -19,6 +19,12 @@ def unwrap2(cpos, npos):
     n_multiples_2pi = np.floor(cpos/two_pi)
     return nin + n_multiples_2pi*two_pi
 
+def standard_rad(t):
+    if t > 0:
+        return ((t + np.pi) % (np.pi * 2))  - np.pi
+    else:
+        return ((t - np.pi) % (np.pi * -2)) + np.pi
+
 ##
 # Takes a normal ROS callback channel and gives it an on demand query style
 # interface.
@@ -222,7 +228,7 @@ class PR2Arm(Joint):
         #if use_kinematics:
             #self.kinematics = pr2k.PR2ArmKinematics(self.full_arm_name, self.tf_listener)
         #self.ik_utilities = iku.IKUtilities(self.full_arm_name, self.tf_listener) 
-        self.limits_dict = self._limits()
+        self.limits_dict, self.vel_limit_dict = self._limits()
 
         self.POSTURES = {
             'off':          np.matrix([]),
@@ -238,17 +244,25 @@ class PR2Arm(Joint):
     def get_limits(self):
         return self.limits_dict
 
+    def get_vel_limits(self):
+        return self.vel_limit_dict
+
     def _limits(self):
-        proxy = rospy.ServiceProxy('/pr2_%s_arm_kinematics/get_ik_solver_info' % self.full_arm_name, GetKinematicSolverInfo)
+        service_name = '/pr2_%s_arm_kinematics/get_ik_solver_info' % self.full_arm_name
+        print service_name
+        proxy = rospy.ServiceProxy(service_name, GetKinematicSolverInfo)
         #import pdb
         #pdb.set_trace()
         info = proxy().kinematic_solver_info
         limit_dict = {}
+        vel_limit_dict = {}
         for idx, name in enumerate(info.joint_names):
             limit = info.limits[idx]
             if limit.has_position_limits:
                 limit_dict[name] = [limit.min_position, limit.max_position]
-        return limit_dict
+            if limit.has_velocity_limits:
+                vel_limit_dict[name] = limit.max_velocity
+        return limit_dict, vel_limit_dict
 
     def set_posture(self, posture_mat):
         self.cart_posure_pub(stdm.Float64MultiArray(data=posture_mat.A1.tolist()))

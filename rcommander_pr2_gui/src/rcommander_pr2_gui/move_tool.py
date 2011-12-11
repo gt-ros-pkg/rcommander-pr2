@@ -7,6 +7,7 @@ import numpy as np
 import actionlib_msgs.msg as am
 import smach
 import functools as ft
+import pr2_utils as pu
 
 class JointSequenceTool(tu.ToolBase):
 
@@ -14,11 +15,16 @@ class JointSequenceTool(tu.ToolBase):
         tu.ToolBase.__init__(self, rcommander, 'joint_sequence', 'Joint Sequence', JointSequenceState)
         self.joint_name_fields = ["shoulder_pan_joint", "shoulder_lift_joint", "upper_arm_roll_joint", 
                                   "elbow_flex_joint", "forearm_roll_joint", "wrist_flex_joint", "wrist_roll_joint"]
+        self.reverse_idx = {}
+        for idx, n in enumerate(self.joint_name_fields):
+            self.reverse_idx[n] = idx
+
         self.joint_angs_list = None
 
         self.status_bar_timer = QTimer()
         self.rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles)
         self.limits = [self.rcommander.robot.left.get_limits(), self.rcommander.robot.right.get_limits()]
+        self.vel_limits = [self.rcommander.robot.left.get_vel_limits(), self.rcommander.robot.right.get_vel_limits()]
 
     def _value_changed_validate(self, value, joint):
         if str(self.arm_box.currentText()) == 'left':
@@ -39,16 +45,59 @@ class JointSequenceTool(tu.ToolBase):
             else:
                 self.set_invalid_color(joint, False)
 
-    def set_invalid_color(self, joint_name, invalid):
+    def _time_changed_validate(self, value):
+        self.set_invalid_color('time_box', False)
+        if str(self.arm_box.currentText()) == 'left':
+            idx = 0
+            pref = 'l_'
+        else:
+            idx = 1
+            pref = 'r_'
+
+        vel_limits = self.vel_limits[idx]
+        if len(self.joint_angs_list) == 0:
+            return
+
+        if self.curr_selected == None:
+            ref = self.joint_angs_list[-1]
+        else:
+            pidx = self.curr_selected - 1
+            if pidx < 0:
+                return 
+            else:
+                ref = self.joint_angs_list[pidx]
+
+        min_time = 0.0
+        curr_time = self.time_box.value()
+
+        #Check declared red limits, if red then return
+        for multiplier, color in [[1., [255,0,0]], [.5, [255,153,0]]]:
+            for jname in vel_limits.keys():
+                vel_limit = multiplier * vel_limits[jname]
+                #print '%s vel_limit %.3f' % (jname, vel_limit)
+                box_name = jname[2:]
+                exec('box = self.%s' % box_name)
+                curr_jvalue = np.radians(box.value())
+                last_jvalue = ref['angs'][self.reverse_idx[box_name]]
+                vel = abs(pu.standard_rad(curr_jvalue - last_jvalue) / curr_time)
+                if vel > vel_limit:
+                    #print '   VIOLATED vel limit for joint', jname, last_jvalue, curr_jvalue, vel
+                    self.set_invalid_color('time_box', True, color)
+                    return
+
+    def set_invalid_color(self, joint_name, invalid, color = [255,0,0]):
+        r,g,b = color
+
         if invalid:
-            palette = QPalette(QColor(255, 0, 0, 255))
-            palette.setColor(QPalette.Text, QColor(255, 0, 0, 255))
+            palette = QPalette(QColor(r, g, b, 255))
+            palette.setColor(QPalette.Text, QColor(r, g, b, 255))
         else:
             palette = QPalette(QColor(0, 0, 0, 255))
             palette.setColor(QPalette.Text, QColor(0, 0, 0, 255))
         exec('self.%s.setPalette(palette)' % joint_name)
 
     def fill_property_box(self, pbox):
+        self.curr_selected = None
         formlayout = pbox.layout()
         self.arm_box = QComboBox(pbox)
         self.arm_box.addItem('left')
@@ -79,6 +128,7 @@ class JointSequenceTool(tu.ToolBase):
         self.time_box.setSingleStep(.2)
         self.time_box.setValue(1.)
         formlayout.addRow('&Time', self.time_box)
+        self.rcommander.connect(self.time_box, SIGNAL('valueChanged(double)'), self._time_changed_validate)
     
         self.update_checkbox = QCheckBox(pbox) 
         self.update_checkbox.setTristate(False)
@@ -199,6 +249,8 @@ class JointSequenceTool(tu.ToolBase):
         if len(selected) == 0:
             return
         idx = self._find_index_of(str(selected[0].text()))
+        self.curr_selected = idx
+
         joint_angs = self.joint_angs_list[idx]['angs']
         self._set_joints_to_fields(joint_angs)
         self.time_box.setValue(self.joint_angs_list[idx]['time'])
