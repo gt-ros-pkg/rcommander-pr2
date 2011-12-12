@@ -59,7 +59,6 @@ class JointSequenceTool(tu.ToolBase):
             pref = 'r_'
             left_arm = False
 
-
         # vel_limits = self.vel_limits[idx]
         if len(self.joint_angs_list) == 0:
             return
@@ -260,6 +259,7 @@ class JointSequenceTool(tu.ToolBase):
         joint_angs = self.joint_angs_list[idx]['angs']
         self._set_joints_to_fields(joint_angs)
         self.time_box.setValue(self.joint_angs_list[idx]['time'])
+        self._time_changed_validate(self.joint_angs_list[idx]['time'])
 
         self.update_checkbox.setCheckState(False)
         self.status_bar_timer.stop()
