@@ -1,0 +1,6 @@
+trajectory_msgs/JointTrajectoryPoint start_point
+trajectory_msgs/JointTrajectoryPoint end_point
+bool left
+---
+float64 time 
+
