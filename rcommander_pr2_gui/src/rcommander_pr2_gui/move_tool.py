@@ -8,6 +8,8 @@ import actionlib_msgs.msg as am
 import smach
 import functools as ft
 import pr2_utils as pu
+from rcommander_pr2_gui.srv import MinTime
+import trajectory_msgs.msg as tm
 
 class JointSequenceTool(tu.ToolBase):
 
@@ -24,7 +26,8 @@ class JointSequenceTool(tu.ToolBase):
         self.status_bar_timer = QTimer()
         self.rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles)
         self.limits = [self.rcommander.robot.left.get_limits(), self.rcommander.robot.right.get_limits()]
-        self.vel_limits = [self.rcommander.robot.left.get_vel_limits(), self.rcommander.robot.right.get_vel_limits()]
+        self.min_time_service = rospy.ServiceProxy('min_time_to_move', MinTime)
+        #self.vel_limits = [self.rcommander.robot.left.get_vel_limits(), self.rcommander.robot.right.get_vel_limits()]
 
     def _value_changed_validate(self, value, joint):
         if str(self.arm_box.currentText()) == 'left':
@@ -48,13 +51,16 @@ class JointSequenceTool(tu.ToolBase):
     def _time_changed_validate(self, value):
         self.set_invalid_color('time_box', False)
         if str(self.arm_box.currentText()) == 'left':
-            idx = 0
+            #idx = 0
             pref = 'l_'
+            left_arm = True
         else:
-            idx = 1
+            #idx = 1
             pref = 'r_'
+            left_arm = False
 
-        vel_limits = self.vel_limits[idx]
+
+        # vel_limits = self.vel_limits[idx]
         if len(self.joint_angs_list) == 0:
             return
 
@@ -67,23 +73,23 @@ class JointSequenceTool(tu.ToolBase):
             else:
                 ref = self.joint_angs_list[pidx]
 
-        min_time = 0.0
-        curr_time = self.time_box.value()
+        start_point = tm.JointTrajectoryPoint()
+        start_point.velocities = [0.] * len(self.joint_name_fields)
+        for name in self.joint_name_fields:
+            exec('box = self.%s' % name)
+            start_point.positions.append(np.radians(box.value()))
 
-        #Check declared red limits, if red then return
-        for multiplier, color in [[1., [255,0,0]], [.5, [255,153,0]]]:
-            for jname in vel_limits.keys():
-                vel_limit = multiplier * vel_limits[jname]
-                #print '%s vel_limit %.3f' % (jname, vel_limit)
-                box_name = jname[2:]
-                exec('box = self.%s' % box_name)
-                curr_jvalue = np.radians(box.value())
-                last_jvalue = ref['angs'][self.reverse_idx[box_name]]
-                vel = abs(pu.standard_rad(curr_jvalue - last_jvalue) / curr_time)
-                if vel > vel_limit:
-                    #print '   VIOLATED vel limit for joint', jname, last_jvalue, curr_jvalue, vel
-                    self.set_invalid_color('time_box', True, color)
-                    return
+        end_point = tm.JointTrajectoryPoint()
+        end_point.velocities = [0.] * len(self.joint_name_fields)
+        end_point.positions = ref['angs']
+
+        min_time = self.min_time_service(start_point, end_point, left_arm).time
+        curr_time = self.time_box.value()
+        #print 'min_time', min_time
+        for multiplier, color in [[1., [255,0,0]], [2., [255,153,0]]]:
+            if curr_time <= (min_time * multiplier):
+                self.set_invalid_color('time_box', True, color)
+                return
 
     def set_invalid_color(self, joint_name, invalid, color = [255,0,0]):
         r,g,b = color

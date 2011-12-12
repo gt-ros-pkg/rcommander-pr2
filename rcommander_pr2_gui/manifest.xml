@@ -17,6 +17,7 @@
   <depend package="tts_server"/>
 
   <depend package="geometry_msgs"/>
+  <depend package="spline_smoother"/>
   <depend package="arm_navigation_msgs"/>
   <depend package="sensor_msgs"/>
   <depend package="std_msgs"/>
