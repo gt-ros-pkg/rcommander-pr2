@@ -236,6 +236,8 @@ double calculateMinimumTime(const trajectory_msgs::JointTrajectoryPoint &start,
 MinTimeNode::MinTimeNode(ros::NodeHandle &n): n_(n)
 {
     min_time_service = n_.advertiseService("min_time_to_move", &MinTimeNode::min_time_srv_cb, this);
+    ros::service::waitForService("pr2_left_arm_kinematics/get_ik_solver_info");
+    ros::service::waitForService("pr2_right_arm_kinematics/get_ik_solver_info");
     ros::ServiceClient left_ik_client = n.serviceClient<kinematics_msgs::GetKinematicSolverInfo>(
             "pr2_left_arm_kinematics/get_ik_solver_info");
     ros::ServiceClient right_ik_client = n.serviceClient<kinematics_msgs::GetKinematicSolverInfo>(
@@ -261,15 +263,15 @@ bool MinTimeNode::min_time_srv_cb(rcommander_pr2_gui::MinTime::Request &req,
 {
     //spline_smoother::CubicTrajectory ct = spline_smoother::CubicTrajectory();
     double mtime = 0.0;
-    if (req.left == true)
+    if (req.left == true and has_left)
     {
         mtime = calculateMinimumTime(req.start_point, req.end_point, left_info.response.kinematic_solver_info.limits);
     } else
     {
-        mtime = calculateMinimumTime(req.start_point, req.end_point, right_info.response.kinematic_solver_info.limits);
+        if (has_right)
+            mtime = calculateMinimumTime(req.start_point, req.end_point, right_info.response.kinematic_solver_info.limits);
     }
     res.time = mtime;
-
     //req.start_point
     return true;
 }
