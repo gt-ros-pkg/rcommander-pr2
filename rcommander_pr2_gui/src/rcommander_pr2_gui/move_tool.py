@@ -136,9 +136,9 @@ class JointSequenceTool(tu.ToolBase):
         else:
             arm_obj = self.rcommander.robot.right
 
-        #print 'getting pose!'
+        print 'getting pose!'
         pose_mat = arm_obj.pose()
-        #print 'getting pose 2'
+        print 'getting pose 2'
 
         for idx, name in enumerate(self.joint_name_fields):
             deg = np.degrees(pose_mat[idx, 0])
