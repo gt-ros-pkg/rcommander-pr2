@@ -11,7 +11,7 @@ class MoveHeadTool(tu.ToolBase):
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'move_head_ang', 'Move Head (ang)', MoveHeadState)
 	self.head_angs_list = None
-	self.joint_names = []
+	self.joint_names = ["head_pan_joint", "head_tilt_joint"]
 	self.status_bar_timer = QTimer()
 	self.rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles_cb)
 
@@ -21,12 +21,14 @@ class MoveHeadTool(tu.ToolBase):
         joint_names = self.rcommander.robot.head.get_joint_names()
         self.joint_boxes = []
         for jname in joint_names:
-            joint_box = QDoubleSpinBox(pbox)
-            joint_box.setMinimum(-9999.)
-            joint_box.setMaximum(9999.)
-            joint_box.setSingleStep(1.)
-            self.joint_boxes.append(joint_box)
-            formlayout.addRow('&%s' % jname, joint_box)
+            #joint_box = QDoubleSpinBox(pbox)
+            exec("self.%s = QDoubleSpinBox(pbox)" % jname)
+            exec('box = self.%s' % jname)
+            box.setMinimum(-9999.)
+            box.setMaximum(9999.)
+            box.setSingleStep(1.)
+            self.joint_boxes.append(box)
+            formlayout.addRow('&%s' % jname, box)
 
 	self.head_angs_list = []
         self.time_box = QDoubleSpinBox(pbox)
@@ -112,16 +114,13 @@ class MoveHeadTool(tu.ToolBase):
     def get_current_joint_angles_cb(self):
         poses = self.rcommander.robot.head.pose()
         self.joint_boxes[0].setValue(np.degrees(poses[0,0]))
-	print 'first one'
-	print np.degrees(poses[0,0])
         self.joint_boxes[1].setValue(np.degrees(poses[1,0]))
-	print 'second one'
-	print np.degrees(poses[1,0])
 
     def set_node_properties(self, my_node):
         self.joint_boxes[0].setValue(np.degrees(my_node.poses[0,0]))
         self.joint_boxes[1].setValue(np.degrees(my_node.poses[1,0]))
-        self.time_box.setValue(my_node.mot_time)
+        #self.time_box.setValue(my_node.mot_time)
+	self.head_angs_list = my_node.joint_waypoints
 #added   
     def item_selection_changed_cb(self):
         selected = self.list_widget.selectedItems()
@@ -201,7 +200,6 @@ class MoveHeadTool(tu.ToolBase):
             #exec('rad = np.radians(float(str(self.%s.text())))' % name)
             exec('rad = np.radians(self.%s.value())' % name)
             headPos.append(rad)
-	    print name
         return headPos
 
 #added
@@ -263,17 +261,17 @@ class MoveHeadTool(tu.ToolBase):
 
         poses = np.matrix([np.radians(self.joint_boxes[0].value()),
 			   np.radians(self.joint_boxes[1].value())]).T
-        return MoveHeadState(nname, poses, self.time_box.value())
+        return MoveHeadState(nname, poses, self.head_angs_list)
 
 #added
     def save_button_cb(self):
         idx = self._selected_idx()
         if idx == None:
             return
-        el = self.joint_angs_list[idx]
-        self.joint_angs_list[idx] = {'name': el['name'],
+        el = self.head_angs_list[idx]
+        self.head_angs_list[idx] = {'name': el['name'],
             'time': self.time_box.value(), 
-            'angs': self._read_joints_from_fields()}
+            'angs': self._read_head_position_from_fields()}
 #added
     def update_selected_cb(self, state):
         # checked
@@ -281,7 +279,6 @@ class MoveHeadTool(tu.ToolBase):
             self.status_bar_timer.start(30)
             self.current_pose_button.setEnabled(False)
 	    self.get_current_joint_angles_cb()
-	    print 'getting the current joint angles'
         # unchecked
         if state == 0:
             self.status_bar_timer.stop()
@@ -328,34 +325,51 @@ class MoveHeadTool(tu.ToolBase):
 
 class MoveHeadState(tu.StateBase):
 
-    def __init__(self, name, poses, mot_time):
+    def __init__(self, name, poses, joint_waypoints):
         tu.StateBase.__init__(self, name)
         self.poses = poses 
-        self.mot_time = mot_time
+        self.joint_waypoints = joint_waypoints
 
     def get_smach_state(self):
-        return MoveHeadStateSmach(self.poses, self.mot_time)
+        return MoveHeadStateSmach(self.poses, self.joint_waypoints)
 
 
 class MoveHeadStateSmach(smach.State):
 
-    def __init__(self, poses, mot_time):
-        smach.State.__init__(self, outcomes=['preempted', 'done'], 
+    TIME_OUT_FACTOR = 3.
+
+    def __init__(self, poses, joint_waypoints):
+        smach.State.__init__(self, outcomes=['preempted', 'done', 'None'], 
 			     input_keys=[], output_keys=[])
-        self.mot_time = mot_time
+        self.joint_waypoints = joint_waypoints
         self.poses = poses
-        self.robot = None
 
     def set_robot(self, robot):
         if robot != None:
             self.head_obj = robot.head
+            self.controller_manager = robot.controller_manager
 
     def execute(self, userdata):
-        #self.head_obj.set_poses(self,self.poses, self.mot_time)
-	self.head_obj.set_pose(self.poses, self.mot_time)
+        #status, started, stopped = self.controller_manager.joint_mode(self.head_obj)
+
+        #Construct trajectory command
+        times = []
+        wps = []
+        for x in self.joint_waypoints:
+            wps.append(np.matrix(x['angs']).T)
+            times.append(x['time'])
+
+        self.head_obj.set_poses(np.column_stack(wps), np.cumsum(np.array(times)))
+        #client = self.head_obj.client
+        #state = client.get_state()
+
+        #Monitor execution
+        trajectory_time_out = MoveHeadStateSmach.TIME_OUT_FACTOR * np.sum(times)
+        succeeded = False
+        preempted = False
         r = rospy.Rate(30)
         start_time = rospy.get_time()
-        while (rospy.get_time() - start_time) < self.mot_time:
+        while (rospy.get_time() - start_time) < trajectory_time_out:
             r.sleep()
             if self.preempt_requested():
                 self.services_preempt()

@@ -343,11 +343,6 @@ class PR2Head(Joint):
         MIN_TIME = .1
         self.set_poses(np.column_stack([cpos, pos]), np.array([MIN_TIME, MIN_TIME+length]))
 
-    def set_poses(self, pos_mat, times, vel_mat=None, block=True):
-	#for i in pos[]:
-            #self.set_poses(np.column_stack([cpos, pos]), np.array([MIN_TIME, MIN_TIME+length]))
-     print 'nothing'
-
 class PR2:
 
     def __init__(self, tf_listener):

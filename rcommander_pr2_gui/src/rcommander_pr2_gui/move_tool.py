@@ -178,6 +178,7 @@ class JointSequenceTool(tu.ToolBase):
         #self.list_widget.addItem(name)
         self.joint_angs_list.append({'name':name, 'time': self.time_box.value(), 'angs': self._read_joints_from_fields()})
         self._refill_list_widget(self.joint_angs_list)
+	print self.joint_angs_list
 
     def _find_index_of(self, name):
         for idx, tup in enumerate(self.joint_angs_list):
@@ -248,9 +249,11 @@ class JointSequenceTool(tu.ToolBase):
     def _read_joints_from_fields(self):
         joints = []
         for name in self.joint_name_fields:
+	    print name
             #exec('rad = np.radians(float(str(self.%s.text())))' % name)
             exec('rad = np.radians(self.%s.value())' % name)
             joints.append(rad)
+	print joints
         return joints
 
     def _set_joints_to_fields(self, joints):
@@ -269,6 +272,7 @@ class JointSequenceTool(tu.ToolBase):
             return None
     
         #sstate = JointSequenceState(nname, str(self.arm_box.currentText()), self._read_joints_from_fields())
+
         sstate = JointSequenceState(nname, str(self.arm_box.currentText()), self.joint_angs_list)
         #sstate.set_robot(self.rcommander.robot)
         return sstate
