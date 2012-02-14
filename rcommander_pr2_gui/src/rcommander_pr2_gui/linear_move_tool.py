@@ -248,7 +248,9 @@ class LinearMoveState(tu.StateBase): # smach_ros.SimpleActionState):
 class LinearMovementSmach(smach.State):
 
     def __init__(self, motion_type, arm, trans, quat, frame, vels, source_for_point, timeout):
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], input_keys = ['point'], output_keys = [])
+        smach.State.__init__(self, 
+                outcomes = ['succeeded', 'preempted', 'failed'], 
+                input_keys = ['point'], output_keys = [])
 
         self.motion_type = motion_type
         self.arm = arm
@@ -275,17 +277,19 @@ class LinearMovementSmach(smach.State):
         else:
             raise RuntimeError('Invalid motion type given.')
 
-        #quat = self._quat
-        quat = self.quat
         if self.source_for_point != None:
-            trans, frame = userdata.point
+            posestamped = userdata.point
             if self.arm == 'left':
                 tip = rospy.get_param('/l_cart/tip_name')
             if self.arm == 'right':
                 tip = rospy.get_param('/r_cart/tip_name')
-            quat = self.pr2.tf_listener.lookupTransform(frame, tip, rospy.Time(0))[1]
+
+            trans = posestamped.pose.position
+            quat  = posestamped.pose.orientation
+            frame = posestamped.header.frame_id
         else:
             trans = self.trans
+            quat = self.quat
             frame = self.frame
 
         pose = mat_to_pose(np.matrix(tr.translation_matrix(trans)) * np.matrix(tr.quaternion_matrix(quat)))

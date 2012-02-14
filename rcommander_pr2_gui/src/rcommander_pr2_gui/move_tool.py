@@ -55,9 +55,9 @@ class JointSequenceTool(tu.ToolBase):
         self.rcommander.connect(self.update_checkbox, SIGNAL('stateChanged(int)'), self.update_selected_cb)
 
         self.pose_button = QPushButton(pbox)
-        self.pose_button.setText('Pose')
+        self.pose_button.setText('Current Pose')
         self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_joint_angles)
-        formlayout.addRow('    ', self.pose_button)
+        formlayout.addRow(self.pose_button)
    
         #Controls for getting the current joint states
         self.joint_angs_list = []
@@ -77,39 +77,90 @@ class JointSequenceTool(tu.ToolBase):
         self.list_widget_buttons = QWidget(pbox)
         self.lbb_hlayout = QHBoxLayout(self.list_widget_buttons)
 
-        self.move_up_button = QPushButton(self.list_widget_buttons)
-        self.move_up_button.setText('Up')
+        #self.move_up_button = QPushButton(self.list_widget_buttons)
+        #self.move_up_button.setText('Up')
+        #self.rcommander.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
+        #self.lbb_hlayout.addWidget(self.move_up_button)
+
+        #self.move_down_button = QPushButton(self.list_widget_buttons)
+        #self.move_down_button.setText('Down')
+        #self.rcommander.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
+        
+
+	self.move_up_button = QPushButton(self.list_widget_buttons)
+        self.move_up_button.setText("")
+        icon = QIcon()
+        icon.addPixmap(QPixmap("icons/UpButton.png"), QIcon.Normal, QIcon.Off)
+        self.move_up_button.setIcon(icon)
+        self.move_up_button.setObjectName("up_button")
         self.rcommander.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
-        self.lbb_hlayout.addWidget(self.move_up_button)
 
         self.move_down_button = QPushButton(self.list_widget_buttons)
-        self.move_down_button.setText('Down')
+        self.move_down_button.setText("")
+        icon = QIcon()
+        icon.addPixmap(QPixmap("icons/DownButton.png"), QIcon.Normal, QIcon.Off)
+        self.move_down_button.setIcon(icon)
+        self.move_down_button.setObjectName("down_button")
         self.rcommander.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
-        self.lbb_hlayout.addWidget(self.move_down_button)
-
-        spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
-        self.lbb_hlayout.addItem(spacer)
-
-        self.add_joint_set_button = QPushButton(self.list_widget_buttons)
-        self.add_joint_set_button.setText('Add')
+	
+	self.add_joint_set_button = QPushButton(self.list_widget_buttons)
+        self.add_joint_set_button.setText("")
+        icon = QIcon()
+        icon.addPixmap(QPixmap("icons/AddButton.png"), QIcon.Normal, QIcon.Off)
+        self.add_joint_set_button.setIcon(icon)
+        self.add_joint_set_button.setObjectName("add_button")
         self.rcommander.connect(self.add_joint_set_button, SIGNAL('clicked()'), self.add_joint_set_cb)
 
         self.remove_joint_set_button = QPushButton(self.list_widget_buttons)
-        self.remove_joint_set_button.setText('Remove')
+        self.remove_joint_set_button.setText("")
+        icon = QIcon()
+        icon.addPixmap(QPixmap("icons/RemoveButton.png"), QIcon.Normal, QIcon.Off)
+        self.remove_joint_set_button.setIcon(icon)
+        self.remove_joint_set_button.setObjectName("remove_button")
         self.rcommander.connect(self.remove_joint_set_button, SIGNAL('clicked()'), self.remove_pose_cb)
 
         self.save_button = QPushButton(self.list_widget_buttons)
-        self.save_button.setText('Save')
+        self.save_button.setText("")
+        icon = QIcon()
+        icon.addPixmap(QPixmap("icons/SaveButton.png"), QIcon.Normal, QIcon.Off)
+        self.save_button.setIcon(icon)
+        self.save_button.setObjectName("save_button")
         self.rcommander.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
+        
+	spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
 
-        self.lbb_hlayout.addWidget(self.add_joint_set_button)
+	self.lbb_hlayout.addWidget(self.add_joint_set_button)
         self.lbb_hlayout.addWidget(self.remove_joint_set_button)
         self.lbb_hlayout.addWidget(self.save_button)
+	self.lbb_hlayout.addItem(spacer)
+	self.lbb_hlayout.addWidget(self.move_up_button)
+	self.lbb_hlayout.addWidget(self.move_down_button)
+
+        #spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        #self.lbb_hlayout.addItem(spacer)
+
+        #self.add_joint_set_button = QPushButton(self.list_widget_buttons)
+        #self.add_joint_set_button.setText('Add')
+        #self.rcommander.connect(self.add_joint_set_button, SIGNAL('clicked()'), self.add_joint_set_cb)
+
+        #self.remove_joint_set_button = QPushButton(self.list_widget_buttons)
+        #self.remove_joint_set_button.setText('Remove')
+        #self.rcommander.connect(self.remove_joint_set_button, SIGNAL('clicked()'), self.remove_pose_cb)
+
+        #self.save_button = QPushButton(self.list_widget_buttons)
+        #self.save_button.setText('Save')
+        #self.rcommander.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
+
+        #self.lbb_hlayout.addWidget(self.add_joint_set_button)
+        #self.lbb_hlayout.addWidget(self.remove_joint_set_button)
+        #self.lbb_hlayout.addWidget(self.save_button)
         self.lbb_hlayout.setContentsMargins(2, 2, 2, 2)
 
         #self.list_box_layout.addWidget(self.movement_buttons_widget)
         #formlayout.addRow(self.list_widget)
 
+	formlayout.addRow('\n', self.list_box)      
+	formlayout.addRow('&Create a Joint Movement Sequence:', self.list_box)
         formlayout.addRow(self.list_box)
         formlayout.addRow(self.list_widget_buttons)
         self.reset()

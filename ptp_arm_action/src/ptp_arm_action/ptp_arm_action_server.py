@@ -40,12 +40,12 @@ class PTPArmActionServer:
     def __init__(self, name, arm):
         if arm == 'left':
             self.controller = 'l_cart'
-            self.joint_controller = 'l_arm_controller'
+            #self.joint_controller = 'l_arm_controller'
             #self.tool_frame = 'l_gripper_tool_frame'
             self.tool_frame = rospy.get_param('/l_cart/tip_name')
         elif arm == 'right':
             self.controller = 'r_cart'
-            self.joint_controller = 'r_arm_controller'
+            #self.joint_controller = 'r_arm_controller'
             #self.tool_frame = 'r_gripper_tool_frame'
             self.tool_frame = rospy.get_param('/r_cart/tip_name')
         else:
@@ -95,15 +95,33 @@ class PTPArmActionServer:
         if relative_movement:
             rospy.loginfo('Received relative motion.')
 
-            ref_T_tip = tfu.tf_as_matrix(self.tf.lookupTransform(goal_ps.header.frame_id, self.tool_frame, rospy.Time(0)))
-            tll_T_ref = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', goal_ps.header.frame_id, rospy.Time(0)))
+            #print 'tool frame is', self.tool_frame
+            #print 'goal frame is', goal_ps.header.frame_id
 
-            tip_R_tp  = pose_to_mat(goal_ps.pose)
-            ref_T_tp  = ref_T_tip * tip_R_tp
-            tll_T_tp  = tll_T_ref * ref_T_tp
+            delta_ref  = pose_to_mat(goal_ps.pose)
+            tll_R_ref = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', goal_ps.header.frame_id, rospy.Time(0)))
+            tll_R_ref[0:3,3] = 0
+            delta_tll = tll_R_ref * delta_ref
 
-            goal_ps = stamp_pose(mat_to_pose(tll_T_tp), 'torso_lift_link')
+            #print 'delta_tll\n', delta_tll
+            tip_current_T_tll = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', self.tool_frame, rospy.Time(0)))
+            #print 'tip_current_T_tll\n', tip_current_T_tll
 
+            #Find translation
+            delta_T = delta_tll.copy()
+            delta_T[0:3,0:3] = np.eye(3)
+            tip_T = delta_T * tip_current_T_tll
+
+            #Find rotation
+            tip_R = delta_tll[0:3, 0:3] * tip_current_T_tll[0:3, 0:3]
+
+
+            tip_new = np.matrix(np.eye(4))
+            tip_new[0:3, 0:3] = tip_R
+            tip_new[0:3, 3] = tip_T[0:3,3]
+
+            #print 'tip_new\n', tip_new
+            goal_ps = stamp_pose(mat_to_pose(tip_new), 'torso_lift_link')
 
         tstart = rospy.get_time()
         tmax = tstart + self.time_out
@@ -116,7 +134,6 @@ class PTPArmActionServer:
             goal_torso.pose.position.z, goal_torso.header.frame_id))
 
         verbose = False
-
         time_ang = None
         min_ang_error = None
         time_trans = None

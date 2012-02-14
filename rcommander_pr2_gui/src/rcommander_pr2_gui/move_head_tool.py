@@ -46,7 +46,7 @@ class MoveHeadTool(tu.ToolBase):
         self.current_pose_button.setText('Current Pose')
         self.rcommander.connect(self.current_pose_button, 
                 SIGNAL('clicked()'), self.get_current_joint_angles_cb)
-        formlayout.addRow('', self.current_pose_button)
+        formlayout.addRow(self.current_pose_button)
      
 #widet box 
 	self.list_box = QWidget(pbox)
@@ -64,7 +64,7 @@ class MoveHeadTool(tu.ToolBase):
         self.list_widget_buttons = QWidget(pbox)
 	self.list_widget_buttons2 = QWidget(pbox)
         self.lbb_hlayout = QHBoxLayout(self.list_widget_buttons)
-	self.lbb_hlayout2 = QHBoxLayout(self.list_widget_buttons2)
+	#self.lbb_hlayout2 = QHBoxLayout(self.list_widget_buttons2)
 
 #UP
 
@@ -84,10 +84,10 @@ class MoveHeadTool(tu.ToolBase):
 
 	#formlayout.addRow('&Create a Joint Sequence', self.time_box)
 
-        self.move_up_button = QPushButton(self.list_widget_buttons2)
+        self.move_up_button = QPushButton(self.list_widget_buttons)
         self.move_up_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("UpButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap("icons/UpButton.png"), QIcon.Normal, QIcon.Off)
         self.move_up_button.setIcon(icon)
         self.move_up_button.setObjectName("up_button")
         #self. = QPushButton(self.list_widget_buttons)
@@ -95,10 +95,10 @@ class MoveHeadTool(tu.ToolBase):
         self.rcommander.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
         #self.lbb_hlayout.addWidget(self.move_up_button)
 
-        self.move_down_button = QPushButton(self.list_widget_buttons2)
+        self.move_down_button = QPushButton(self.list_widget_buttons)
         self.move_down_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("DownButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap("icons/DownButton.png"), QIcon.Normal, QIcon.Off)
         self.move_down_button.setIcon(icon)
         self.move_down_button.setObjectName("down_button")
         #self.move_down_button = QPushButton(self.list_widget_buttons)
@@ -107,50 +107,51 @@ class MoveHeadTool(tu.ToolBase):
         #self.lbb_hlayout.addWidget(self.move_down_button)
 	#self.lbb_hlayout.addSpacing(50)
 
-        self.add_head_set_button = QPushButton(self.list_widget_buttons2)
+        self.add_head_set_button = QPushButton(self.list_widget_buttons)
         self.add_head_set_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("AddButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap("icons/AddButton.png"), QIcon.Normal, QIcon.Off)
         self.add_head_set_button.setIcon(icon)
         self.add_head_set_button.setObjectName("add_button")
         #self.add_head_set_button = QPushButton(self.list_widget_buttons2)
         #self.add_head_set_button.setText('Add Head Position')
         self.rcommander.connect(self.add_head_set_button, SIGNAL('clicked()'), self.add_head_set_cb)
 
-        self.remove_head_set_button = QPushButton(self.list_widget_buttons2)
+        self.remove_head_set_button = QPushButton(self.list_widget_buttons)
         self.remove_head_set_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("RemoveButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap("icons/RemoveButton.png"), QIcon.Normal, QIcon.Off)
         self.remove_head_set_button.setIcon(icon)
         self.remove_head_set_button.setObjectName("remove_button")
         #self.remove_head_set_button = QPushButton(self.list_widget_buttons2)
         #self.remove_head_set_button.setText('Remove Head Position')
         self.rcommander.connect(self.remove_head_set_button, SIGNAL('clicked()'), self.remove_pose_cb)
 
-        self.save_button = QPushButton(self.list_widget_buttons2)
+        self.save_button = QPushButton(self.list_widget_buttons)
         self.save_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("SaveButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap("icons/SaveButton.png"), QIcon.Normal, QIcon.Off)
         self.save_button.setIcon(icon)
         self.save_button.setObjectName("save_button")
 	#self.save_button = QPushButton(self.list_widget_buttons2)
         #self.save_button.setText('Save Sequence')
         self.rcommander.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
         
-
-	self.lbb_hlayout2.addWidget(self.add_head_set_button)
-        self.lbb_hlayout2.addWidget(self.remove_head_set_button)
-        self.lbb_hlayout2.addWidget(self.save_button)
-        self.lbb_hlayout2.addWidget(self.move_up_button)
-        self.lbb_hlayout2.addWidget(self.move_down_button)
-        self.lbb_hlayout2.setContentsMargins(2, 2, 2, 2)
+	spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
+	self.lbb_hlayout.addWidget(self.add_head_set_button)
+        self.lbb_hlayout.addWidget(self.remove_head_set_button)
+        self.lbb_hlayout.addWidget(self.save_button)
+	self.lbb_hlayout.addItem(spacer)
+        self.lbb_hlayout.addWidget(self.move_up_button)
+        self.lbb_hlayout.addWidget(self.move_down_button)
+        self.lbb_hlayout.setContentsMargins(2, 2, 2, 2)
 
 	#FIX	 
 	formlayout.addRow('\n', self.list_box)      
 	formlayout.addRow('&Create a Head Movement Sequence:', self.list_box)
 	formlayout.addRow(self.list_box)
         formlayout.addRow(self.list_widget_buttons)
-	formlayout.addRow(self.list_widget_buttons2)
+	#formlayout.addRow(self.list_widget_buttons2)
         self.reset()
 
     def _refill_list_widget(self, joints_list):
