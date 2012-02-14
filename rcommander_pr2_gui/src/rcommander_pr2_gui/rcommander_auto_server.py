@@ -1,11 +1,16 @@
-import roslib; roslib.load_manifest('rcommander')
-from pr2_object_manipulation_msgs.srv import *
+import roslib; roslib.load_manifest('rcommander_pr2_gui')
 import rospy
+import actionlib
+
+from pr2_object_manipulation_msgs.srv import ActionInfo, ActionInfoResponse
+from pr2_object_manipulation_msgs.msg import *
+import rcommander.graph_model as gm
+
 from PyQt4 import QtCore, QtGui
-import graph_model as gm
 import sys
 import os
 import os.path as pt
+import pdb
 
 class WatchDirectory(QtCore.QObject):
     def __init__(self, path, dir_changed_func=None, file_changed_func=None):
@@ -43,12 +48,15 @@ class RCommanderAutoServer:
         self.main_directory_changed(self.path_to_rcommander_files)
 
         rospy.Service('list_rcommander_actions', ActionInfo, self.list_action_cb)
-        self.actserv = actionlib.SimpleActionServer('run_rcommander_action', pim.RunScriptAction, execute_cb=self.execute_cb, auto_start=False)
+        self.actserv = actionlib.SimpleActionServer('run_rcommander_action', RunScriptAction, execute_cb=self.execute_cb, auto_start=False)
         self.actserv.start()
-        #self.main_directory_changed(self.path_to_rcommander_files)
+
+    def execute_cb(self, goal):
+        rospy.loginfo('Requested: group ' + goal.group_name + ' action: ' + goal.action_name)
+        self.action_dict[goal.action_name]['server'].execute(self.actserv)
 
     def _find_all_actions(self):
-        dirs = [] #[d for d in os.listdir(path_name) if os.path.isdir(d)]
+        dirs = [] 
         for d in os.listdir(self.path_to_rcommander_files):
             if os.path.isdir(os.path.join(self.path_to_rcommander_files, d)):
                 dirs.append(d)
@@ -57,7 +65,7 @@ class RCommanderAutoServer:
     def _load(self, action):
         rospy.loginfo('Loaded ' + action)
         action_path = os.path.join(self.path_to_rcommander_files, action)
-        return  {#'server':  ScriptedActionServer(action, action_path, self.robot),
+        return  {'server':  ScriptedActionServer(action, action_path, self.robot),
                  'watcher': WatchDirectory(action_path, self.action_directory_changed)}
 
     def action_directory_changed(self, action_path_name):
@@ -90,7 +98,7 @@ class ScriptedActionServer:
         self.path_to_action = path_to_action
         self.robot = robot
 
-    def execute(self, pose_stamped, actserver):
+    def execute(self, actserver):
         self.graph_model = gm.GraphModel.load(self.path_to_action, self.robot)
         r = rospy.Rate(30)
         state_machine = self.graph_model.create_state_machine()
@@ -119,7 +127,7 @@ class ScriptedActionServer:
         if success:
             state_machine_output = rthread.outcome
             #result = pim.PoseStampedScriptedResult(state_machine_output)
-            result = pim.RunScriptResult(state_machine_output)
+            result = RunScriptResult(state_machine_output)
             rospy.loginfo("%s: succeeded with %s" % (self.action_name, state_machine_output))
             actserver.set_succeeded(result)
         else:
@@ -132,5 +140,6 @@ def run(robot, path):
     #print options.name, options.dir
     app = QtGui.QApplication(sys.argv)
     server = RCommanderAutoServer(robot, path)
+    rospy.loginfo('RCommander server UP!')
     app.exec_()
 
