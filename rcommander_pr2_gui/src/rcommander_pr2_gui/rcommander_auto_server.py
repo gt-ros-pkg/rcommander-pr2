@@ -97,36 +97,37 @@ class ScriptedActionServer:
         self.action_name = action_name
         self.path_to_action = path_to_action
         self.robot = robot
+        self.graph_model = gm.GraphModel.load(self.path_to_action)
+
+    #def _state_machine_status_cb(self):
 
     def execute(self, actserver):
-        self.graph_model = gm.GraphModel.load(self.path_to_action, self.robot)
         r = rospy.Rate(30)
-        state_machine = self.graph_model.create_state_machine()
-        rthread = smtr.ThreadRunSM(self.action_name, state_machine)
-        rthread.start()
+        #self.graph_model.register_status_cb(self._state_machine_status_cb)
+        state_machine = self.graph_model.create_state_machine(self.robot)
+        self.graph_model.run(self.action_name, state_machine=state_machine)
+        state_machine_output = None
 
-        #Do something
+        #Check on execution status
         while True:
             if actserver.is_preempt_requested():
+		self.graph_model.preempt()
                 actserver.set_preempted()
                 success = False
                 break
 
-            if rthread.exception:
-                raise rthread.exception
-
-            if rthread.outcome != None:
-                success = True
+            if not self.graph_model.is_running():
+                outcome = self.graph_model.get_last_outcome()
+		if outcome != None:
+                    state_machine_output, end_time = outcome
+                    success = True
+                else:
+                    success = False
                 break
-
-            if not rthread.isAlive():
-                raise RuntimeError("Thread died unexpectedly.")
 
             r.sleep()
 
         if success:
-            state_machine_output = rthread.outcome
-            #result = pim.PoseStampedScriptedResult(state_machine_output)
             result = RunScriptResult(state_machine_output)
             rospy.loginfo("%s: succeeded with %s" % (self.action_name, state_machine_output))
             actserver.set_succeeded(result)
