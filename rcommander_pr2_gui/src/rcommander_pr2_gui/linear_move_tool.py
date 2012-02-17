@@ -46,17 +46,25 @@ class LinearMoveTool(tu.ToolBase):
         self.arm_box.addItem('left')
         self.arm_box.addItem('right')
 
-        self.motion_box = QComboBox(pbox)
-        self.motion_box.addItem('relative')
-        self.motion_box.addItem('absolute')
+        self.motion_box_position = QComboBox(pbox)
+        self.motion_box_position.addItem('relative')
+        self.motion_box_position.addItem('absolute')
 
-        self.source_box = QComboBox(pbox)
-        self.source_box.addItem(' ')
+        self.motion_box_orientation = QComboBox(pbox)
+        self.motion_box_orientation.addItem('relative')
+        self.motion_box_orientation.addItem('absolute')
+
+        self.source_box_position = QComboBox(pbox)
+        self.source_box_orientation = QComboBox(pbox)
+        self.source_box_position.addItem(' ')
+        self.source_box_orientation.addItem(' ')
         #nodes = self.rcommander.outputs_of_type(ptl.Point3DState)
-        nodes = self.rcommander.outputs_of_type(geo.PointStamped)
+        nodes = self.rcommander.outputs_of_type(geo.PoseStamped)
         for n in nodes:
-            self.source_box.addItem(n)
-        self.rcommander.connect(self.source_box, SIGNAL('currentIndexChanged(int)'), self.source_changed)
+            self.source_box_position.addItem(n)
+            self.source_box_orientation.addItem(n)
+        self.rcommander.connect(self.source_box_position, SIGNAL('currentIndexChanged(int)'),    self.source_changed_position)
+        self.rcommander.connect(self.source_box_orientation, SIGNAL('currentIndexChanged(int)'), self.source_changed_orientation)
 
         self.xline = QLineEdit(pbox)
         self.yline = QLineEdit(pbox)
@@ -69,6 +77,7 @@ class LinearMoveTool(tu.ToolBase):
         self.trans_vel_line = QLineEdit(pbox)
         self.rot_vel_line = QLineEdit(pbox)
 
+        #Only keep a few good frames.
         self.frame_box = QComboBox(pbox)
         for f in self.tf_listener.getFrameStrings():
             self.frame_box.addItem(f)
@@ -82,50 +91,67 @@ class LinearMoveTool(tu.ToolBase):
         self.time_box.setMaximum(1000.)
         self.time_box.setSingleStep(.2)
 
+        #Group Global
         formlayout.addRow("&Arm", self.arm_box)
-        formlayout.addRow("&Mode", self.motion_box)
-        formlayout.addRow("&Point Input", self.source_box)
-        formlayout.addRow("&x", self.xline)
-        formlayout.addRow("&y", self.yline)
-        formlayout.addRow("&z", self.zline)
-
-        formlayout.addRow("&phi",   self.phi_line)
-        formlayout.addRow("&theta", self.theta_line)
-        formlayout.addRow("&psi",   self.psi_line)
-
-        formlayout.addRow('&Translational Vel', self.trans_vel_line)
-        formlayout.addRow('&Rotational Vel', self.rot_vel_line)
-        formlayout.addRow("&frame", self.frame_box)
+        formlayout.addRow("&Frame", self.frame_box)
         formlayout.addRow('&Time Out', self.time_box)
+
+        #Group Position
+        position_box = QGroupBox('Position', pbox)
+        position_layout = QFormLayout(position_box)
+        position_box.setLayout(position_layout)
+
+        position_layout.addRow("&Mode", self.motion_box_position)
+        position_layout.addRow("&Point Input", self.source_box_position)
+        position_layout.addRow("&X", self.xline)
+        position_layout.addRow("&Y", self.yline)
+        position_layout.addRow("&Z", self.zline)
+        position_layout.addRow('&Velocity', self.trans_vel_line)
+        formlayout.addRow(position_box)
+
+        #Group Orientation
+        orientation_box = QGroupBox('Orientation', pbox)
+        orientation_layout = QFormLayout(orientation_box)
+        orientation_box.setLayout(orientation_layout)
+        
+        orientation_layout.addRow("&Mode", self.motion_box_orientation)
+        orientation_layout.addRow("&Point Input", self.source_box_orientation)
+        orientation_layout.addRow("&Phi",   self.phi_line)
+        orientation_layout.addRow("&Theta", self.theta_line)
+        orientation_layout.addRow("&Psi",   self.psi_line)
+        orientation_layout.addRow('&Velocity', self.rot_vel_line)
+        formlayout.addRow(orientation_box)
+
         formlayout.addRow(self.pose_button)
         self.reset()
 
-    def source_changed(self, index):
-        self.source_box.setCurrentIndex(index)
-        if str(self.source_box.currentText()) != ' ':
+    def source_changed_position(self, index):
+        self.source_box_position.setCurrentIndex(index)
+        if str(self.source_box_position.currentText()) != ' ':
             self.xline.setEnabled(False)
             self.yline.setEnabled(False)
             self.zline.setEnabled(False)
-
-            self.phi_line.setEnabled(False)
-            self.theta_line.setEnabled(False)
-            self.psi_line.setEnabled(False)
-
-            self.frame_box.setEnabled(False)
-            self.pose_button.setEnabled(False)
-            self.motion_box.setCurrentIndex(self.motion_box.findText('absolute'))
-
+            self.motion_box_position.setCurrentIndex(self.motion_box_position.findText('absolute'))
+            self.motion_box_position.setEnabled(False)
         else:
             self.xline.setEnabled(True)
             self.yline.setEnabled(True)
             self.zline.setEnabled(True)
+            self.motion_box_position.setEnabled(True)
 
+    def source_changed_orientation(self, index):
+        self.source_box_orientation.setCurrentIndex(index)
+        if str(self.source_box_orientation.currentText()) != ' ':
+            self.phi_line.setEnabled(False)
+            self.theta_line.setEnabled(False)
+            self.psi_line.setEnabled(False)
+            self.motion_box_orientation.setCurrentIndex(self.motion_box_orientation.findText('absolute'))
+            self.motion_box_orientation.setEnabled(False)
+        else:
             self.phi_line.setEnabled(True)
             self.theta_line.setEnabled(True)
             self.psi_line.setEnabled(True)
-
-            self.frame_box.setEnabled(True)
-            self.pose_button.setEnabled(True)
+            self.motion_box_orientation.setEnabled(True) 
 
     def get_current_pose(self):
         frame_described_in = str(self.frame_box.currentText())
@@ -145,7 +171,8 @@ class LinearMoveTool(tu.ToolBase):
         for value, vr in zip(tr.euler_from_quaternion(rotation), [self.phi_line, self.theta_line, self.psi_line]):
             vr.setText("%.3f" % np.degrees(value))
 
-        self.motion_box.setCurrentIndex(self.motion_box.findText('absolute'))
+        self.motion_box_position.setCurrentIndex(self.motion_box_position.findText('absolute'))
+        self.motion_box_orientation.setCurrentIndex(self.motion_box_orientation.findText('absolute'))
 
     def new_node(self, name=None):
         trans  = [float(vr.text()) for vr in [self.xline, self.yline, self.zline]]
@@ -153,20 +180,28 @@ class LinearMoveTool(tu.ToolBase):
         frame  = str(self.frame_box.currentText())
         trans_vel = float(str(self.trans_vel_line.text()))
         rot_vel   = float(str(self.rot_vel_line.text()))
-        source_name = str(self.source_box.currentText())
+        source_name_orientation = str(self.source_box_orientation.currentText())
+        source_name_position = str(self.source_box_position.currentText())
         timeout = self.time_box.value()
 
-        if source_name == ' ':
-            source_name = None
+        if source_name_position == ' ':
+            source_name_position = None
+        if source_name_orientation == ' ':
+            source_name_orientation = None
 
         if name == None:
             nname = self.name + str(self.counter)
         else:
             nname = name
 
-        return LinearMoveState(nname, trans, angles, 
-                str(self.arm_box.currentText()), [trans_vel, rot_vel],
-                str(self.motion_box.currentText()), source_name, frame, timeout)
+        #return LinearMoveState(nname, trans, angles, 
+        #        str(self.arm_box.currentText()), [trans_vel, rot_vel],
+        #        str(self.motion_box.currentText()), source_name, frame, timeout)
+
+        return LinearMoveState(nname, str(self.arm_box.currentText()),
+                trans, str(self.motion_box_position.currentText()), source_name_position,
+                angles, str(self.motion_box_orientation.currentText()), source_name_orientation,
+                [trans_vel, rot_vel], frame, timeout)
 
         #state = NavigateState(nname, xy, theta, frame)
         #return state
@@ -178,7 +213,8 @@ class LinearMoveTool(tu.ToolBase):
             vr.setText(str(value))
 
         self.frame_box.setCurrentIndex(self.frame_box.findText(str(node.frame)))
-        self.motion_box.setCurrentIndex(self.motion_box.findText(str(node.motion_type)))
+        self.motion_box_position.setCurrentIndex(self.motion_box_position.findText(str(node.motion_type)))
+        self.motion_box_orientation.setCurrentIndex(self.motion_box_orientation.findText(str(node.motion_type)))
         self.arm_box.setCurrentIndex(self.arm_box.findText(node.arm))
 
         self.trans_vel_line.setText(str(node.vels[0]))
@@ -205,7 +241,8 @@ class LinearMoveTool(tu.ToolBase):
             vr.setText(str(0.0))
 
         self.frame_box.setCurrentIndex(self.frame_box.findText(self.default_frame))
-        self.motion_box.setCurrentIndex(self.motion_box.findText('relative'))
+        self.motion_box_position.setCurrentIndex(self.motion_box_position.findText('relative'))
+        self.motion_box_orientation.setCurrentIndex(self.motion_box_orientation.findText('relative'))
         self.trans_vel_line.setText(str(.02))
         self.rot_vel_line.setText(str(.16))
         self.time_box.setValue(20)
@@ -213,20 +250,28 @@ class LinearMoveTool(tu.ToolBase):
 
 class LinearMoveState(tu.StateBase): # smach_ros.SimpleActionState):
     ##
-    #
     # @param name
     # @param trans list of 3 floats
     # @param angles in euler list of 3 floats
     # @param frame 
-    def __init__(self, name, trans, angles, arm, vels, motion_type, source, frame, timeout):
+    def __init__(self, name, arm,
+        trans, motion_type_trans, source_trans, 
+        angles, motion_type_angles, source_angles,
+        vels, frame, timeout):
+
         tu.StateBase.__init__(self, name)
-        self.set_remapping_for('point', source)
-        self.trans = trans
-        #self.angles = angles #convert angles to _quat
-        self.set_angles(angles)
+        self.set_remapping_for('position', source_trans)
+        self.set_remapping_for('orientation', source_angles)
         self.arm = arm
+
+        self.trans = trans
+        self.motion_type_trans = motion_type_trans
+
+        self.set_angles(angles)
+        self.motion_type_angles = motion_type_angles
+        #self.angles = angles #convert angles to _quat
+
         self.vels = vels
-        self.motion_type = motion_type
         self.frame = frame
         self.timeout = timeout
 
@@ -241,26 +286,36 @@ class LinearMoveState(tu.StateBase): # smach_ros.SimpleActionState):
     #angles = property(_get_angles, _set_angles)
 
     def get_smach_state(self):
-        return LinearMovementSmach(motion_type = self.motion_type, arm = self.arm, trans = self.trans, 
-                quat = self.quat, frame = self.frame, vels = self.vels, 
-                source_for_point = self.remapping_for('point'), timeout=self.timeout)
+        return LinearMovementSmach(self.arm,
+                  self.trans, self.motion_type_trans, self.remapping_for('position'),
+                  self.quat, self.motion_type_angles, self.remapping_for('orientation'),
+                  self.vels, self.frame, self.timeout)
+
+        #return LinearMovementSmach(motion_type = self.motion_type, arm = self.arm, trans = self.trans, 
+        #        quat = self.quat, frame = self.frame, vels = self.vels, 
+        #        source_for_point = self.remapping_for('point'), timeout=self.timeout)
 
 class LinearMovementSmach(smach.State):
 
-    def __init__(self, motion_type, arm, trans, quat, frame, vels, source_for_point, timeout):
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], input_keys = ['point'], output_keys = [])
+    def __init__(self, arm, 
+          trans, motion_type_trans, source_for_trans, 
+          quat,  motion_type_angles, source_for_quat,
+          vels, frame,  timeout):
 
-        self.motion_type = motion_type
+        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], input_keys = ['point'], output_keys = [])
         self.arm = arm
 
         self.trans = trans
+        self.motion_type_trans = motion_type_trans
+        self.source_for_trans = source_for_trans
+        
         self.quat = quat
-        self.frame = frame
+        self.motion_type_angles = motion_type_angles
+        self.source_for_quat = source_for_quat
 
         self.vels = vels
-        self.source_for_point = source_for_point
+        self.frame = frame
         self.timeout = timeout
-
         self.action_client = actionlib.SimpleActionClient(arm + '_ptp', ptp.LinearMovementAction)
 
     def set_robot(self, robot):
