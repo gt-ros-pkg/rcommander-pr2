@@ -194,17 +194,13 @@ class LinearMoveTool(tu.ToolBase):
         else:
             nname = name
 
-        #return LinearMoveState(nname, trans, angles, 
-        #        str(self.arm_box.currentText()), [trans_vel, rot_vel],
-        #        str(self.motion_box.currentText()), source_name, frame, timeout)
-
         return LinearMoveState(nname, str(self.arm_box.currentText()),
-                trans, str(self.motion_box_position.currentText()), source_name_position,
+                trans,  str(self.motion_box_position.currentText()), source_name_position,
                 angles, str(self.motion_box_orientation.currentText()), source_name_orientation,
                 [trans_vel, rot_vel], frame, timeout)
-
         #state = NavigateState(nname, xy, theta, frame)
         #return state
+
 
     def set_node_properties(self, node):
         for value, vr in zip(node.trans, [self.xline, self.yline, self.zline]):
@@ -221,18 +217,28 @@ class LinearMoveTool(tu.ToolBase):
         self.rot_vel_line.setText(str(node.vels[1]))
         self.time_box.setValue(node.timeout)
 
-        source_name = node.remapping_for('point')
-        if source_name == None:
-            source_name = ' '
-            index = self.source_box.findText(source_name)
+        source_name_position    = node.remapping_for('position')
+        if source_name_position == None:
+            source_name_position = ' '
+            idx_position = self.source_box_position.findText(source_name_position)
         else:
-            index = self.source_box.findText(source_name)
-            if index == -1:
-                self.source_box.addItem(source_name)
-                index = self.source_box.findText(source_name)
+            idx_position = self.source_box_position.findText(source_name_position)
+            if idx_position == -1:
+                self.source_box_position.addItem(source_name_position)
+                idx_position = self.source_box_position.findText(source_name_position)
+        self.source_changed_orientation(idx_position)
 
-        #print '>>>>>>>>>>>>>>>>> Source for linear node is', index
-        self.source_changed(index)
+        source_name_orientation = node.remapping_for('orientation')
+        if source_name_orientation == None:
+            source_name_orientation = ' '
+            idx_orientation = self.source_box_orientation.findText(source_name_orientation)
+        else:
+            idx_orientation = self.source_box_orientation.findText(source_name_orientation)
+            if idx_orientation == -1:
+                self.source_box_orientation.addItem(source_name_orientation)
+                idx_orientation = self.source_box_orientation.findText(source_name_orientation)
+        self.source_changed_orientation(idx_orientation)
+
 
     def reset(self):
         for vr in [self.xline, self.yline, self.zline]:
@@ -246,43 +252,46 @@ class LinearMoveTool(tu.ToolBase):
         self.trans_vel_line.setText(str(.02))
         self.rot_vel_line.setText(str(.16))
         self.time_box.setValue(20)
+        self.source_box_orientation.setCurrentIndex(self.source_box_orientation.findText(' '))
+        self.source_box_position.setCurrentIndex(self.source_box_position.findText(' '))
+        self.arm_box.setCurrentIndex(self.arm_box.findText('left'))
 
 
 class LinearMoveState(tu.StateBase): # smach_ros.SimpleActionState):
+
     ##
     # @param name
     # @param trans list of 3 floats
     # @param angles in euler list of 3 floats
     # @param frame 
     def __init__(self, name, arm,
-        trans, motion_type_trans, source_trans, 
+        trans,  motion_type_trans,  source_trans,
         angles, motion_type_angles, source_angles,
         vels, frame, timeout):
 
         tu.StateBase.__init__(self, name)
-        self.set_remapping_for('position', source_trans)
-        self.set_remapping_for('orientation', source_angles)
         self.arm = arm
 
         self.trans = trans
         self.motion_type_trans = motion_type_trans
+        self.set_remapping_for('position', source_trans)
 
         self.set_angles(angles)
         self.motion_type_angles = motion_type_angles
-        #self.angles = angles #convert angles to _quat
+        self.set_remapping_for('orientation', source_angles)
 
         self.vels = vels
         self.frame = frame
         self.timeout = timeout
+        #self.angles = angles #convert angles to _quat
 
     def set_angles(self, euler_angs):
         ang_rad = [np.radians(e) for e in euler_angs]
-        #self._quat = tr.quaternion_from_euler(euler_angs[0], euler_angs[1], euler_angs[2])
         self.quat = tr.quaternion_from_euler(*ang_rad)
+        #self._quat = tr.quaternion_from_euler(euler_angs[0], euler_angs[1], euler_angs[2])
     
     def get_angles(self):
         return [np.degrees(e) for e in tr.euler_from_quaternion(self.quat)]
-        
     #angles = property(_get_angles, _set_angles)
 
     def get_smach_state(self):
@@ -290,7 +299,6 @@ class LinearMoveState(tu.StateBase): # smach_ros.SimpleActionState):
                   self.trans, self.motion_type_trans, self.remapping_for('position'),
                   self.quat, self.motion_type_angles, self.remapping_for('orientation'),
                   self.vels, self.frame, self.timeout)
-
         #return LinearMovementSmach(motion_type = self.motion_type, arm = self.arm, trans = self.trans, 
         #        quat = self.quat, frame = self.frame, vels = self.vels, 
         #        source_for_point = self.remapping_for('point'), timeout=self.timeout)
@@ -302,9 +310,9 @@ class LinearMovementSmach(smach.State):
           quat,  motion_type_angles, source_for_quat,
           vels, frame,  timeout):
 
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], input_keys = ['point'], output_keys = [])
+        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], 
+                             input_keys = ['position', 'orientation'], output_keys = [])
         self.arm = arm
-
         self.trans = trans
         self.motion_type_trans = motion_type_trans
         self.source_for_trans = source_for_trans
@@ -323,45 +331,90 @@ class LinearMovementSmach(smach.State):
 
     def ros_goal(self, userdata):
         goal = ptp.LinearMovementGoal()
-        if self.motion_type == 'relative':
-            goal.relative = True
-        elif self.motion_type == 'absolute':
-            goal.relative = False
-        else:
-            raise RuntimeError('Invalid motion type given.')
 
-        #quat = self._quat
-        if self.source_for_point != None:
-            p = userdata.point.pose.position
-            q = userdata.point.pose.orientation
+        # Look up inputs if they exist and grab data
+        trans = self.trans
+        if self.source_for_trans != None:
+            p = userdata.position.pose.position
             trans = [p.x, p.y, p.z]
+
+        quat = self.quat
+        if self.source_for_trans != None:
+            q = userdata.orientation.pose.orientation
             quat = [q.x, q.y, q.z, q.w]
-            frame = userdata.point.header.frame_id
 
-            #if self.arm == 'left':
-            #    tip = rospy.get_param('/l_cart/tip_name')
-            #    tool = 'l_gripper_tool_frame'
-            #if self.arm == 'right':
-            #    tip = rospy.get_param('/r_cart/tip_name')
-            #    tool = 'r_gripper_tool_frame'
+        # If data is relative, grab the frame and transform them
+       #   Four cases:
+        #    Relative position, relative orientation
+        #    Absolute position, relative orientation
+        #    Relative position, absolute orientation
+        #    Absolute position, Absolute orientation
 
-            #print 'point before', trans
-            #tip_T_tool = tr.tf_as_matrix(self.pr2.tf_listener.lookupTransform(tip, wrist, rospy.Time(0)))
-            #point_tip = tip_T_tool * tr.tf_as_matrix((trans,quat))
-            #trans, quat = matrix_as_tf(point_tip)
-            #print 'point after', trans
+        if self.motion_type_trans == 'relative':
 
-            quat = self.pr2.tf_listener.lookupTransform(frame, tip, rospy.Time(0))[1]
-        else:
-            trans = self.trans
-            frame = self.frame
-            quat = self.quat
+        if self.motion_type_trans == 'relative':
+
+        if self.motion_type_angles == 'absolute':
+
+        if self.motion_type_angles == 'relative':
+
+        #if self.source_for_trans != None:
+        #    p = userdata.point.pose.position
+        #    q = userdata.point.pose.orientation
+        #    trans = [p.x, p.y, p.z]
+        #    quat = [q.x, q.y, q.z, q.w]
+        #    frame = userdata.point.header.frame_id
+        #    quat = self.pr2.tf_listener.lookupTransform(frame, tip, rospy.Time(0))[1]
+        #else:
+        #    trans = self.trans
+        #    frame = self.frame
+        #    quat = self.quat
 
         pose = mat_to_pose(np.matrix(tr.translation_matrix(trans)) * np.matrix(tr.quaternion_matrix(quat)))
         goal.goal = stamp_pose(pose, frame)
         goal.trans_vel = self.vels[0]
         goal.rot_vel = self.vels[1]
         return goal
+
+        # Send goal with newly calculated points
+
+            rospy.loginfo('Received relative motion.')
+
+            #print 'tool frame is', self.tool_frame
+            #print 'goal frame is', goal_ps.header.frame_id
+
+            delta_ref  = pose_to_mat(goal_ps.pose)
+            tll_R_ref = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', goal_ps.header.frame_
+            tll_R_ref[0:3,3] = 0
+            delta_tll = tll_R_ref * delta_ref
+
+            #print 'delta_tll\n', delta_tll
+            tip_current_T_tll = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', self.tool_fra
+            #print 'tip_current_T_tll\n', tip_current_T_tll
+
+            #Find translation
+            delta_T = delta_tll.copy()
+            delta_T[0:3,0:3] = np.eye(3)
+            tip_T = delta_T * tip_current_T_tll
+
+            #Find rotation
+            tip_R = delta_tll[0:3, 0:3] * tip_current_T_tll[0:3, 0:3]
+
+
+            tip_new = np.matrix(np.eye(4))
+            tip_new[0:3, 0:3] = tip_R
+            tip_new[0:3, 3] = tip_T[0:3,3]
+
+            #print 'tip_new\n', tip_new
+            goal_ps = stamp_pose(mat_to_pose(tip_new), 'torso_lift_link')
+
+        #if self.motion_type == 'relative':
+        #    #goal.relative = True
+        #elif self.motion_type == 'absolute':
+        #    #goal.relative = False
+        #else:
+        #    raise RuntimeError('Invalid motion type given.')
+
 
     #TODO abstract this out!
     def execute(self, userdata):
@@ -407,6 +460,18 @@ class LinearMovementSmach(smach.State):
 
         return 'failed'
 
+            #if self.arm == 'left':
+            #    tip = rospy.get_param('/l_cart/tip_name')
+            #    tool = 'l_gripper_tool_frame'
+            #if self.arm == 'right':
+            #    tip = rospy.get_param('/r_cart/tip_name')
+            #    tool = 'r_gripper_tool_frame'
+
+            #print 'point before', trans
+            #tip_T_tool = tr.tf_as_matrix(self.pr2.tf_listener.lookupTransform(tip, wrist, rospy.Time(0)))
+            #point_tip = tip_T_tool * tr.tf_as_matrix((trans,quat))
+            #trans, quat = matrix_as_tf(point_tip)
+            #print 'point after', trans
 
 ##
 ## name maps to tool used to create it
