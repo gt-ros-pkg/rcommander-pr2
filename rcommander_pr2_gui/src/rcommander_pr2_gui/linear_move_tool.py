@@ -24,10 +24,158 @@ import actionlib_msgs.msg as am
 #          relative or absolute
 ##
 
+
+class ListManager:
+
+    def __init__(self, get_current_data_cb, set_current_data_cb, name_preffix='point'):
+        self.get_current_data_cb = get_current_data_cb
+        self.set_current_data_cb = set_current_data_cb
+        self.name_preffix = name_preffix
+        self.data_list = []
+
+    def item_selection_changed_cb(self):
+        selected = self.list_widget.selectedItems()
+        if len(selected) == 0:
+            return
+        idx = self._find_index_of(str(selected[0].text()))
+        self.curr_selected = idx
+        self.set_current_data_cb(self.data_list[idx])
+
+    def make_widgets(self, parent, connector):
+        self.list_box = QWidget(parent)
+        self.list_box_layout = QHBoxLayout(self.list_box)
+        self.list_box_layout.setMargin(0)
+
+        self.list_widget = QListWidget(self.list_box)
+        connector.connect(self.list_widget, SIGNAL('itemSelectionChanged()'), self.item_selection_changed_cb)
+        self.list_box_layout.addWidget(self.list_widget)
+
+        self.list_widget_buttons = QWidget(parent)
+        self.lbb_hlayout = QHBoxLayout(self.list_widget_buttons)
+
+        self.move_up_button = QPushButton(self.list_widget_buttons)
+        self.move_up_button.setText('Up')
+        connector.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
+        self.lbb_hlayout.addWidget(self.move_up_button)
+
+        self.move_down_button = QPushButton(self.list_widget_buttons)
+        self.move_down_button.setText('Down')
+        connector.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
+        self.lbb_hlayout.addWidget(self.move_down_button)
+
+        spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.lbb_hlayout.addItem(spacer)
+
+        self.add_button = QPushButton(self.list_widget_buttons)
+        self.add_button.setText('Add')
+        connector.connect(self.add_button, SIGNAL('clicked()'), self.add_joint_set_cb)
+
+        self.remove_button = QPushButton(self.list_widget_buttons)
+        self.remove_button.setText('Remove')
+        connector.connect(self.remove_button, SIGNAL('clicked()'), self.remove_pose_cb)
+
+        self.save_button = QPushButton(self.list_widget_buttons)
+        self.save_button.setText('Save')
+        connector.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
+
+        self.lbb_hlayout.addWidget(self.add_button)
+        self.lbb_hlayout.addWidget(self.remove_button)
+        self.lbb_hlayout.addWidget(self.save_button)
+        self.lbb_hlayout.setContentsMargins(2, 2, 2, 2)
+        return [self.list_box, self.list_widget_buttons]
+
+
+    def _refill_list_widget(self, data_list):
+        self.list_widget.clear()
+        for d in data_list:
+            self.list_widget.addItem(d['name'])
+
+    def _create_name(self):
+        idx = len(self.data_list)
+        tentative_name = self.name_preffix + ('%d' % idx)
+        while self._has_name(tentative_name):
+            idx = idx + 1
+            tentative_name = self.name_preffix + ('%d' % idx)
+        return tentative_name
+
+    def add_joint_set_cb(self):
+        name = self._create_name()
+        self.data_list.append({'name': name, 
+                               'data': self.current_data_cb()})
+        self._refill_list_widget(self.data_list)
+
+    def move_up_cb(self):
+        #get the current index
+        idx = self._selected_idx()
+        if idx == None:
+            return
+
+        #pop & insert it
+        item = self.data_list.pop(idx)
+        self.data_list.insert(idx-1, item)
+
+        #refresh
+        self._refill_list_widget(self.data_list)
+        self.list_widget.setCurrentItem(self.list_widget.item(idx-1))
+
+    def move_down_cb(self):
+        #get the current index
+        idx = self._selected_idx()
+        if idx == None:
+            return
+
+        #pop & insert it
+        item = self.data_list.pop(idx)
+        self.data_list.insert(idx+1, item)
+
+        #refresh
+        self._refill_list_widget(self.data_list)
+        self.list_widget.setCurrentItem(self.list_widget.item(idx+1))
+
+    def save_button_cb(self):
+        idx = self._selected_idx()
+        if idx == None:
+            return
+        el = self.data_list[idx]
+        self.data_list[idx] = {'name': el['name'],
+                               'data': self.current_data_cb()}
+
+    def remove_pose_cb(self):
+        idx = self._selected_idx()
+        if idx == None:
+            return
+        if idx == None:
+            raise RuntimeError('Inconsistency detected in list')
+        else:
+            self.data_list.pop(idx)
+        self._refill_list_widget(self.data_list)
+
+def selected_radio_button(buttons_list):
+    selected = None
+    for r in buttons_list:
+        if r.isChecked():
+            selected = str(r.text())
+    return selected
+
+def position(point):
+    return [point.x, point.y, point.z]
+
+def quaternion(quaternion):
+    return [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
+
+def combobox_idx(combobox, name):
+    if name == None:
+        name = ' '
+    idx = combobox.findText(name)
+    if idx == -1:
+        combobox.addItem(name)
+        idx = combobox.findText(name)
+    return idx
+
 #
 # controller and view
 # create and edits smach states
-class LinearMoveTool(tu.ToolBase):
+class PositionPriorityMoveTool(tu.ToolBase):
 
     #LEFT_TIP = 'l_gripper_tool_frame'
     #RIGHT_TIP = 'r_gripper_tool_frame'
@@ -35,313 +183,513 @@ class LinearMoveTool(tu.ToolBase):
     RIGHT_TIP = rospy.get_param('/r_cart/tip_name')
 
     def __init__(self, rcommander):
-        tu.ToolBase.__init__(self, rcommander, 'linear_move', 'Linear Move', LinearMoveState)
+        tu.ToolBase.__init__(self, rcommander, 'position_priority', 'Position Priority', PositionPriorityState)
         self.default_frame = '/torso_lift_link'
         self.tf_listener = rcommander.tf_listener
+        #self.suggested_frames = ['/base_link', '/torso_lift_link', '/l_gripper_tool_frame', '/r_gripper_tool_frame']
 
     def fill_property_box(self, pbox):
+        #self.list_manager = ListManager(self._get_input_boxes, self._set_input_boxes)
         formlayout = pbox.layout()
 
-        self.arm_box = QComboBox(pbox)
-        self.arm_box.addItem('left')
-        self.arm_box.addItem('right')
-
-        self.motion_box_position = QComboBox(pbox)
-        self.motion_box_position.addItem('relative')
-        self.motion_box_position.addItem('absolute')
-
-        self.motion_box_orientation = QComboBox(pbox)
-        self.motion_box_orientation.addItem('relative')
-        self.motion_box_orientation.addItem('absolute')
-
-        self.source_box_position = QComboBox(pbox)
-        self.source_box_orientation = QComboBox(pbox)
-        self.source_box_position.addItem(' ')
-        self.source_box_orientation.addItem(' ')
-        #nodes = self.rcommander.outputs_of_type(ptl.Point3DState)
-        nodes = self.rcommander.outputs_of_type(geo.PoseStamped)
-        for n in nodes:
-            self.source_box_position.addItem(n)
-            self.source_box_orientation.addItem(n)
-        self.rcommander.connect(self.source_box_position, SIGNAL('currentIndexChanged(int)'),    self.source_changed_position)
-        self.rcommander.connect(self.source_box_orientation, SIGNAL('currentIndexChanged(int)'), self.source_changed_orientation)
-
-        self.xline = QLineEdit(pbox)
-        self.yline = QLineEdit(pbox)
-        self.zline = QLineEdit(pbox)
-
-        self.phi_line   = QLineEdit(pbox)
-        self.theta_line = QLineEdit(pbox)
-        self.psi_line   = QLineEdit(pbox)
-
-        self.trans_vel_line = QLineEdit(pbox)
-        self.rot_vel_line = QLineEdit(pbox)
-
-        #Only keep a few good frames.
+        #Make frame selection
         self.frame_box = QComboBox(pbox)
         for f in self.tf_listener.getFrameStrings():
             self.frame_box.addItem(f)
+
+        #Make source point selection
+        self.posestamped_outputs  = self.rcommander.outputs_of_type(geo.PoseStamped)
+        self.pointstamped_outputs = self.rcommander.outputs_of_type(geo.PointStamped)
+        self.source_box = QComboBox(pbox)
+        self.source_box.addItem(' ')
+        for n in (self.posestamped_outputs + self.pointstamped_outputs):
+            self.source_box.addItem(n)
+        self.rcommander.connect(self.source_box, SIGNAL('currentIndexChanged(int)'),    self.source_changed)
+
+        task_frame_box = QGroupBox('Origin', pbox)
+        task_frame_layout = QFormLayout(task_frame_box)
+        task_frame_box.setLayout(task_frame_layout)
+        task_frame_layout.addRow('&Frame', self.frame_box)
+        task_frame_layout.addRow('&Source', self.source_box)
+
+        #Group Position
+        self.xline = QLineEdit(pbox)
+        self.yline = QLineEdit(pbox)
+        self.zline = QLineEdit(pbox)
+        self.trans_vel_line = QLineEdit(pbox)
+        position_box = QGroupBox('Position', pbox)
+        position_layout = QFormLayout(position_box)
+        position_box.setLayout(position_layout)
+        position_layout.addRow("&X", self.xline)
+        position_layout.addRow("&Y", self.yline)
+        position_layout.addRow("&Z", self.zline)
+        position_layout.addRow('&Velocity', self.trans_vel_line)
+
+        #Group Orientation
+        self.phi_line   = QLineEdit(pbox)
+        self.theta_line = QLineEdit(pbox)
+        self.psi_line   = QLineEdit(pbox)
+        self.rot_vel_line   = QLineEdit(pbox)
+        orientation_box = QGroupBox('Orientation', pbox)
+        orientation_layout = QFormLayout(orientation_box)
+        orientation_box.setLayout(orientation_layout)
+        
+        orientation_layout.addRow("&Phi",   self.phi_line)
+        orientation_layout.addRow("&Theta", self.theta_line)
+        orientation_layout.addRow("&Psi",   self.psi_line)
+        orientation_layout.addRow('&Velocity', self.rot_vel_line)
+
+        self.arm_radio_boxes, self.arm_radio_buttons = tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
+        self.timeout_box = QDoubleSpinBox(pbox)
+        self.timeout_box.setMinimum(0)
+        self.timeout_box.setMaximum(1000.)
+        self.timeout_box.setSingleStep(.2)
+        motion_box = QGroupBox('Motion', pbox)
+        motion_layout = QFormLayout(motion_box)
+        motion_box.setLayout(motion_layout)
+        motion_layout.addRow("&Arm", self.arm_radio_boxes)
+        motion_layout.addRow('&Time Out', self.timeout_box)
 
         self.pose_button = QPushButton(pbox)
         self.pose_button.setText('Current Pose')
         self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_pose)
 
-        self.time_box = QDoubleSpinBox(pbox)
-        self.time_box.setMinimum(0)
-        self.time_box.setMaximum(1000.)
-        self.time_box.setSingleStep(.2)
-
-        #Group Global
-        formlayout.addRow("&Arm", self.arm_box)
-        formlayout.addRow("&Frame", self.frame_box)
-        formlayout.addRow('&Time Out', self.time_box)
-
-        #Group Position
-        position_box = QGroupBox('Position', pbox)
-        position_layout = QFormLayout(position_box)
-        position_box.setLayout(position_layout)
-
-        position_layout.addRow("&Mode", self.motion_box_position)
-        position_layout.addRow("&Point Input", self.source_box_position)
-        position_layout.addRow("&X", self.xline)
-        position_layout.addRow("&Y", self.yline)
-        position_layout.addRow("&Z", self.zline)
-        position_layout.addRow('&Velocity', self.trans_vel_line)
+        formlayout.addRow(task_frame_box)
         formlayout.addRow(position_box)
-
-        #Group Orientation
-        orientation_box = QGroupBox('Orientation', pbox)
-        orientation_layout = QFormLayout(orientation_box)
-        orientation_box.setLayout(orientation_layout)
-        
-        orientation_layout.addRow("&Mode", self.motion_box_orientation)
-        orientation_layout.addRow("&Point Input", self.source_box_orientation)
-        orientation_layout.addRow("&Phi",   self.phi_line)
-        orientation_layout.addRow("&Theta", self.theta_line)
-        orientation_layout.addRow("&Psi",   self.psi_line)
-        orientation_layout.addRow('&Velocity', self.rot_vel_line)
         formlayout.addRow(orientation_box)
-
+        formlayout.addRow(motion_box)
         formlayout.addRow(self.pose_button)
         self.reset()
 
-    def source_changed_position(self, index):
-        self.source_box_position.setCurrentIndex(index)
-        if str(self.source_box_position.currentText()) != ' ':
-            self.xline.setEnabled(False)
-            self.yline.setEnabled(False)
-            self.zline.setEnabled(False)
-            self.motion_box_position.setCurrentIndex(self.motion_box_position.findText('absolute'))
-            self.motion_box_position.setEnabled(False)
+    def source_changed(self, index):
+        self.source_box.setCurrentIndex(index)
+        source_name = str(self.source_box.currentText())
+        if source_name != ' ':
+            #If the thing selected is a pose stamped, disable frame box!
+            if source_name in self.posestamped_outputs:
+                self.frame_box.setEnabled(False)
+            else:
+                self.frame_box.setEnabled(True)
+            #self.xline.setEnabled(False)
+            #self.yline.setEnabled(False)
+            #self.zline.setEnabled(False)
+            #self.motion_box_position.setCurrentIndex(self.motion_box_position.findText('absolute'))
+            #self.motion_box_position.setEnabled(False)
         else:
-            self.xline.setEnabled(True)
-            self.yline.setEnabled(True)
-            self.zline.setEnabled(True)
-            self.motion_box_position.setEnabled(True)
+            self.frame_box.setEnabled(True)
+            #self.xline.setEnabled(True)
+            #self.yline.setEnabled(True)
+            #self.zline.setEnabled(True)
+            #self.motion_box_position.setEnabled(True)
 
-    def source_changed_orientation(self, index):
-        self.source_box_orientation.setCurrentIndex(index)
-        if str(self.source_box_orientation.currentText()) != ' ':
-            self.phi_line.setEnabled(False)
-            self.theta_line.setEnabled(False)
-            self.psi_line.setEnabled(False)
-            self.motion_box_orientation.setCurrentIndex(self.motion_box_orientation.findText('absolute'))
-            self.motion_box_orientation.setEnabled(False)
-        else:
-            self.phi_line.setEnabled(True)
-            self.theta_line.setEnabled(True)
-            self.psi_line.setEnabled(True)
-            self.motion_box_orientation.setEnabled(True) 
+    #def source_changed_orientation(self, index):
+    #    self.source_box_orientation.setCurrentIndex(index)
+    #    if str(self.source_box_orientation.currentText()) != ' ':
+    #        self.phi_line.setEnabled(False)
+    #        self.theta_line.setEnabled(False)
+    #        self.psi_line.setEnabled(False)
+    #        #self.motion_box_orientation.setCurrentIndex(self.motion_box_orientation.findText('absolute'))
+    #        #self.motion_box_orientation.setEnabled(False)
+    #    else:
+    #        self.phi_line.setEnabled(True)
+    #        self.theta_line.setEnabled(True)
+    #        self.psi_line.setEnabled(True)
+    #        #self.motion_box_orientation.setEnabled(True) 
 
     def get_current_pose(self):
         frame_described_in = str(self.frame_box.currentText())
-        left = ('left' == str(self.arm_box.currentText()))
-        if not left:
-            arm_tip_frame = LinearMoveTool.RIGHT_TIP
+        arm = selected_radio_button(self.arm_radio_buttons).lower()
+        if arm == 'right':
+            arm_tip_frame = PositionPriorityMoveTool.RIGHT_TIP
         else:
-            arm_tip_frame = LinearMoveTool.LEFT_TIP
-        
-        #print 'getting pose for', arm_tip_frame, left, str(self.arm_box.currentText())
+            arm_tip_frame = PositionPriorityMoveTool.LEFT_TIP
         self.tf_listener.waitForTransform(frame_described_in, arm_tip_frame, rospy.Time(), rospy.Duration(2.))
         p_arm = tfu.tf_as_matrix(self.tf_listener.lookupTransform(frame_described_in, arm_tip_frame, rospy.Time(0)))
         trans, rotation = tr.translation_from_matrix(p_arm), tr.quaternion_from_matrix(p_arm)
-
         for value, vr in zip(trans, [self.xline, self.yline, self.zline]):
             vr.setText("%.3f" % value)
         for value, vr in zip(tr.euler_from_quaternion(rotation), [self.phi_line, self.theta_line, self.psi_line]):
             vr.setText("%.3f" % np.degrees(value))
 
-        self.motion_box_position.setCurrentIndex(self.motion_box_position.findText('absolute'))
-        self.motion_box_orientation.setCurrentIndex(self.motion_box_orientation.findText('absolute'))
 
     def new_node(self, name=None):
-        trans  = [float(vr.text()) for vr in [self.xline, self.yline, self.zline]]
-        angles = [float(vr.text()) for vr in [self.phi_line, self.theta_line, self.psi_line]]
-        frame  = str(self.frame_box.currentText())
-        trans_vel = float(str(self.trans_vel_line.text()))
-        rot_vel   = float(str(self.rot_vel_line.text()))
-        source_name_orientation = str(self.source_box_orientation.currentText())
-        source_name_position = str(self.source_box_position.currentText())
-        timeout = self.time_box.value()
-
-        if source_name_position == ' ':
-            source_name_position = None
-        if source_name_orientation == ' ':
-            source_name_orientation = None
-
+        #make name
         if name == None:
             nname = self.name + str(self.counter)
         else:
             nname = name
 
-        return LinearMoveState(nname, str(self.arm_box.currentText()),
-                trans,  str(self.motion_box_position.currentText()), source_name_position,
-                angles, str(self.motion_box_orientation.currentText()), source_name_orientation,
-                [trans_vel, rot_vel], frame, timeout)
-        #state = NavigateState(nname, xy, theta, frame)
-        #return state
+        #make pose
+        pose  = geo.Pose()
+        pose.position = geo.Point(*[float(vr.text()) for vr in [self.xline, self.yline, self.zline]])
+        pose.orientation = geo.Quaternion(*tr.quaternion_from_euler(*[float(vr.text()) for vr in [self.phi_line, self.theta_line, self.psi_line]]))
+
+        #other properties
+        trans_vel = float(str(self.trans_vel_line.text()))
+        rot_vel   = float(str(self.rot_vel_line.text()))
+        arm = selected_radio_button(self.arm_radio_buttons).lower()
+        frame  = str(self.frame_box.currentText())
+        timeout = self.timeout_box.value()
+        source_for_origin = str(self.source_box.currentText())
+        if source_for_origin == ' ':
+            source_for_origin = None
+
+        return PositionPriorityState(nname,
+                pose, trans_vel, rot_vel, 
+                arm, frame, timeout, source_for_origin)
 
 
     def set_node_properties(self, node):
-        for value, vr in zip(node.trans, [self.xline, self.yline, self.zline]):
+        #node.pose
+        for value, vr in zip(position(node.pose.position), [self.xline, self.yline, self.zline]):
             vr.setText(str(value))
-        for value, vr in zip(node.get_angles(), [self.phi_line, self.theta_line, self.psi_line]):
+        for value, vr in zip(tr.euler_from_quaternion(quaternion(node.pose.orientation)), [self.phi_line, self.theta_line, self.psi_line]):
             vr.setText(str(value))
+
+        self.trans_vel_line.setText(str(node.trans_vel))
+        self.rot_vel_line.setText(str(node.rot_vel))
+
+        if node.arm == 'left':
+            self.arm_radio_buttons[0].setChecked(True)
+        if node.arm == 'right':
+            self.arm_radio_buttons[1].setChecked(True)
 
         self.frame_box.setCurrentIndex(self.frame_box.findText(str(node.frame)))
-        self.motion_box_position.setCurrentIndex(self.motion_box_position.findText(str(node.motion_type)))
-        self.motion_box_orientation.setCurrentIndex(self.motion_box_orientation.findText(str(node.motion_type)))
-        self.arm_box.setCurrentIndex(self.arm_box.findText(node.arm))
+        self.timeout_box.setValue(node.timeout)
 
-        self.trans_vel_line.setText(str(node.vels[0]))
-        self.rot_vel_line.setText(str(node.vels[1]))
-        self.time_box.setValue(node.timeout)
-
-        source_name_position    = node.remapping_for('position')
-        if source_name_position == None:
-            source_name_position = ' '
-            idx_position = self.source_box_position.findText(source_name_position)
-        else:
-            idx_position = self.source_box_position.findText(source_name_position)
-            if idx_position == -1:
-                self.source_box_position.addItem(source_name_position)
-                idx_position = self.source_box_position.findText(source_name_position)
-        self.source_changed_orientation(idx_position)
-
-        source_name_orientation = node.remapping_for('orientation')
-        if source_name_orientation == None:
-            source_name_orientation = ' '
-            idx_orientation = self.source_box_orientation.findText(source_name_orientation)
-        else:
-            idx_orientation = self.source_box_orientation.findText(source_name_orientation)
-            if idx_orientation == -1:
-                self.source_box_orientation.addItem(source_name_orientation)
-                idx_orientation = self.source_box_orientation.findText(source_name_orientation)
-        self.source_changed_orientation(idx_orientation)
-
+        #Set sources
+        idx = combobox_idx(self.source_box, node.remapping_for('origin'))
+        self.source_changed(idx)
 
     def reset(self):
-        for vr in [self.xline, self.yline, self.zline]:
-            vr.setText(str(0.0))
-        for vr in [self.phi_line, self.theta_line, self.psi_line]:
-            vr.setText(str(0.0))
-
         self.frame_box.setCurrentIndex(self.frame_box.findText(self.default_frame))
-        self.motion_box_position.setCurrentIndex(self.motion_box_position.findText('relative'))
-        self.motion_box_orientation.setCurrentIndex(self.motion_box_orientation.findText('relative'))
+        self.source_box.setCurrentIndex(self.source_box.findText(' '))
+        for vr in [self.xline, self.yline, self.zline, self.phi_line, self.theta_line, self.psi_line]:
+            vr.setText(str(0.0))
         self.trans_vel_line.setText(str(.02))
         self.rot_vel_line.setText(str(.16))
-        self.time_box.setValue(20)
-        self.source_box_orientation.setCurrentIndex(self.source_box_orientation.findText(' '))
-        self.source_box_position.setCurrentIndex(self.source_box_position.findText(' '))
-        self.arm_box.setCurrentIndex(self.arm_box.findText('left'))
+        self.timeout_box.setValue(20)
+        self.arm_radio_buttons[0].setChecked(True)
 
+        #self.motion_box_position.setCurrentIndex(self.motion_box_position.findText('relative'))
+        #self.motion_box_orientation.setCurrentIndex(self.motion_box_orientation.findText('relative'))
+        #self.source_box_orientation.setCurrentIndex(self.source_box_orientation.findText(' '))
+        #self.source_box_position.setCurrentIndex(self.source_box_position.findText(' '))
+        #self.arm_box.setCurrentIndex(self.arm_box.findText('left'))
 
-class LinearMoveState(tu.StateBase): # smach_ros.SimpleActionState):
 
     ##
     # @param name
     # @param trans list of 3 floats
     # @param angles in euler list of 3 floats
     # @param frame 
-    def __init__(self, name, arm,
-        trans,  motion_type_trans,  source_trans,
-        angles, motion_type_angles, source_angles,
-        vels, frame, timeout):
+    #def __init__(self, name, arm,
+    #    trans,  motion_type_trans,  source_trans,
+    #    angles, motion_type_angles, source_angles,
+    #    vels, frame, timeout):
 
+    #    tu.StateBase.__init__(self, name)
+    #    self.arm = arm
+
+    #    self.trans = trans
+    #    self.motion_type_trans = motion_type_trans
+    #    self.set_remapping_for('position', source_trans)
+
+    #    self.set_angles(angles)
+    #    self.motion_type_angles = motion_type_angles
+    #    self.set_remapping_for('orientation', source_angles)
+
+    #    self.vels = vels
+    #    self.frame = frame
+    #    self.timeout = timeout
+    #    #self.angles = angles #convert angles to _quat
+
+class PositionPriorityState(tu.StateBase): # smach_ros.SimpleActionState):
+
+    def __init__(self, name, pose, trans_vel, rot_vel, 
+            arm, frame, timeout, source_for_origin):
         tu.StateBase.__init__(self, name)
+        self.pose  = pose
+        self.trans_vel = trans_vel
+        self.rot_vel = rot_vel
+
         self.arm = arm
-
-        self.trans = trans
-        self.motion_type_trans = motion_type_trans
-        self.set_remapping_for('position', source_trans)
-
-        self.set_angles(angles)
-        self.motion_type_angles = motion_type_angles
-        self.set_remapping_for('orientation', source_angles)
-
-        self.vels = vels
         self.frame = frame
         self.timeout = timeout
-        #self.angles = angles #convert angles to _quat
+        self.set_remapping_for('origin', source_for_origin)
 
-    def set_angles(self, euler_angs):
-        ang_rad = [np.radians(e) for e in euler_angs]
-        self.quat = tr.quaternion_from_euler(*ang_rad)
-        #self._quat = tr.quaternion_from_euler(euler_angs[0], euler_angs[1], euler_angs[2])
-    
-    def get_angles(self):
-        return [np.degrees(e) for e in tr.euler_from_quaternion(self.quat)]
-    #angles = property(_get_angles, _set_angles)
+    #def set_angles(self, euler_angs):
+    #    ang_rad = [np.radians(e) for e in euler_angs]
+    #    self.quat = tr.quaternion_from_euler(*ang_rad)
+    #    #self._quat = tr.quaternion_from_euler(euler_angs[0], euler_angs[1], euler_angs[2])
+    #
+    #def get_angles(self):
+    #    return [np.degrees(e) for e in tr.euler_from_quaternion(self.quat)]
+    ##angles = property(_get_angles, _set_angles)
 
     def get_smach_state(self):
-        return LinearMovementSmach(self.arm,
-                  self.trans, self.motion_type_trans, self.remapping_for('position'),
-                  self.quat, self.motion_type_angles, self.remapping_for('orientation'),
-                  self.vels, self.frame, self.timeout)
+        #return LinearMovementSmach(self.arm,
+        #          self.trans, self.motion_type_trans, self.remapping_for('position'),
+        #          self.quat, self.motion_type_angles, self.remapping_for('orientation'),
+        #          self.vels, self.frame, self.timeout)
+        return PositionPrioritySmach(self.pose, self.trans_vel, self.rot_vel,
+                self.arm, self.frame, self.timeout, self.remapping_for('origin'))
+
         #return LinearMovementSmach(motion_type = self.motion_type, arm = self.arm, trans = self.trans, 
         #        quat = self.quat, frame = self.frame, vels = self.vels, 
         #        source_for_point = self.remapping_for('point'), timeout=self.timeout)
 
-class LinearMovementSmach(smach.State):
 
-    def __init__(self, arm, 
-          trans, motion_type_trans, source_for_trans, 
-          quat,  motion_type_angles, source_for_quat,
-          vels, frame,  timeout):
+def origin_to_frame(origin, supplement_frame, tf_listener, command_frame):
+    m = origin
+    if instanceof(m, geo.PointStamped):
+        #point in some frame, needs orientation...
+        CMD_T_pf = tfu.tf_as_matrix(tf_listener.lookupTransform(COMMAND_FRAME, m.header.frame_id, rospy.Time(0)))
+        p_CMD = CMD_T_pf * np.matrix([m.x, m.y, m.z, 1.]).T
+        CMD_T_f = tfu.tf_as_matrix(tf_listener.lookupTransform(COMMAND_FRAME, supplement_frame, rospy.Time(0)))
+        CMD_T_frame = tll_T_f.copy()
+        CMD_T_frame[0:3, 3] = p_CMD[0:3, 0]
+    #If it's a pose stamped then we turn the pose stamped into a frame?
+    elif instanceof(m, geo.PoseStamped):
+        fid_T_p = pose_to_mat(m.pose)
+        CMD_T_fid = tfu.tf_as_matrix(tf_listener.lookupTransform(COMMAND_FRAME, m.header.frame_id, rospy.Time(0)))
+        CMD_T_frame = CMD_T_fid * fid_T_p
+    else:
+        raise RuntimeError('Got origin that is an instance of ' + str(m.__class__))
 
+    return CMD_T_frame
+
+
+class PositionPrioritySmach(smach.State):
+
+    def __init__(self, pose, trans_vel, rot_vel, arm, frame, timeout, source_for_origin):
         smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], 
-                             input_keys = ['position', 'orientation'], output_keys = [])
-        self.arm = arm
-        self.trans = trans
-        self.motion_type_trans = motion_type_trans
-        self.source_for_trans = source_for_trans
-        
-        self.quat = quat
-        self.motion_type_angles = motion_type_angles
-        self.source_for_quat = source_for_quat
+                             input_keys = ['origin'], output_keys = [])
+        self.COMMAND_FRAME = '/torso_lift_link'
 
-        self.vels = vels
+        self.pose  = pose
+        self.trans_vel = trans_vel
+        self.rot_vel = rot_vel
+
+        self.action_client = actionlib.SimpleActionClient(arm + '_ptp', ptp.LinearMovementAction)
         self.frame = frame
         self.timeout = timeout
-        self.action_client = actionlib.SimpleActionClient(arm + '_ptp', ptp.LinearMovementAction)
+        self.source_for_origin = source_for_origin
 
-    def set_robot(self, robot):
-        self.pr2 = robot
+    def execute_goal(self, goal, timeout):
+        self.action_client.send_goal(goal)
+        succeeded = False
+        preempted = False
+        r = rospy.Rate(30)
+        start_time = rospy.get_time()
 
-    def ros_goal(self, userdata):
+        while True:
+            #we have been preempted
+            if self.preempt_requested():
+                rospy.loginfo('PositionPrioritySmach: preempt requested')
+                self.action_client.cancel_goal()
+                self.service_preempt()
+                preempted = True
+                break
+
+            if (rospy.get_time() - start_time) > timeout:
+                self.action_client.cancel_goal()
+                rospy.loginfo('PositionPrioritySmach: timed out!')
+                succeeded = False
+                break
+
+            #print tu.goal_status_to_string(state)
+            state = self.action_client.get_state()
+            if (state not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING]):
+                if state == am.GoalStatus.SUCCEEDED:
+                    rospy.loginfo('PositionPrioritySmach: Succeeded!')
+                    succeeded = True
+                break
+
+            r.sleep()
+
+        if preempted:
+            return 'preempted'
+
+        if succeeded:
+            return 'succeeded'
+
+        return 'failed'
+
+    def execute(self, userdata):
+        #Need to figure out the point as expressed in its new target frame as
+        #the target frame might not be in TF 
+        if self.source_for_origin != None:
+            #Frame is not in TF so call helper
+            CMD_T_frame = origin_to_frame(userdata.origin, self.frame, self.pr2.tf_listener, self.COMMAND_FRAME)
+        else:
+            #Frame is in TF so everything is OK
+            CMD_T_frame = tfu.tf_as_matrix(self.pr2.tf_listener.lookupTransform(self.COMMAND_FRAME, self.frame, rospy.Time(0)))
+
         goal = ptp.LinearMovementGoal()
+        goal.goal      = stamp_pose(mat_to_pose(CMD_T_frame * pose_to_mat(self.pose)), self.COMMAND_FRAME)
+        goal.trans_vel = self.trans_vel
+        goal.rot_vel   = self.rot_vel
+        self.execute_goal(goal, self.timeout)
 
-        # Look up inputs if they exist and grab data
-        trans = self.trans
-        if self.source_for_trans != None:
-            p = userdata.position.pose.position
-            trans = [p.x, p.y, p.z]
 
-        quat = self.quat
-        if self.source_for_trans != None:
-            q = userdata.orientation.pose.orientation
-            quat = [q.x, q.y, q.z, q.w]
+
+
+#def make_radio_box(parent, options, name_preffix):
+#    container_name = name_preffix + '_radio_box'
+#
+#    container = qtg.QWidget(parent)
+#    container.setObjectName(container_name)
+#    hlayout = qtg.QHBoxLayout(container)
+#    radio_buttons = []
+#
+#    for option in options:
+#        r = qtg.QRadioButton(container)
+#        r.setObjectName(name_preffix + '_' + option)
+#        r.setText(option)
+#        hlayout.addWidget(r)
+#        radio_buttons.append(r)
+#    radio_buttons[0].setChecked(True)
+#
+#    return container, radio_buttons
+
+
+
+#class LinearMovementSmach(smach.State):
+#
+#    def __init__(self, arm):
+#
+#    def set_robot(self, robot):
+#        self.pr2 = robot
+#
+#    def execute(self, userdata):
+#        self.source_for
+#        self.pr2
+#        self.frame
+#        userdata.message
+#        self.poses = {'timeout':p, 'trans_vel':p, 'rot_vel'p}
+#
+#        COMMAND_FRAME = '/torso_lift_link'
+#        # Look up inputs if they exist and grab data
+#        if self.source_for != None:
+#            m = userdata.message
+#            #If it's a point stamped then we create a frame.
+#            if instanceof(m, geo.PointStamped):
+#                #point in some frame, needs orientation...
+#                CMD_T_pf = tr.tf_as_matrix(self.pr2.tf_listener.lookupTransform(COMMAND_FRAME, m.header.frame_id, rospy.Time(0)))
+#                p_CMD = CMD_T_pf * np.matrix([m.x, m.y, m.z, 1.]).T
+#                CMD_T_f = tr.tf_as_matrix(self.pr2.tf_listener.lookupTransform(COMMAND_FRAME, self.frame, rospy.Time(0)))
+#                CMD_T_frame = tll_T_f.copy()
+#                CMD_T_frame[0:3, 3] = p_CMD[0:3, 0]
+#            #If it's a pose stamped then we turn the pose stamped into a frame?
+#            elif instanceof(m, geo.PoseStamped):
+#                fid_T_p = pose_to_mat(m.pose)
+#                CMD_T_fid = tr.tf_as_matrix(self.pr2.tf_listener.lookupTransform(COMMAND_FRAME, m.header.frame_id, rospy.Time(0)))
+#                CMD_T_frame = CMD_T_fid * fid_T_p
+#            else:
+#                raise RuntimeError('Got message that is an instance of ' + str(m.__class__))
+#        else:
+#            CMD_T_frame = tr.tf_as_matrix(self.pr2.tf_listener.lookupTransform(COMMAND_FRAME, self.frame, rospy.Time(0)))
+#
+#        # For each point in trajectory (expressed in given frame), reexpress it in TLL then
+#        # If we're sending this to the action server (which tries to guarantee success)
+#        # then send the point.  If not, send to *_cart
+#        # Look up the frame we need to transform point to: CMD_T_frame
+#        for p in self.poses:
+#            p_CMD = CMD_T_frame * pose_to_mat(p['pose'])
+#            timeout = p['timeout']
+#            #SEND command, wait for timeout
+#            goal = ptp.LinearMovementGoal()
+#            goal.goal      = stamp_pose(mat_to_pose(p_CMD), COMMAND_FRAME)
+#            goal.trans_vel = p['trans_vel']
+#            goal.rot_vel   = p['rot_vel']
+#            self.action_client.send_goal(goal)
+#
+#    ##
+#    # failure and success depends on the *last goal* in trajectory
+#    def execute(self, userdata):
+#        r = rospy.Rate(30)
+#        ret = 'failed'
+#        for goal, timeout in self.ros_goal(userdata):
+#            ret = self.execute_goal(goal, timeout)
+#            if ret == 'preempted':
+#                return ret
+#        return ret
+#
+#    def execute_goal(self, goal, timeout):
+#        self.action_client.send_goal(goal)
+#        succeeded = False
+#        preempted = False
+#        r = rospy.Rate(30)
+#        start_time = rospy.get_time()
+#
+#        while True:
+#            #we have been preempted
+#            if self.preempt_requested():
+#                rospy.loginfo('LinearMoveStateSmach: preempt requested')
+#                self.action_client.cancel_goal()
+#                self.service_preempt()
+#                preempted = True
+#                break
+#
+#            if (rospy.get_time() - start_time) > timeout:
+#                self.action_client.cancel_goal()
+#                rospy.loginfo('LinearMoveStateSmach: timed out!')
+#                succeeded = False
+#                break
+#
+#            #print tu.goal_status_to_string(state)
+#            state = self.action_client.get_state()
+#            if (state not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING]):
+#                if state == am.GoalStatus.SUCCEEDED:
+#                    rospy.loginfo('LinearMoveStateSmach: Succeeded!')
+#                    succeeded = True
+#                break
+#
+#            r.sleep()
+#
+#        if preempted:
+#            return 'preempted'
+#
+#        if succeeded:
+#            return 'succeeded'
+#
+#        return 'failed'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        #action: point sent to ptp_action commands the TIP of the gripper.
+        #*_cart: point sent controls the WRIST (so we'll need to do some adjustments)
+
+
+
+
+
+        #Our input is either a frame or a PoseStamped or a PointStamped
+
+        #trans = self.trans
+        #if self.source_for_trans != None:
+        #    p = userdata.position.pose.position
+        #    trans = [p.x, p.y, p.z]
+
+        #quat = self.quat
+        #if self.source_for_trans != None:
+        #    q = userdata.orientation.pose.orientation
+        #    quat = [q.x, q.y, q.z, q.w]
 
         # If data is relative, grab the frame and transform them
        #   Four cases:
@@ -350,13 +698,13 @@ class LinearMovementSmach(smach.State):
         #    Relative position, absolute orientation
         #    Absolute position, Absolute orientation
 
-        if self.motion_type_trans == 'relative':
+        #if self.motion_type_trans == 'relative':
 
-        if self.motion_type_trans == 'relative':
+        #if self.motion_type_trans == 'relative':
 
-        if self.motion_type_angles == 'absolute':
+        #if self.motion_type_angles == 'absolute':
 
-        if self.motion_type_angles == 'relative':
+        #if self.motion_type_angles == 'relative':
 
         #if self.source_for_trans != None:
         #    p = userdata.point.pose.position
@@ -370,95 +718,76 @@ class LinearMovementSmach(smach.State):
         #    frame = self.frame
         #    quat = self.quat
 
-        pose = mat_to_pose(np.matrix(tr.translation_matrix(trans)) * np.matrix(tr.quaternion_matrix(quat)))
-        goal.goal = stamp_pose(pose, frame)
-        goal.trans_vel = self.vels[0]
-        goal.rot_vel = self.vels[1]
-        return goal
+        # pose = mat_to_pose(np.matrix(tr.translation_matrix(trans)) * np.matrix(tr.quaternion_matrix(quat)))
+        # goal.goal = stamp_pose(pose, frame)
+        # goal.trans_vel = self.vels[0]
+        # goal.rot_vel = self.vels[1]
+        # return goal
 
-        # Send goal with newly calculated points
+        ## Send goal with newly calculated points
 
-            rospy.loginfo('Received relative motion.')
+        #    rospy.loginfo('Received relative motion.')
 
-            #print 'tool frame is', self.tool_frame
-            #print 'goal frame is', goal_ps.header.frame_id
+        #    #print 'tool frame is', self.tool_frame
+        #    #print 'goal frame is', goal_ps.header.frame_id
 
-            delta_ref  = pose_to_mat(goal_ps.pose)
-            tll_R_ref = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', goal_ps.header.frame_
-            tll_R_ref[0:3,3] = 0
-            delta_tll = tll_R_ref * delta_ref
+        #    delta_ref  = pose_to_mat(goal_ps.pose)
+        #    tll_R_ref = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', goal_ps.header.frame_
+        #    tll_R_ref[0:3,3] = 0
+        #    delta_tll = tll_R_ref * delta_ref
 
-            #print 'delta_tll\n', delta_tll
-            tip_current_T_tll = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', self.tool_fra
-            #print 'tip_current_T_tll\n', tip_current_T_tll
+        #    #print 'delta_tll\n', delta_tll
+        #    tip_current_T_tll = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', self.tool_fra
+        #    #print 'tip_current_T_tll\n', tip_current_T_tll
 
-            #Find translation
-            delta_T = delta_tll.copy()
-            delta_T[0:3,0:3] = np.eye(3)
-            tip_T = delta_T * tip_current_T_tll
+        #    #Find translation
+        #    delta_T = delta_tll.copy()
+        #    delta_T[0:3,0:3] = np.eye(3)
+        #    tip_T = delta_T * tip_current_T_tll
 
-            #Find rotation
-            tip_R = delta_tll[0:3, 0:3] * tip_current_T_tll[0:3, 0:3]
-
-
-            tip_new = np.matrix(np.eye(4))
-            tip_new[0:3, 0:3] = tip_R
-            tip_new[0:3, 3] = tip_T[0:3,3]
-
-            #print 'tip_new\n', tip_new
-            goal_ps = stamp_pose(mat_to_pose(tip_new), 'torso_lift_link')
-
-        #if self.motion_type == 'relative':
-        #    #goal.relative = True
-        #elif self.motion_type == 'absolute':
-        #    #goal.relative = False
-        #else:
-        #    raise RuntimeError('Invalid motion type given.')
+        #    #Find rotation
+        #    tip_R = delta_tll[0:3, 0:3] * tip_current_T_tll[0:3, 0:3]
 
 
-    #TODO abstract this out!
-    def execute(self, userdata):
-        goal = self.ros_goal(userdata)
-        print 'goal sent is', goal
-        self.action_client.send_goal(goal)
-       
-        succeeded = False
-        preempted = False
-        r = rospy.Rate(30)
-        start_time = rospy.get_time()
+        #    tip_new = np.matrix(np.eye(4))
+        #    tip_new[0:3, 0:3] = tip_R
+        #    tip_new[0:3, 3] = tip_T[0:3,3]
 
-        while True:
-            #we have been preempted
-            if self.preempt_requested():
-                rospy.loginfo('LinearMoveStateSmach: preempt requested')
-                self.action_client.cancel_goal()
-                self.service_preempt()
-                preempted = True
-                break
+        #    #print 'tip_new\n', tip_new
+        #    goal_ps = stamp_pose(mat_to_pose(tip_new), 'torso_lift_link')
 
-            if (rospy.get_time() - start_time) > self.timeout:
-                self.action_client.cancel_goal()
-                rospy.loginfo('LinearMoveStateSmach: timed out!')
-                succeeded = False
-                break
+        ##if self.motion_type == 'relative':
+        ##    #goal.relative = True
+        ##elif self.motion_type == 'absolute':
+        ##    #goal.relative = False
+        ##else:
+        ##    raise RuntimeError('Invalid motion type given.')
 
-            #print tu.goal_status_to_string(state)
-            state = self.action_client.get_state()
-            if (state not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING]):
-                if state == am.GoalStatus.SUCCEEDED:
-                    rospy.loginfo('LinearMoveStateSmach: Succeeded!')
-                    succeeded = True
-                break
 
-            r.sleep()
 
-        if preempted:
-            return 'preempted'
 
-        if succeeded:
-            return 'succeeded'
-
-        return 'failed'
+#class ListModel(QAbstractItemModel):
+#
+#    def index(self, row, column, qmodel_idx_parent):
+#        pass
+#        
+#    def parent(self, qmodel_idx):
+#        pass 
+#
+#    def rowCount(self, qmodel_idx):
+#        pass
+#
+#    def columnCount(self, qmodel_idx):
+#        pass
+#        
+#    def data(self, qmodel_idx, disp_role):
+#        pass
+#
+#    def insertRows(self, row, count, qmodel_idx):
+#        pass
+#
+#    def insertRows(self, row, count, qmodel_idx):
+#        pass
 
             #if self.arm == 'left':
             #    tip = rospy.get_param('/l_cart/tip_name')
