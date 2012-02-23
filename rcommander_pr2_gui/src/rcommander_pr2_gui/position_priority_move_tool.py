@@ -14,167 +14,9 @@ import geometry_msgs.msg as geo
 import actionlib 
 import smach
 import actionlib_msgs.msg as am
-
-#import rcommander.point_tool as ptl
-
-#import move_base_msgs.msg as mm
-#import math
-##
-# Options: stopping criteria
-#          relative or absolute
-##
+import pr2_utils as p2u
 
 
-class ListManager:
-
-    def __init__(self, get_current_data_cb, set_current_data_cb, name_preffix='point'):
-        self.get_current_data_cb = get_current_data_cb
-        self.set_current_data_cb = set_current_data_cb
-        self.name_preffix = name_preffix
-        self.data_list = []
-
-    def item_selection_changed_cb(self):
-        selected = self.list_widget.selectedItems()
-        if len(selected) == 0:
-            return
-        idx = self._find_index_of(str(selected[0].text()))
-        self.curr_selected = idx
-        self.set_current_data_cb(self.data_list[idx])
-
-    def make_widgets(self, parent, connector):
-        self.list_box = QWidget(parent)
-        self.list_box_layout = QHBoxLayout(self.list_box)
-        self.list_box_layout.setMargin(0)
-
-        self.list_widget = QListWidget(self.list_box)
-        connector.connect(self.list_widget, SIGNAL('itemSelectionChanged()'), self.item_selection_changed_cb)
-        self.list_box_layout.addWidget(self.list_widget)
-
-        self.list_widget_buttons = QWidget(parent)
-        self.lbb_hlayout = QHBoxLayout(self.list_widget_buttons)
-
-        self.move_up_button = QPushButton(self.list_widget_buttons)
-        self.move_up_button.setText('Up')
-        connector.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
-        self.lbb_hlayout.addWidget(self.move_up_button)
-
-        self.move_down_button = QPushButton(self.list_widget_buttons)
-        self.move_down_button.setText('Down')
-        connector.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
-        self.lbb_hlayout.addWidget(self.move_down_button)
-
-        spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
-        self.lbb_hlayout.addItem(spacer)
-
-        self.add_button = QPushButton(self.list_widget_buttons)
-        self.add_button.setText('Add')
-        connector.connect(self.add_button, SIGNAL('clicked()'), self.add_joint_set_cb)
-
-        self.remove_button = QPushButton(self.list_widget_buttons)
-        self.remove_button.setText('Remove')
-        connector.connect(self.remove_button, SIGNAL('clicked()'), self.remove_pose_cb)
-
-        self.save_button = QPushButton(self.list_widget_buttons)
-        self.save_button.setText('Save')
-        connector.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
-
-        self.lbb_hlayout.addWidget(self.add_button)
-        self.lbb_hlayout.addWidget(self.remove_button)
-        self.lbb_hlayout.addWidget(self.save_button)
-        self.lbb_hlayout.setContentsMargins(2, 2, 2, 2)
-        return [self.list_box, self.list_widget_buttons]
-
-
-    def _refill_list_widget(self, data_list):
-        self.list_widget.clear()
-        for d in data_list:
-            self.list_widget.addItem(d['name'])
-
-    def _create_name(self):
-        idx = len(self.data_list)
-        tentative_name = self.name_preffix + ('%d' % idx)
-        while self._has_name(tentative_name):
-            idx = idx + 1
-            tentative_name = self.name_preffix + ('%d' % idx)
-        return tentative_name
-
-    def add_joint_set_cb(self):
-        name = self._create_name()
-        self.data_list.append({'name': name, 
-                               'data': self.current_data_cb()})
-        self._refill_list_widget(self.data_list)
-
-    def move_up_cb(self):
-        #get the current index
-        idx = self._selected_idx()
-        if idx == None:
-            return
-
-        #pop & insert it
-        item = self.data_list.pop(idx)
-        self.data_list.insert(idx-1, item)
-
-        #refresh
-        self._refill_list_widget(self.data_list)
-        self.list_widget.setCurrentItem(self.list_widget.item(idx-1))
-
-    def move_down_cb(self):
-        #get the current index
-        idx = self._selected_idx()
-        if idx == None:
-            return
-
-        #pop & insert it
-        item = self.data_list.pop(idx)
-        self.data_list.insert(idx+1, item)
-
-        #refresh
-        self._refill_list_widget(self.data_list)
-        self.list_widget.setCurrentItem(self.list_widget.item(idx+1))
-
-    def save_button_cb(self):
-        idx = self._selected_idx()
-        if idx == None:
-            return
-        el = self.data_list[idx]
-        self.data_list[idx] = {'name': el['name'],
-                               'data': self.current_data_cb()}
-
-    def remove_pose_cb(self):
-        idx = self._selected_idx()
-        if idx == None:
-            return
-        if idx == None:
-            raise RuntimeError('Inconsistency detected in list')
-        else:
-            self.data_list.pop(idx)
-        self._refill_list_widget(self.data_list)
-
-def selected_radio_button(buttons_list):
-    selected = None
-    for r in buttons_list:
-        if r.isChecked():
-            selected = str(r.text())
-    return selected
-
-def position(point):
-    return [point.x, point.y, point.z]
-
-def quaternion(quaternion):
-    return [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
-
-def combobox_idx(combobox, name):
-    if name == None:
-        name = ' '
-    idx = combobox.findText(name)
-    if idx == -1:
-        combobox.addItem(name)
-        idx = combobox.findText(name)
-    return idx
-
-#
-# controller and view
-# create and edits smach states
 class PositionPriorityMoveTool(tu.ToolBase):
 
     #LEFT_TIP = 'l_gripper_tool_frame'
@@ -189,7 +31,6 @@ class PositionPriorityMoveTool(tu.ToolBase):
         #self.suggested_frames = ['/base_link', '/torso_lift_link', '/l_gripper_tool_frame', '/r_gripper_tool_frame']
 
     def fill_property_box(self, pbox):
-        #self.list_manager = ListManager(self._get_input_boxes, self._set_input_boxes)
         formlayout = pbox.layout()
 
         #Make frame selection
@@ -298,7 +139,7 @@ class PositionPriorityMoveTool(tu.ToolBase):
 
     def get_current_pose(self):
         frame_described_in = str(self.frame_box.currentText())
-        arm = selected_radio_button(self.arm_radio_buttons).lower()
+        arm = p2u.selected_radio_button(self.arm_radio_buttons).lower()
         if arm == 'right':
             arm_tip_frame = PositionPriorityMoveTool.RIGHT_TIP
         else:
@@ -327,7 +168,7 @@ class PositionPriorityMoveTool(tu.ToolBase):
         #other properties
         trans_vel = float(str(self.trans_vel_line.text()))
         rot_vel   = float(str(self.rot_vel_line.text()))
-        arm = selected_radio_button(self.arm_radio_buttons).lower()
+        arm = p2u.selected_radio_button(self.arm_radio_buttons).lower()
         frame  = str(self.frame_box.currentText())
         timeout = self.timeout_box.value()
         source_for_origin = str(self.source_box.currentText())
@@ -341,9 +182,9 @@ class PositionPriorityMoveTool(tu.ToolBase):
 
     def set_node_properties(self, node):
         #node.pose
-        for value, vr in zip(position(node.pose.position), [self.xline, self.yline, self.zline]):
+        for value, vr in zip(p2u.position(node.pose.position), [self.xline, self.yline, self.zline]):
             vr.setText(str(value))
-        for value, vr in zip(tr.euler_from_quaternion(quaternion(node.pose.orientation)), [self.phi_line, self.theta_line, self.psi_line]):
+        for value, vr in zip(tr.euler_from_quaternion(p2u.quaternion(node.pose.orientation)), [self.phi_line, self.theta_line, self.psi_line]):
             vr.setText(str(value))
 
         self.trans_vel_line.setText(str(node.trans_vel))
@@ -358,7 +199,7 @@ class PositionPriorityMoveTool(tu.ToolBase):
         self.timeout_box.setValue(node.timeout)
 
         #Set sources
-        idx = combobox_idx(self.source_box, node.remapping_for('origin'))
+        idx = p2u.combobox_idx(self.source_box, node.remapping_for('origin'))
         self.source_changed(idx)
 
     def reset(self):
@@ -530,7 +371,8 @@ class PositionPrioritySmach(smach.State):
         goal.goal      = stamp_pose(mat_to_pose(CMD_T_frame * pose_to_mat(self.pose)), self.COMMAND_FRAME)
         goal.trans_vel = self.trans_vel
         goal.rot_vel   = self.rot_vel
-        self.execute_goal(goal, self.timeout)
+
+        return self.execute_goal(goal, self.timeout)
 
 
 

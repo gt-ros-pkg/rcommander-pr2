@@ -11,6 +11,176 @@ import geometry_msgs.msg as gm
 import time
 from kinematics_msgs.srv import GetKinematicSolverInfo
 from pycontroller_manager.pycontroller_manager import ControllerManager
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
+
+class ListManager:
+
+    def __init__(self, get_current_data_cb, set_current_data_cb, name_preffix='point'):
+        self.get_current_data_cb = get_current_data_cb
+        self.set_current_data_cb = set_current_data_cb
+        self.name_preffix = name_preffix
+        self.data_list = []
+
+    def item_selection_changed_cb(self):
+        selected = self.list_widget.selectedItems()
+        if len(selected) == 0:
+            return
+        idx = self._find_index_of(str(selected[0].text()))
+        self.curr_selected = idx
+        self.set_current_data_cb(self.data_list[idx]['data'])
+
+    def _find_index_of(self, name):
+        for idx, tup in enumerate(self.data_list):
+            if tup['name'] == name:
+                return idx
+        return None
+
+    def make_widgets(self, parent, connector):
+        self.list_box = QWidget(parent)
+        self.list_box_layout = QHBoxLayout(self.list_box)
+        self.list_box_layout.setMargin(0)
+
+        self.list_widget = QListWidget(self.list_box)
+        connector.connect(self.list_widget, SIGNAL('itemSelectionChanged()'), self.item_selection_changed_cb)
+        self.list_box_layout.addWidget(self.list_widget)
+
+        self.list_widget_buttons = QWidget(parent)
+        self.lbb_hlayout = QHBoxLayout(self.list_widget_buttons)
+
+        self.move_up_button = QPushButton(self.list_widget_buttons)
+        self.move_up_button.setText('Up')
+        connector.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
+        self.lbb_hlayout.addWidget(self.move_up_button)
+
+        self.move_down_button = QPushButton(self.list_widget_buttons)
+        self.move_down_button.setText('Down')
+        connector.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
+        self.lbb_hlayout.addWidget(self.move_down_button)
+
+        spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.lbb_hlayout.addItem(spacer)
+
+        self.add_button = QPushButton(self.list_widget_buttons)
+        self.add_button.setText('Add')
+        connector.connect(self.add_button, SIGNAL('clicked()'), self.add_joint_set_cb)
+
+        self.remove_button = QPushButton(self.list_widget_buttons)
+        self.remove_button.setText('Remove')
+        connector.connect(self.remove_button, SIGNAL('clicked()'), self.remove_pose_cb)
+
+        self.save_button = QPushButton(self.list_widget_buttons)
+        self.save_button.setText('Save')
+        connector.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
+
+        self.lbb_hlayout.addWidget(self.add_button)
+        self.lbb_hlayout.addWidget(self.remove_button)
+        self.lbb_hlayout.addWidget(self.save_button)
+        self.lbb_hlayout.setContentsMargins(2, 2, 2, 2)
+        return [self.list_box, self.list_widget_buttons]
+
+
+    def _refill_list_widget(self, data_list):
+        self.list_widget.clear()
+        for d in data_list:
+            self.list_widget.addItem(d['name'])
+
+    def _has_name(self, test_name):
+        for rec in self.data_list:
+            if rec['name'] == test_name:
+                return True
+            else:
+                return False
+
+    def _create_name(self):
+        idx = len(self.data_list)
+        tentative_name = self.name_preffix + ('%d' % idx)
+        while self._has_name(tentative_name):
+            idx = idx + 1
+            tentative_name = self.name_preffix + ('%d' % idx)
+        return tentative_name
+
+    def add_joint_set_cb(self):
+        name = self._create_name()
+        self.data_list.append({'name': name, 
+                               'data': self.get_current_data_cb()})
+        self._refill_list_widget(self.data_list)
+
+    def move_up_cb(self):
+        #get the current index
+        idx = self._selected_idx()
+        if idx == None:
+            return
+
+        #pop & insert it
+        item = self.data_list.pop(idx)
+        self.data_list.insert(idx-1, item)
+
+        #refresh
+        self._refill_list_widget(self.data_list)
+        self.list_widget.setCurrentItem(self.list_widget.item(idx-1))
+
+    def move_down_cb(self):
+        #get the current index
+        idx = self._selected_idx()
+        if idx == None:
+            return
+
+        #pop & insert it
+        item = self.data_list.pop(idx)
+        self.data_list.insert(idx+1, item)
+
+        #refresh
+        self._refill_list_widget(self.data_list)
+        self.list_widget.setCurrentItem(self.list_widget.item(idx+1))
+
+    def save_button_cb(self):
+        idx = self._selected_idx()
+        if idx == None:
+            return
+        el = self.data_list[idx]
+        self.data_list[idx] = {'name': el['name'],
+                               'data': self.current_data_cb()}
+
+    def remove_pose_cb(self):
+        idx = self._selected_idx()
+        if idx == None:
+            return
+        if idx == None:
+            raise RuntimeError('Inconsistency detected in list')
+        else:
+            self.data_list.pop(idx)
+        self._refill_list_widget(self.data_list)
+
+    def get_data(self):
+        return self.data_list
+
+    def set_data(self, data_list):
+        self.data_list = data_list
+        self._refill_list_widget(self.data_list)
+
+
+def selected_radio_button(buttons_list):
+    selected = None
+    for r in buttons_list:
+        if r.isChecked():
+            selected = str(r.text())
+    return selected
+
+def position(point):
+    return [point.x, point.y, point.z]
+
+def quaternion(quaternion):
+    return [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
+
+def combobox_idx(combobox, name):
+    if name == None:
+        name = ' '
+    idx = combobox.findText(name)
+    if idx == -1:
+        combobox.addItem(name)
+        idx = combobox.findText(name)
+    return idx
 
 #Test this
 def unwrap2(cpos, npos):
