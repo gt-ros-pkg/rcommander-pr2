@@ -8,17 +8,39 @@ import sensor_msgs.msg as sm
 import std_msgs.msg as stdm
 import pr2_controllers_msgs.msg as pm
 import geometry_msgs.msg as gm
+import geometry_msgs.msg as geo
 import time
 from kinematics_msgs.srv import GetKinematicSolverInfo
 from pycontroller_manager.pycontroller_manager import ControllerManager
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
+import tf_utils as tfu
+
+def origin_to_frame(origin, supplement_frame, tf_listener, command_frame):
+    m = origin
+    if instanceof(m, geo.PointStamped):
+        #point in some frame, needs orientation...
+        CMD_T_pf = tfu.tf_as_matrix(tf_listener.lookupTransform(COMMAND_FRAME, m.header.frame_id, rospy.Time(0)))
+        p_CMD = CMD_T_pf * np.matrix([m.x, m.y, m.z, 1.]).T
+        CMD_T_f = tfu.tf_as_matrix(tf_listener.lookupTransform(COMMAND_FRAME, supplement_frame, rospy.Time(0)))
+        CMD_T_frame = tll_T_f.copy()
+        CMD_T_frame[0:3, 3] = p_CMD[0:3, 0]
+    #If it's a pose stamped then we turn the pose stamped into a frame?
+    elif instanceof(m, geo.PoseStamped):
+        fid_T_p = pose_to_mat(m.pose)
+        CMD_T_fid = tfu.tf_as_matrix(tf_listener.lookupTransform(COMMAND_FRAME, m.header.frame_id, rospy.Time(0)))
+        CMD_T_frame = CMD_T_fid * fid_T_p
+    else:
+        raise RuntimeError('Got origin that is an instance of ' + str(m.__class__))
+
+    return CMD_T_frame
 
 class ListManager:
 
-    def __init__(self, get_current_data_cb, set_current_data_cb, name_preffix='point'):
+    def __init__(self, get_current_data_cb, set_current_data_cb, add_element_cb=None, name_preffix='point'):
         self.get_current_data_cb = get_current_data_cb
         self.set_current_data_cb = set_current_data_cb
+        self.add_element_cb = add_element_cb
         self.name_preffix = name_preffix
         self.data_list = []
 
@@ -63,7 +85,7 @@ class ListManager:
 
         self.add_button = QPushButton(self.list_widget_buttons)
         self.add_button.setText('Add')
-        connector.connect(self.add_button, SIGNAL('clicked()'), self.add_joint_set_cb)
+        connector.connect(self.add_button, SIGNAL('clicked()'), self.add_cb)
 
         self.remove_button = QPushButton(self.list_widget_buttons)
         self.remove_button.setText('Remove')
@@ -100,11 +122,13 @@ class ListManager:
             tentative_name = self.name_preffix + ('%d' % idx)
         return tentative_name
 
-    def add_joint_set_cb(self):
+    def add_cb(self):
         name = self._create_name()
         self.data_list.append({'name': name, 
                                'data': self.get_current_data_cb()})
         self._refill_list_widget(self.data_list)
+        if self.add_element_cb != None:
+            self.add_element_cb()
 
     def move_up_cb(self):
         #get the current index
