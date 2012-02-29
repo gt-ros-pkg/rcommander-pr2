@@ -229,13 +229,9 @@ class VelocityPriorityState(tu.StateBase):
         self.frame = frame
         self.set_remapping_for('origin', source_for_origin)
         self.poses_list = poses_list
-        self.robot = None
-
-    def set_robot(self, robot_obj):
-        self.robot = robot_obj
 
     def get_smach_state(self):
-        return VelocityPriorityStateSmach(self.frame, self.remapping_for('origin'), self.poses_list, self.robot)
+        return VelocityPriorityStateSmach(self.frame, self.remapping_for('origin'), self.poses_list)
 
 class PlayTrajectory(threading.Thread):
 
@@ -290,6 +286,10 @@ class VelocityPriorityStateSmach(smach.State):
 
         self.lcart = rospy.Publisher('/l_cart/command_pose', geo.PoseStamped)
         self.rcart = rospy.Publisher('/r_cart/command_pose', geo.PoseStamped)
+        self.robot = None
+
+    def set_robot(self, robot_obj):
+        self.robot = robot_obj
 
     def execute(self, userdata):
         CMD_T_frame = p2u.origin_to_frame(userdata.origin, self.frame, self.pr2.tf_listener, VelocityPriorityMoveTool.COMMAND_FRAME)

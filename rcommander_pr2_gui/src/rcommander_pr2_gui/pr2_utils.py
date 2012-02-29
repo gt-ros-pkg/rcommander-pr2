@@ -18,7 +18,7 @@ import tf_utils as tfu
 
 def origin_to_frame(origin, supplement_frame, tf_listener, command_frame):
     m = origin
-    if instanceof(m, geo.PointStamped):
+    if isinstance(m, geo.PointStamped):
         #point in some frame, needs orientation...
         CMD_T_pf = tfu.tf_as_matrix(tf_listener.lookupTransform(COMMAND_FRAME, m.header.frame_id, rospy.Time(0)))
         p_CMD = CMD_T_pf * np.matrix([m.x, m.y, m.z, 1.]).T
@@ -26,7 +26,7 @@ def origin_to_frame(origin, supplement_frame, tf_listener, command_frame):
         CMD_T_frame = tll_T_f.copy()
         CMD_T_frame[0:3, 3] = p_CMD[0:3, 0]
     #If it's a pose stamped then we turn the pose stamped into a frame?
-    elif instanceof(m, geo.PoseStamped):
+    elif isinstance(m, geo.PoseStamped):
         fid_T_p = pose_to_mat(m.pose)
         CMD_T_fid = tfu.tf_as_matrix(tf_listener.lookupTransform(COMMAND_FRAME, m.header.frame_id, rospy.Time(0)))
         CMD_T_frame = CMD_T_fid * fid_T_p
@@ -130,6 +130,17 @@ class ListManager:
         if self.add_element_cb != None:
             self.add_element_cb()
 
+    def _selected_idx(self):
+        #Get currently selected
+        selected = self.list_widget.selectedItems()
+        if len(selected) == 0:
+            return None
+        sname = str(selected[0].text())
+
+        #Remove it from list_widget and joint_angs_list
+        idx = self._find_index_of(sname)
+        return idx
+    
     def move_up_cb(self):
         #get the current index
         idx = self._selected_idx()
