@@ -15,25 +15,67 @@ from pycontroller_manager.pycontroller_manager import ControllerManager
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import tf_utils as tfu
+from object_manipulator.convert_functions import stamp_pose
+import tf.transformations as tr
+from tf_broadcast_server.srv import GetTransforms
+import rcommander.tool_utils as tu
 
-def origin_to_frame(origin, supplement_frame, tf_listener, command_frame):
-    m = origin
-    if isinstance(m, geo.PointStamped):
-        #point in some frame, needs orientation...
-        CMD_T_pf = tfu.tf_as_matrix(tf_listener.lookupTransform(COMMAND_FRAME, m.header.frame_id, rospy.Time(0)))
-        p_CMD = CMD_T_pf * np.matrix([m.x, m.y, m.z, 1.]).T
-        CMD_T_f = tfu.tf_as_matrix(tf_listener.lookupTransform(COMMAND_FRAME, supplement_frame, rospy.Time(0)))
-        CMD_T_frame = tll_T_f.copy()
-        CMD_T_frame[0:3, 3] = p_CMD[0:3, 0]
-    #If it's a pose stamped then we turn the pose stamped into a frame?
-    elif isinstance(m, geo.PoseStamped):
-        fid_T_p = pose_to_mat(m.pose)
-        CMD_T_fid = tfu.tf_as_matrix(tf_listener.lookupTransform(COMMAND_FRAME, m.header.frame_id, rospy.Time(0)))
-        CMD_T_frame = CMD_T_fid * fid_T_p
-    else:
-        raise RuntimeError('Got origin that is an instance of ' + str(m.__class__))
 
-    return CMD_T_frame
+class SE3Tool:
+
+    def __init__(self):
+        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms)
+
+    def make_se3_boxes(self, pbox):
+        self.xline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
+        self.yline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
+        self.zline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
+        self.phi_line   = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
+        self.theta_line = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
+        self.psi_line   = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
+    
+        position_box = QGroupBox('Position', pbox)
+        position_layout = QFormLayout(position_box)
+        position_box.setLayout(position_layout)
+        position_layout.addRow("&X", self.xline)
+        position_layout.addRow("&Y", self.yline)
+        position_layout.addRow("&Z", self.zline)
+    
+        orientation_box = QGroupBox('Orientation', pbox)
+        orientation_layout = QFormLayout(orientation_box)
+        orientation_box.setLayout(orientation_layout)
+        orientation_layout.addRow("&Phi",   self.phi_line)
+        orientation_layout.addRow("&Theta", self.theta_line)
+        orientation_layout.addRow("&Psi",   self.psi_line)
+    
+        return [position_box, orientation_box]
+    
+    def make_frame_box(self, pbox):
+        frame_box = QComboBox(pbox)
+        #for f in self.tf_listener.getFrameStrings():
+        for f in self.frames_service().frames:
+            frame_box.addItem(f)
+        return frame_box
+    
+    def make_task_frame_box(self, pbox):
+        self.frame_box = self.make_frame_box(pbox)
+        return self.frame_box
+
+    def get_posestamped(self):
+        pose  = geo.Pose()
+        pose.position = geo.Point(*[float(vr.value()) for vr in [self.xline, self.yline, self.zline]])
+        pose.orientation = geo.Quaternion(*tr.quaternion_from_euler(*[float(vr.value()) for vr in [self.phi_line, self.theta_line, self.psi_line]]))
+        ps = stamp_pose(pose, str(self.frame_box.currentText()))
+        return ps
+
+    def set_posestamped(self, pose_stamped):
+        for value, vr in zip(position(pose_stamped.pose.position), [self.xline, self.yline, self.zline]):
+            vr.setValue(value)
+        for value, vr in zip(tr.euler_from_quaternion(quaternion(pose_stamped.pose.orientation)), [self.phi_line, self.theta_line, self.psi_line]):
+            vr.setValue(value)
+        idx = tu.combobox_idx(self.frame_box, pose_stamped.header.frame_id)
+        self.frame_box.setCurrentIndex(idx)
+
 
 class ListManager:
 
@@ -195,27 +237,12 @@ class ListManager:
         self._refill_list_widget(self.data_list)
 
 
-def selected_radio_button(buttons_list):
-    selected = None
-    for r in buttons_list:
-        if r.isChecked():
-            selected = str(r.text())
-    return selected
 
 def position(point):
     return [point.x, point.y, point.z]
 
 def quaternion(quaternion):
     return [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
-
-def combobox_idx(combobox, name):
-    if name == None:
-        name = ' '
-    idx = combobox.findText(name)
-    if idx == -1:
-        combobox.addItem(name)
-        idx = combobox.findText(name)
-    return idx
 
 #Test this
 def unwrap2(cpos, npos):
