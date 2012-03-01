@@ -14,6 +14,7 @@ class MoveHeadTool(tu.ToolBase):
 	self.joint_names = ["head_pan_joint", "head_tilt_joint"]
 	self.status_bar_timer = QTimer()
 	self.rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles_cb)
+	self.pointidx = 0
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
@@ -37,10 +38,15 @@ class MoveHeadTool(tu.ToolBase):
         self.time_box.setSingleStep(.5)
         formlayout.addRow('&Time', self.time_box)
 
-	self.update_checkbox = QCheckBox(pbox) 
-        self.update_checkbox.setTristate(False)
-        formlayout.addRow('&Live Update', self.update_checkbox)
- 	self.rcommander.connect(self.update_checkbox, SIGNAL('stateChanged(int)'), self.update_selected_cb)
+	#self.update_checkbox = QCheckBox(pbox) 
+        #self.update_checkbox.setTristate(False)
+        #formlayout.addRow('&Live Update', self.update_checkbox)
+ 	#self.rcommander.connect(self.update_checkbox, SIGNAL('stateChanged(int)'), self.update_selected_cb)
+
+	self.live_update_button = QPushButton(pbox)
+	self.live_update_button.setText('Live Update')
+	self.rcommander.connect(self.live_update_button, SIGNAL('clicked()'), self.update_selected_cb)
+	formlayout.addRow(self.live_update_button)
 
         self.current_pose_button = QPushButton(pbox)
         self.current_pose_button.setText('Current Pose')
@@ -190,8 +196,8 @@ class MoveHeadTool(tu.ToolBase):
         for rec in self.head_angs_list:
             if rec['name'] == test_name:
                 return True
-            else:
-                return False
+            
+    	return False
 
 #added
     def move_up_cb(self):
@@ -261,17 +267,18 @@ class MoveHeadTool(tu.ToolBase):
             raise RuntimeError('Inconsistency detected in list')
         else:
             self.head_angs_list.pop(idx)
+	#if idx == self.pointidx:
+	    #self.pointidx = self.pointidx - 1
         self._refill_list_widget(self.head_angs_list)
 
 #added
     def _create_name(self):
-        idx = len(self.head_angs_list)
-        tentative_name = 'point%d' % idx 
+        #idx = len(self.head_angs_list)
+        tentative_name = 'point%d' % self.pointidx 
 
-        while self._has_name(tentative_name):
-            idx = idx + 1
-            tentative_name = 'point%d' % idx 
-
+        if self._has_name(tentative_name):
+            self.pointidx = self.pointidx + 1
+	tentative_name = 'point%d' % self.pointidx
         return tentative_name
 
 #added
@@ -297,7 +304,8 @@ class MoveHeadTool(tu.ToolBase):
         for box in self.joint_boxes:
             box.setValue(0)
         self.time_box.setValue(1.)
-	self.update_checkbox.setCheckState(False)
+	#self.update_checkbox.setCheckState(False)
+	self.live_update_button.setEnabled(True)
         self.status_bar_timer.stop()
         self.current_pose_button.setEnabled(True)
 
@@ -321,16 +329,28 @@ class MoveHeadTool(tu.ToolBase):
             'time': self.time_box.value(), 
             'angs': self._read_head_position_from_fields()}
 #added
-    def update_selected_cb(self, state):
+    def update_selected_cb(self):
         # checked
-        if state == 2:
-            self.status_bar_timer.start(30)
-            self.current_pose_button.setEnabled(False)
-	    self.get_current_joint_angles_cb()
+        #if state == 2:
+        #    self.status_bar_timer.start(30)
+        #    self.current_pose_button.setEnabled(False)
+	#    self.get_current_joint_angles_cb()
         # unchecked
-        if state == 0:
-            self.status_bar_timer.stop()
-            self.current_pose_button.setEnabled(True)
+        #if state == 0:
+        #    self.status_bar_timer.stop()
+        #    self.current_pose_button.setEnabled(True)
+	
+	self.current_pose_button.setEnabled(True)
+	if self.live_update_button.text() == 'Live Update':
+	    self.live_update_button.setText('End Live Update')
+	    self.live_update_button.setEnabled(True)
+	    self.status_bar_timer.start(30)
+	    for name in self.head_angs_list:
+		name.setTextColor(0,255,0)
+	else:
+	    self.live_update_button.setText('Live Update')
+	    self.status_bar_timer.stop()
+	    return
 
 #added
     def move_up_cb(self):
