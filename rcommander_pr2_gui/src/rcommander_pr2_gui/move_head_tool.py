@@ -328,6 +328,9 @@ class MoveHeadTool(tu.ToolBase):
         self.head_angs_list[idx] = {'name': el['name'],
             'time': self.time_box.value(), 
             'angs': self._read_head_position_from_fields()}
+
+    def set_invalid_color(self, joint_name, invalid, color = [255,0,0]):
+        r,g,b = color
 #added
     def update_selected_cb(self):
         # checked
@@ -345,12 +348,17 @@ class MoveHeadTool(tu.ToolBase):
 	    self.live_update_button.setText('End Live Update')
 	    self.live_update_button.setEnabled(True)
 	    self.status_bar_timer.start(30)
-	    for name in self.head_angs_list:
-		name.setTextColor(0,255,0)
+       	    #Determine which color to use
+            palette = QPalette(QColor(0, 180, 75, 255))
+            palette.setColor(QPalette.Text, QColor(0, 180, 75, 255))
 	else:
 	    self.live_update_button.setText('Live Update')
 	    self.status_bar_timer.stop()
-	    return
+            palette = QPalette(QColor(0, 0, 0, 255))
+            palette.setColor(QPalette.Text, QColor(0, 0, 0, 255))
+	#Sets color of the QDoubleSpinBox
+	for name in self.joint_names:      
+	    exec('self.%s.setPalette(palette)' % name)
 
 #added
     def move_up_cb(self):
