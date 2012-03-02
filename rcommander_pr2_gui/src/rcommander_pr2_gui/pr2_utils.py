@@ -30,9 +30,9 @@ class SE3Tool:
         self.xline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
         self.yline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
         self.zline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
-        self.phi_line   = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
-        self.theta_line = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
-        self.psi_line   = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
+        self.phi_line   = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
+        self.theta_line = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
+        self.psi_line   = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
     
         position_box = QGroupBox('Position', pbox)
         position_layout = QFormLayout(position_box)
@@ -64,7 +64,7 @@ class SE3Tool:
     def get_posestamped(self):
         pose  = geo.Pose()
         pose.position = geo.Point(*[float(vr.value()) for vr in [self.xline, self.yline, self.zline]])
-        pose.orientation = geo.Quaternion(*tr.quaternion_from_euler(*[float(vr.value()) for vr in [self.phi_line, self.theta_line, self.psi_line]]))
+        pose.orientation = geo.Quaternion(*tr.quaternion_from_euler(*[float(np.radians(vr.value())) for vr in [self.phi_line, self.theta_line, self.psi_line]]))
         ps = stamp_pose(pose, str(self.frame_box.currentText()))
         return ps
 
@@ -93,6 +93,10 @@ class ListManager:
         idx = self._find_index_of(str(selected[0].text()))
         self.curr_selected = idx
         self.set_current_data_cb(self.data_list[idx]['data'])
+
+    def set_default_selection(self):
+        if len(self.data_list) > 0:
+            self.list_widget.setCurrentItem(0)
 
     def _find_index_of(self, name):
         for idx, tup in enumerate(self.data_list):
@@ -217,7 +221,7 @@ class ListManager:
             return
         el = self.data_list[idx]
         self.data_list[idx] = {'name': el['name'],
-                               'data': self.current_data_cb()}
+                               'data': self.get_current_data_cb()}
 
     def remove_pose_cb(self):
         idx = self._selected_idx()
@@ -230,6 +234,7 @@ class ListManager:
         self._refill_list_widget(self.data_list)
 
     def get_data(self):
+        #return [p['data'] for p in self.data_list]
         return self.data_list
 
     def set_data(self, data_list):

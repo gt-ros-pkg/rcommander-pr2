@@ -19,10 +19,10 @@ from tf_broadcast_server.srv import BroadcastTransform, GetTransforms
 
 class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 
-    #LEFT_TIP = 'l_gripper_tool_frame'
-    #RIGHT_TIP = 'r_gripper_tool_frame'
-    LEFT_TIP = rospy.get_param('/l_cart/tip_name')
-    RIGHT_TIP = rospy.get_param('/r_cart/tip_name')
+    LEFT_TIP = '/l_gripper_tool_frame'
+    RIGHT_TIP = '/r_gripper_tool_frame'
+    #LEFT_TIP = rospy.get_param('/l_cart/tip_name')
+    #RIGHT_TIP = rospy.get_param('/r_cart/tip_name')
 
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'position_priority', 'Position Priority', PositionPriorityState)
@@ -59,9 +59,9 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 
         #formlayout.addRow(task_frame_box)
         formlayout.addRow('Frame', self.frame_box) 
+        formlayout.addRow(motion_box)
         formlayout.addRow(group_boxes[0])
         formlayout.addRow(group_boxes[1])
-        formlayout.addRow(motion_box)
         formlayout.addRow(self.pose_button)
         self.reset()
 
@@ -75,10 +75,11 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.tf_listener.waitForTransform(frame_described_in, arm_tip_frame, rospy.Time(), rospy.Duration(2.))
         p_arm = self.tf_listener.lookupTransform(frame_described_in, arm_tip_frame, rospy.Time(0))
 
+        #print 'current pose', p_arm
         for value, vr in zip(p_arm[0], [self.xline, self.yline, self.zline]):
-            vr.setText("%.3f" % value)
+            vr.setValue(value)
         for value, vr in zip(tr.euler_from_quaternion(p_arm[1]), [self.phi_line, self.theta_line, self.psi_line]):
-            vr.setText("%.3f" % np.degrees(value))
+            vr.setValue(np.degrees(value))
 
     def new_node(self, name=None):
         #make name
