@@ -39,6 +39,7 @@ class GripperEventTool(tu.ToolBase):
         pbox.update()
 
     def new_node(self, name=None):
+        print 'gripper event new node called'
         if self.child_gm == None:
             raise RuntimeError('No child node!')
         selected_arm = None

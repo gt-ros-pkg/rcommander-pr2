@@ -215,6 +215,9 @@ class ListManager:
         self._refill_list_widget(self.data_list)
         self.list_widget.setCurrentItem(self.list_widget.item(idx+1))
 
+    def select_default_item(self):
+        self.list_widget.setCurrentItem(self.list_widget.item(0))
+
     def save_button_cb(self):
         idx = self._selected_idx()
         if idx == None:

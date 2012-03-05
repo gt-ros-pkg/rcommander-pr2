@@ -114,6 +114,7 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 
     def set_node_properties(self, node):
         self.list_manager.set_data(node.pose_stamps_list)
+        self.list_manager.select_default_item()
 
     def reset(self):
         self.arm_radio_buttons[0].setChecked(True)
