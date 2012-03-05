@@ -5,6 +5,8 @@ import rcommander.tool_utils as tu
 import actionlib_msgs.msg as am
 import numpy as np
 import smach
+import roslib
+import os.path as pt
 
 class MoveHeadTool(tu.ToolBase):
 
@@ -30,17 +32,17 @@ class MoveHeadTool(tu.ToolBase):
             self.joint_boxes.append(box)
             formlayout.addRow('&%s' % jname, box)
 
-	self.head_angs_list = []
+        self.head_angs_list = []
         self.time_box = QDoubleSpinBox(pbox)
         self.time_box.setMinimum(0)
         self.time_box.setMaximum(1000.)
         self.time_box.setSingleStep(.5)
         formlayout.addRow('&Time', self.time_box)
 
-	self.update_checkbox = QCheckBox(pbox) 
+        self.update_checkbox = QCheckBox(pbox) 
         self.update_checkbox.setTristate(False)
         formlayout.addRow('&Live Update', self.update_checkbox)
- 	self.rcommander.connect(self.update_checkbox, SIGNAL('stateChanged(int)'), self.update_selected_cb)
+        self.rcommander.connect(self.update_checkbox, SIGNAL('stateChanged(int)'), self.update_selected_cb)
 
         self.current_pose_button = QPushButton(pbox)
         self.current_pose_button.setText('Current Pose')
@@ -49,7 +51,7 @@ class MoveHeadTool(tu.ToolBase):
         formlayout.addRow(self.current_pose_button)
      
 #widet box 
-	self.list_box = QWidget(pbox)
+        self.list_box = QWidget(pbox)
         self.list_box_layout = QHBoxLayout(self.list_box)
         self.list_box_layout.setMargin(0)
 
@@ -62,7 +64,7 @@ class MoveHeadTool(tu.ToolBase):
         #self.movement_buttons_widgetl.setMargin(0)
 
         self.list_widget_buttons = QWidget(pbox)
-	self.list_widget_buttons2 = QWidget(pbox)
+        self.list_widget_buttons2 = QWidget(pbox)
         self.lbb_hlayout = QHBoxLayout(self.list_widget_buttons)
 	#self.lbb_hlayout2 = QHBoxLayout(self.list_widget_buttons2)
 
@@ -87,7 +89,8 @@ class MoveHeadTool(tu.ToolBase):
         self.move_up_button = QPushButton(self.list_widget_buttons)
         self.move_up_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("icons/UpButton.png"), QIcon.Normal, QIcon.Off)
+        base_path = roslib.packages.get_pkg_dir('rcommander_pr2_gui')
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/UpButton.png")), QIcon.Normal, QIcon.Off)
         self.move_up_button.setIcon(icon)
         self.move_up_button.setObjectName("up_button")
         #self. = QPushButton(self.list_widget_buttons)
@@ -98,19 +101,19 @@ class MoveHeadTool(tu.ToolBase):
         self.move_down_button = QPushButton(self.list_widget_buttons)
         self.move_down_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("icons/DownButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap(pt.join(base_path,"icons/DownButton.png")), QIcon.Normal, QIcon.Off)
         self.move_down_button.setIcon(icon)
         self.move_down_button.setObjectName("down_button")
         #self.move_down_button = QPushButton(self.list_widget_buttons)
         #self.move_down_button.setText('Down')
         self.rcommander.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
         #self.lbb_hlayout.addWidget(self.move_down_button)
-	#self.lbb_hlayout.addSpacing(50)
+        #self.lbb_hlayout.addSpacing(50)
 
         self.add_head_set_button = QPushButton(self.list_widget_buttons)
         self.add_head_set_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("icons/AddButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/AddButton.png")), QIcon.Normal, QIcon.Off)
         self.add_head_set_button.setIcon(icon)
         self.add_head_set_button.setObjectName("add_button")
         #self.add_head_set_button = QPushButton(self.list_widget_buttons2)
@@ -120,7 +123,7 @@ class MoveHeadTool(tu.ToolBase):
         self.remove_head_set_button = QPushButton(self.list_widget_buttons)
         self.remove_head_set_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("icons/RemoveButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/RemoveButton.png")), QIcon.Normal, QIcon.Off)
         self.remove_head_set_button.setIcon(icon)
         self.remove_head_set_button.setObjectName("remove_button")
         #self.remove_head_set_button = QPushButton(self.list_widget_buttons2)
@@ -130,28 +133,27 @@ class MoveHeadTool(tu.ToolBase):
         self.save_button = QPushButton(self.list_widget_buttons)
         self.save_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("icons/SaveButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/SaveButton.png")), QIcon.Normal, QIcon.Off)
         self.save_button.setIcon(icon)
         self.save_button.setObjectName("save_button")
-	#self.save_button = QPushButton(self.list_widget_buttons2)
+        #self.save_button = QPushButton(self.list_widget_buttons2)
         #self.save_button.setText('Save Sequence')
         self.rcommander.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
         
-	spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
-	self.lbb_hlayout.addWidget(self.add_head_set_button)
+        spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.lbb_hlayout.addWidget(self.add_head_set_button)
         self.lbb_hlayout.addWidget(self.remove_head_set_button)
         self.lbb_hlayout.addWidget(self.save_button)
-	self.lbb_hlayout.addItem(spacer)
+        self.lbb_hlayout.addItem(spacer)
         self.lbb_hlayout.addWidget(self.move_up_button)
         self.lbb_hlayout.addWidget(self.move_down_button)
         self.lbb_hlayout.setContentsMargins(2, 2, 2, 2)
 
-	#FIX	 
-	formlayout.addRow('\n', self.list_box)      
-	formlayout.addRow('&Create a Head Movement Sequence:', self.list_box)
-	formlayout.addRow(self.list_box)
+        formlayout.addRow('\n', self.list_box)      
+        formlayout.addRow('&Create a Head Movement Sequence:', self.list_box)
+        formlayout.addRow(self.list_box)
         formlayout.addRow(self.list_widget_buttons)
-	#formlayout.addRow(self.list_widget_buttons2)
+        #formlayout.addRow(self.list_widget_buttons2)
         self.reset()
 
     def _refill_list_widget(self, joints_list):

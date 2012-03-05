@@ -137,16 +137,16 @@ float64 z
       buff.write(_struct_3I.pack(_x.header.seq, _x.header.stamp.secs, _x.header.stamp.nsecs))
       _x = self.header.frame_id
       length = len(_x)
-      buff.write(struct.pack('<I%ss'%length, length, _x.encode()))
+      buff.write(struct.pack('<I%ss'%length, length, _x))
       _x = self
       buff.write(_struct_2I.pack(_x.status.goal_id.stamp.secs, _x.status.goal_id.stamp.nsecs))
       _x = self.status.goal_id.id
       length = len(_x)
-      buff.write(struct.pack('<I%ss'%length, length, _x.encode()))
+      buff.write(struct.pack('<I%ss'%length, length, _x))
       buff.write(_struct_B.pack(self.status.status))
       _x = self.status.text
       length = len(_x)
-      buff.write(struct.pack('<I%ss'%length, length, _x.encode()))
+      buff.write(struct.pack('<I%ss'%length, length, _x))
       _x = self
       buff.write(_struct_3d.pack(_x.feedback.error.x, _x.feedback.error.y, _x.feedback.error.z))
     except struct.error as se: self._check_types(se)
@@ -217,16 +217,16 @@ float64 z
       buff.write(_struct_3I.pack(_x.header.seq, _x.header.stamp.secs, _x.header.stamp.nsecs))
       _x = self.header.frame_id
       length = len(_x)
-      buff.write(struct.pack('<I%ss'%length, length, _x.encode()))
+      buff.write(struct.pack('<I%ss'%length, length, _x))
       _x = self
       buff.write(_struct_2I.pack(_x.status.goal_id.stamp.secs, _x.status.goal_id.stamp.nsecs))
       _x = self.status.goal_id.id
       length = len(_x)
-      buff.write(struct.pack('<I%ss'%length, length, _x.encode()))
+      buff.write(struct.pack('<I%ss'%length, length, _x))
       buff.write(_struct_B.pack(self.status.status))
       _x = self.status.text
       length = len(_x)
-      buff.write(struct.pack('<I%ss'%length, length, _x.encode()))
+      buff.write(struct.pack('<I%ss'%length, length, _x))
       _x = self
       buff.write(_struct_3d.pack(_x.feedback.error.x, _x.feedback.error.y, _x.feedback.error.z))
     except struct.error as se: self._check_types(se)

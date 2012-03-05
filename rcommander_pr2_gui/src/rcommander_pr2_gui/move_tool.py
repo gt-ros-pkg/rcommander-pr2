@@ -10,6 +10,8 @@ import functools as ft
 import pr2_utils as pu
 from rcommander_pr2_gui.srv import MinTime
 import trajectory_msgs.msg as tm
+import os.path as pt
+import roslib
 
 class JointSequenceTool(tu.ToolBase):
 
@@ -176,7 +178,8 @@ class JointSequenceTool(tu.ToolBase):
         self.move_up_button = QPushButton(self.list_widget_buttons) #
         self.move_up_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("icons/UpButton.png"), QIcon.Normal, QIcon.Off)
+        base_path = roslib.packages.get_pkg_dir('rcommander_pr2_gui')
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/UpButton.png")), QIcon.Normal, QIcon.Off)
         self.move_up_button.setIcon(icon)
         self.move_up_button.setObjectName("up_button")
         self.rcommander.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
@@ -184,7 +187,7 @@ class JointSequenceTool(tu.ToolBase):
         self.move_down_button = QPushButton(self.list_widget_buttons)
         self.move_down_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("icons/DownButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/DownButton.png")), QIcon.Normal, QIcon.Off)
         self.move_down_button.setIcon(icon)
         self.move_down_button.setObjectName("down_button")
         self.rcommander.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
@@ -192,7 +195,7 @@ class JointSequenceTool(tu.ToolBase):
         self.add_joint_set_button = QPushButton(self.list_widget_buttons) #
         self.add_joint_set_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("icons/AddButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/AddButton.png")), QIcon.Normal, QIcon.Off)
         self.add_joint_set_button.setIcon(icon)
         self.add_joint_set_button.setObjectName("add_button")
         self.rcommander.connect(self.add_joint_set_button, SIGNAL('clicked()'), self.add_joint_set_cb)
@@ -200,7 +203,7 @@ class JointSequenceTool(tu.ToolBase):
         self.remove_joint_set_button = QPushButton(self.list_widget_buttons)
         self.remove_joint_set_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("icons/RemoveButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/RemoveButton.png")), QIcon.Normal, QIcon.Off)
         self.remove_joint_set_button.setIcon(icon)
         self.remove_joint_set_button.setObjectName("remove_button")
         self.rcommander.connect(self.remove_joint_set_button, SIGNAL('clicked()'), self.remove_pose_cb)
@@ -208,7 +211,7 @@ class JointSequenceTool(tu.ToolBase):
         self.save_button = QPushButton(self.list_widget_buttons)
         self.save_button.setText("")
         icon = QIcon()
-        icon.addPixmap(QPixmap("icons/SaveButton.png"), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/SaveButton.png")), QIcon.Normal, QIcon.Off)
         self.save_button.setIcon(icon)
         self.save_button.setObjectName("save_button")
         self.rcommander.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
