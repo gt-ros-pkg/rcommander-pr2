@@ -49,10 +49,15 @@ class JointSequenceTool(tu.ToolBase):
         self.time_box.setValue(1.)
         formlayout.addRow('&Time', self.time_box)
     
-        self.update_checkbox = QCheckBox(pbox) 
-        self.update_checkbox.setTristate(False)
-        formlayout.addRow('&Live Update', self.update_checkbox)
-        self.rcommander.connect(self.update_checkbox, SIGNAL('stateChanged(int)'), self.update_selected_cb)
+        #self.update_checkbox = QCheckBox(pbox) 
+        #self.update_checkbox.setTristate(False)
+        #formlayout.addRow('&Live Update', self.update_checkbox)
+        #self.rcommander.connect(self.update_checkbox, SIGNAL('stateChanged(int)'), self.update_selected_cb)
+
+	self.live_update_button = QPushButton(pbox)
+	self.live_update_button.setText('Live Update')
+	self.rcommander.connect(self.live_update_button, SIGNAL('clicked()'), self.update_selected_cb)
+	formlayout.addRow(self.live_update_button)
 
         self.pose_button = QPushButton(pbox)
         self.pose_button.setText('Current Pose')
@@ -165,16 +170,32 @@ class JointSequenceTool(tu.ToolBase):
         formlayout.addRow(self.list_widget_buttons)
         self.reset()
 
-    def update_selected_cb(self, state):
+    def update_selected_cb(self):
         # checked
-        if state == 2:
-            self.status_bar_timer.start(30)
-            self.pose_button.setEnabled(False)
+        #if state == 2:
+            #self.status_bar_timer.start(30)
+            #self.pose_button.setEnabled(False)
 
         # unchecked
-        if state == 0:
-            self.status_bar_timer.stop()
-            self.pose_button.setEnabled(True)
+        #if state == 0:
+            #self.status_bar_timer.stop()
+            #self.pose_button.setEnabled(True)
+	self.pose_button.setEnabled(True)
+	if self.live_update_button.text() == 'Live Update':
+	    self.live_update_button.setText('End Live Update')
+	    self.live_update_button.setEnabled(True)
+	    self.status_bar_timer.start(30)
+       	    #Determine which color to use
+            palette = QPalette(QColor(0, 180, 75, 255))
+            palette.setColor(QPalette.Text, QColor(0, 180, 75, 255))
+	else:
+	    self.live_update_button.setText('Live Update')
+	    self.status_bar_timer.stop()
+            palette = QPalette(QColor(0, 0, 0, 255))
+            palette.setColor(QPalette.Text, QColor(0, 0, 0, 255))
+	#Sets color of the QDoubleSpinBox
+	for name in self.joint_name_fields:      
+	    exec('self.%s.setPalette(palette)' % name)
 
     def _refill_list_widget(self, joints_list):
         self.list_widget.clear()
@@ -339,7 +360,7 @@ class JointSequenceTool(tu.ToolBase):
         for name in self.joint_name_fields:
             exec('self.%s.setValue(0)' % name)
 
-        self.update_checkbox.setCheckState(False)
+        #self.update_checkbox.setCheckState(False)
         self.status_bar_timer.stop()
         self.pose_button.setEnabled(True)
 
