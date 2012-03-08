@@ -10,6 +10,13 @@ import functools as ft
 import pr2_utils as pu
 from rcommander_pr2_gui.srv import MinTime
 import trajectory_msgs.msg as tm
+import os.path as pt
+import roslib
+
+def create_color(a, r,g,b):
+    palette = QPalette(QColor(a, r, g, b))
+    palette.setColor(QPalette.Text, QColor(a, r, g, b))
+    return palette
 
 class JointSequenceTool(tu.ToolBase):
 
@@ -28,9 +35,11 @@ class JointSequenceTool(tu.ToolBase):
         self.limits = [self.rcommander.robot.left.get_limits(), self.rcommander.robot.right.get_limits()]
         self.min_time_service = rospy.ServiceProxy('min_time_to_move', MinTime)
         #self.vel_limits = [self.rcommander.robot.left.get_vel_limits(), self.rcommander.robot.right.get_vel_limits()]
+        self.current_update_color = create_color(0,0,0,255)
 
     def _value_changed_validate(self, value, joint):
-        if str(self.arm_box.currentText()) == 'left':
+        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+        if arm == 'left':
             idx = 0
             pref = 'l_'
         else:
@@ -50,7 +59,8 @@ class JointSequenceTool(tu.ToolBase):
 
     def _time_changed_validate(self, value):
         self.set_invalid_color('time_box', False)
-        if str(self.arm_box.currentText()) == 'left':
+        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+        if arm == 'left':
             #idx = 0
             pref = 'l_'
             left_arm = True
@@ -104,10 +114,13 @@ class JointSequenceTool(tu.ToolBase):
     def fill_property_box(self, pbox):
         self.curr_selected = None
         formlayout = pbox.layout()
-        self.arm_box = QComboBox(pbox)
-        self.arm_box.addItem('left')
-        self.arm_box.addItem('right')
-        formlayout.addRow('&Arm', self.arm_box)
+
+        self.arm_radio_boxes, self.arm_radio_buttons = tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
+        #self.arm_box = QComboBox(pbox)
+        #self.arm_box.addItem('left')
+        #self.arm_box.addItem('right')
+        #formlayout.addRow('&Arm', self.arm_box)
+        formlayout.addRow('&Arm', self.arm_radio_boxes)
 
         #Controls for displaying the current joint states
         for name in self.joint_name_fields:
@@ -135,15 +148,20 @@ class JointSequenceTool(tu.ToolBase):
         formlayout.addRow('&Time', self.time_box)
         self.rcommander.connect(self.time_box, SIGNAL('valueChanged(double)'), self._time_changed_validate)
     
-        self.update_checkbox = QCheckBox(pbox) 
-        self.update_checkbox.setTristate(False)
-        formlayout.addRow('&Live Update', self.update_checkbox)
-        self.rcommander.connect(self.update_checkbox, SIGNAL('stateChanged(int)'), self.update_selected_cb)
+        #self.update_checkbox = QCheckBox(pbox) 
+        #self.update_checkbox.setTristate(False)
+        #formlayout.addRow('&Live Update', self.update_checkbox)
+        #self.rcommander.connect(self.update_checkbox, SIGNAL('stateChanged(int)'), self.update_selected_cb)
+
+        self.live_update_button = QPushButton(pbox)
+        self.live_update_button.setText('Live Update')
+        self.rcommander.connect(self.live_update_button, SIGNAL('clicked()'), self.update_selected_cb)
+        formlayout.addRow(self.live_update_button)
 
         self.pose_button = QPushButton(pbox)
-        self.pose_button.setText('Pose')
+        self.pose_button.setText('Current Pose')
         self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_joint_angles)
-        formlayout.addRow('    ', self.pose_button)
+        formlayout.addRow(self.pose_button)
    
         #Controls for getting the current joint states
         self.joint_angs_list = []
@@ -163,53 +181,124 @@ class JointSequenceTool(tu.ToolBase):
         self.list_widget_buttons = QWidget(pbox)
         self.lbb_hlayout = QHBoxLayout(self.list_widget_buttons)
 
-        self.move_up_button = QPushButton(self.list_widget_buttons)
-        self.move_up_button.setText('Up')
+        #self.move_up_button = QPushButton(self.list_widget_buttons)
+        #self.move_up_button.setText('Up')
+        #self.rcommander.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
+        #self.lbb_hlayout.addWidget(self.move_up_button)
+
+        #self.move_down_button = QPushButton(self.list_widget_buttons)
+        #self.move_down_button.setText('Down')
+        #self.rcommander.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
+        
+
+        self.move_up_button = QPushButton(self.list_widget_buttons) #
+        self.move_up_button.setText("")
+        icon = QIcon()
+        base_path = roslib.packages.get_pkg_dir('rcommander_pr2_gui')
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/UpButton.png")), QIcon.Normal, QIcon.Off)
+        self.move_up_button.setIcon(icon)
+        self.move_up_button.setObjectName("up_button")
         self.rcommander.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
-        self.lbb_hlayout.addWidget(self.move_up_button)
 
         self.move_down_button = QPushButton(self.list_widget_buttons)
-        self.move_down_button.setText('Down')
+        self.move_down_button.setText("")
+        icon = QIcon()
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/DownButton.png")), QIcon.Normal, QIcon.Off)
+        self.move_down_button.setIcon(icon)
+        self.move_down_button.setObjectName("down_button")
         self.rcommander.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
-        self.lbb_hlayout.addWidget(self.move_down_button)
-
-        spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
-        self.lbb_hlayout.addItem(spacer)
-
-        self.add_joint_set_button = QPushButton(self.list_widget_buttons)
-        self.add_joint_set_button.setText('Add')
+	
+        self.add_joint_set_button = QPushButton(self.list_widget_buttons) #
+        self.add_joint_set_button.setText("")
+        icon = QIcon()
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/AddButton.png")), QIcon.Normal, QIcon.Off)
+        self.add_joint_set_button.setIcon(icon)
+        self.add_joint_set_button.setObjectName("add_button")
         self.rcommander.connect(self.add_joint_set_button, SIGNAL('clicked()'), self.add_joint_set_cb)
 
         self.remove_joint_set_button = QPushButton(self.list_widget_buttons)
-        self.remove_joint_set_button.setText('Remove')
+        self.remove_joint_set_button.setText("")
+        icon = QIcon()
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/RemoveButton.png")), QIcon.Normal, QIcon.Off)
+        self.remove_joint_set_button.setIcon(icon)
+        self.remove_joint_set_button.setObjectName("remove_button")
         self.rcommander.connect(self.remove_joint_set_button, SIGNAL('clicked()'), self.remove_pose_cb)
 
         self.save_button = QPushButton(self.list_widget_buttons)
-        self.save_button.setText('Save')
+        self.save_button.setText("")
+        icon = QIcon()
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/SaveButton.png")), QIcon.Normal, QIcon.Off)
+        self.save_button.setIcon(icon)
+        self.save_button.setObjectName("save_button")
         self.rcommander.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
+        
+        spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding) #
 
-        self.lbb_hlayout.addWidget(self.add_joint_set_button)
+        self.lbb_hlayout.addWidget(self.add_joint_set_button) #
         self.lbb_hlayout.addWidget(self.remove_joint_set_button)
         self.lbb_hlayout.addWidget(self.save_button)
+        self.lbb_hlayout.addItem(spacer) #
+        self.lbb_hlayout.addWidget(self.move_up_button) #
+        self.lbb_hlayout.addWidget(self.move_down_button) #
+
+        #spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        #self.lbb_hlayout.addItem(spacer)
+
+        #self.add_joint_set_button = QPushButton(self.list_widget_buttons)
+        #self.add_joint_set_button.setText('Add')
+        #self.rcommander.connect(self.add_joint_set_button, SIGNAL('clicked()'), self.add_joint_set_cb)
+
+        #self.remove_joint_set_button = QPushButton(self.list_widget_buttons)
+        #self.remove_joint_set_button.setText('Remove')
+        #self.rcommander.connect(self.remove_joint_set_button, SIGNAL('clicked()'), self.remove_pose_cb)
+
+        #self.save_button = QPushButton(self.list_widget_buttons)
+        #self.save_button.setText('Save')
+        #self.rcommander.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
+
+        #self.lbb_hlayout.addWidget(self.add_joint_set_button)
+        #self.lbb_hlayout.addWidget(self.remove_joint_set_button)
+        #self.lbb_hlayout.addWidget(self.save_button)
         self.lbb_hlayout.setContentsMargins(2, 2, 2, 2)
 
         #self.list_box_layout.addWidget(self.movement_buttons_widget)
         #formlayout.addRow(self.list_widget)
 
+        formlayout.addRow('\n', self.list_box)      #
+        formlayout.addRow('&Create a Joint Movement Sequence:', self.list_box) #
         formlayout.addRow(self.list_box)
         formlayout.addRow(self.list_widget_buttons)
         self.reset()
 
-    def update_selected_cb(self, state):
+    def update_selected_cb(self):
         # checked
-        if state == 2:
-            self.status_bar_timer.start(30)
-            self.pose_button.setEnabled(False)
+        #if state == 2:
+            #self.status_bar_timer.start(30)
+            #self.pose_button.setEnabled(False)
 
         # unchecked
-        if state == 0:
-            self.status_bar_timer.stop()
+        #if state == 0:
+            #self.status_bar_timer.stop()
+            #self.pose_button.setEnabled(True)
+
+        self.pose_button.setEnabled(True)
+        if self.live_update_button.text() == 'Live Update':
+            self.live_update_button.setText('End Live Update')
+            self.live_update_button.setEnabled(True)
+            self.pose_button.setEnabled(False)
+            self.status_bar_timer.start(30)
+           	#Determine which color to use
+            self.current_update_color = create_color(0,180,75,255)
+        else:
+            self.live_update_button.setText('Live Update')
             self.pose_button.setEnabled(True)
+            self.status_bar_timer.stop()
+            self.current_update_color = create_color(0,0,0,255)
+
+        #Sets color of the QDoubleSpinBox
+        for name in self.joint_name_fields:      
+            palette = self.current_update_color
+            exec('self.%s.setPalette(palette)' % name)
 
     def _refill_list_widget(self, joints_list):
         self.list_widget.clear()
@@ -217,20 +306,21 @@ class JointSequenceTool(tu.ToolBase):
             self.list_widget.addItem(d['name'])
 
     def get_current_joint_angles(self):
-        if ('left' == str(self.arm_box.currentText())):
+        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+        if ('left' == arm):
             arm_obj = self.rcommander.robot.left
         else:
             arm_obj = self.rcommander.robot.right
 
-        #print 'getting pose!'
         pose_mat = arm_obj.pose()
-        #print 'getting pose 2'
 
+        palette = self.current_update_color
         for idx, name in enumerate(self.joint_name_fields):
             deg = np.degrees(pose_mat[idx, 0])
             exec('line_edit = self.%s' % name)
-            #line_edit.setText('%.2f' % deg)
             line_edit.setValue(deg)
+            exec('self.%s.setPalette(palette)' % name)
+
 
     def _has_name(self, test_name):
         for rec in self.joint_angs_list:
@@ -261,7 +351,7 @@ class JointSequenceTool(tu.ToolBase):
         self.time_box.setValue(self.joint_angs_list[idx]['time'])
         self._time_changed_validate(self.joint_angs_list[idx]['time'])
 
-        self.update_checkbox.setCheckState(False)
+        #self.update_checkbox.setCheckState(False)
         self.status_bar_timer.stop()
         self.pose_button.setEnabled(True)
 
@@ -269,7 +359,9 @@ class JointSequenceTool(tu.ToolBase):
         #Create a new string, check to see whether it's in the current list
         name = self._create_name()
         #self.list_widget.addItem(name)
-        self.joint_angs_list.append({'name':name, 'time': self.time_box.value(), 'angs': self._read_joints_from_fields(True)})
+        self.joint_angs_list.append({'name':name, 
+            'time': self.time_box.value(), 
+            'angs': self._read_joints_from_fields(True)})
         self._refill_list_widget(self.joint_angs_list)
 
     def _find_index_of(self, name):
@@ -339,7 +431,8 @@ class JointSequenceTool(tu.ToolBase):
         self._refill_list_widget(self.joint_angs_list)
 
     def _read_joints_from_fields(self, limit_ranges=False):
-        if self.arm_box.currentText() == 'left':
+        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+        if arm == 'left':
             idx = 0
             pref = 'l_'
         else:
@@ -376,22 +469,29 @@ class JointSequenceTool(tu.ToolBase):
             return None
     
         #sstate = JointSequenceState(nname, str(self.arm_box.currentText()), self._read_joints_from_fields())
-        sstate = JointSequenceState(nname, str(self.arm_box.currentText()), self.joint_angs_list)
+
+        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+        sstate = JointSequenceState(nname, arm, self.joint_angs_list)
         #sstate.set_robot(self.rcommander.robot)
         return sstate
 
     def set_node_properties(self, my_node):
         self.joint_angs_list = my_node.joint_waypoints
         self._refill_list_widget(self.joint_angs_list)
-        self.arm_box.setCurrentIndex(self.arm_box.findText(my_node.arm))
+        #self.arm_box.setCurrentIndex(self.arm_box.findText(my_node.arm))
+        if 'left' == my_node.arm:
+            self.arm_radio_buttons[0].setChecked(True)
+        if my_node.arm == 'right':
+            self.arm_radio_buttons[1].setChecked(True)
         self.list_widget.setCurrentItem(self.list_widget.item(0))
 
     def reset(self):
-        self.arm_box.setCurrentIndex(self.arm_box.findText('left'))
+        self.arm_radio_buttons[0].setChecked(True)
+        #self.arm_box.setCurrentIndex(self.arm_box.findText('left'))
         for name in self.joint_name_fields:
             exec('self.%s.setValue(0)' % name)
 
-        self.update_checkbox.setCheckState(False)
+        #self.update_checkbox.setCheckState(False)
         self.status_bar_timer.stop()
         self.pose_button.setEnabled(True)
 
