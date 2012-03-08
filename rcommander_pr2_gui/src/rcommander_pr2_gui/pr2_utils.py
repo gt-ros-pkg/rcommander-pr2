@@ -20,6 +20,7 @@ import tf.transformations as tr
 from tf_broadcast_server.srv import GetTransforms
 import rcommander.tool_utils as tu
 import roslib
+import os.path as pt
 
 
 class SE3Tool:
@@ -119,9 +120,11 @@ class ListManager:
 
         icon = QIcon()
         base_path = roslib.packages.get_pkg_dir('rcommander_pr2_gui')
+        #print 'PATH', pt.join(base_path, "icons/UpButton.png")
         icon.addPixmap(QPixmap(pt.join(base_path, "icons/UpButton.png")), QIcon.Normal, QIcon.Off)
         self.move_up_button = QPushButton(self.list_widget_buttons)
         self.move_up_button.setToolTip('Up')
+        self.move_up_button.setIcon(icon)
         connector.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
         self.lbb_hlayout.addWidget(self.move_up_button)
 
@@ -129,6 +132,7 @@ class ListManager:
         icon.addPixmap(QPixmap(pt.join(base_path, "icons/DownButton.png")), QIcon.Normal, QIcon.Off)
         self.move_down_button = QPushButton(self.list_widget_buttons)
         self.move_down_button.setToolTip('Down')
+        self.move_down_button.setIcon(icon)
         connector.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
         self.lbb_hlayout.addWidget(self.move_down_button)
 
@@ -139,18 +143,21 @@ class ListManager:
         icon.addPixmap(QPixmap(pt.join(base_path, "icons/AddButton.png")), QIcon.Normal, QIcon.Off)
         self.add_button = QPushButton(self.list_widget_buttons)
         self.add_button.setToolTip('Add')
+        self.add_button.setIcon(icon)
         connector.connect(self.add_button, SIGNAL('clicked()'), self.add_cb)
 
         icon = QIcon()
         icon.addPixmap(QPixmap(pt.join(base_path, "icons/RemoveButton.png")), QIcon.Normal, QIcon.Off)
         self.remove_button = QPushButton(self.list_widget_buttons)
         self.remove_button.setToolTip('Remove')
+        self.remove_button.setIcon(icon)
         connector.connect(self.remove_button, SIGNAL('clicked()'), self.remove_pose_cb)
 
         icon = QIcon()
         icon.addPixmap(QPixmap(pt.join(base_path, "icons/SaveButton.png")), QIcon.Normal, QIcon.Off)
         self.save_button = QPushButton(self.list_widget_buttons)
         self.save_button.setToolTip('Save')
+        self.save_button.setIcon(icon)
         connector.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
 
         self.lbb_hlayout.addWidget(self.add_button)
