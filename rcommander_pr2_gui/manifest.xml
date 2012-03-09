@@ -33,6 +33,7 @@
   <depend package="ptp_arm_action"/>
   <depend package="kinematics_msgs"/>
   <depend package="tf_broadcast_server"/>
+  <depend package="face_detector"/>
 
   <export>
       <rcommander plugin="rcommander_pr2_gui.tuck_tool"                     robot="pr2" tab="Manipulation"/> 
@@ -46,6 +47,7 @@
       <rcommander plugin="rcommander_pr2_gui.navigate_tool"                 robot="all" tab="Navigation"/>      
       <rcommander plugin="rcommander_pr2_gui.speak_tool"                    robot="all" tab="Interaction"/>  
       <rcommander plugin="rcommander_pr2_gui.move_head_tool"                robot="pr2" tab="Interaction"/>  
+      <rcommander plugin="rcommander_pr2_gui.face_detect_tool"              robot="pr2" tab="Interaction"/>  
   </export>
 
 </package>
