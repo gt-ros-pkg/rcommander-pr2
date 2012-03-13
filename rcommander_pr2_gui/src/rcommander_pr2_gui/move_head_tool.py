@@ -150,7 +150,7 @@ class MoveHeadTool(tu.ToolBase):
         self.lbb_hlayout.setContentsMargins(2, 2, 2, 2)
 
         formlayout.addRow('\n', self.list_box)      
-        formlayout.addRow('&Create a Head Movement Sequence:', self.list_box)
+        formlayout.addRow('&Sequence:', self.list_box)
         formlayout.addRow(self.list_box)
         formlayout.addRow(self.list_widget_buttons)
         #formlayout.addRow(self.list_widget_buttons2)

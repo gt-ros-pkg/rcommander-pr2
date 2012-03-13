@@ -265,7 +265,7 @@ class JointSequenceTool(tu.ToolBase):
         #formlayout.addRow(self.list_widget)
 
         formlayout.addRow('\n', self.list_box)      #
-        formlayout.addRow('&Create a Joint Movement Sequence:', self.list_box) #
+        formlayout.addRow('&Sequence:', self.list_box) #
         formlayout.addRow(self.list_box)
         formlayout.addRow(self.list_widget_buttons)
         self.reset()
