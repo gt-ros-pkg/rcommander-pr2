@@ -97,6 +97,7 @@ class MoveHeadTool(tu.ToolBase):
         #self.move_up_button.setText('Up')
         self.rcommander.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
         #self.lbb_hlayout.addWidget(self.move_up_button)
+        self.move_up_button.setToolTip('Move Up')
 
         self.move_down_button = QPushButton(self.list_widget_buttons)
         self.move_down_button.setText("")
@@ -109,6 +110,7 @@ class MoveHeadTool(tu.ToolBase):
         self.rcommander.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
         #self.lbb_hlayout.addWidget(self.move_down_button)
         #self.lbb_hlayout.addSpacing(50)
+        self.move_down_button.setToolTip('Move Down')
 
         self.add_head_set_button = QPushButton(self.list_widget_buttons)
         self.add_head_set_button.setText("")
@@ -119,6 +121,7 @@ class MoveHeadTool(tu.ToolBase):
         #self.add_head_set_button = QPushButton(self.list_widget_buttons2)
         #self.add_head_set_button.setText('Add Head Position')
         self.rcommander.connect(self.add_head_set_button, SIGNAL('clicked()'), self.add_head_set_cb)
+        self.add_head_set_button.setToolTip('Add')
 
         self.remove_head_set_button = QPushButton(self.list_widget_buttons)
         self.remove_head_set_button.setText("")
@@ -129,6 +132,7 @@ class MoveHeadTool(tu.ToolBase):
         #self.remove_head_set_button = QPushButton(self.list_widget_buttons2)
         #self.remove_head_set_button.setText('Remove Head Position')
         self.rcommander.connect(self.remove_head_set_button, SIGNAL('clicked()'), self.remove_pose_cb)
+        self.remove_head_set_button.setToolTip('Remove')
 
         self.save_button = QPushButton(self.list_widget_buttons)
         self.save_button.setText("")
@@ -139,6 +143,7 @@ class MoveHeadTool(tu.ToolBase):
         #self.save_button = QPushButton(self.list_widget_buttons2)
         #self.save_button.setText('Save Sequence')
         self.rcommander.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
+        self.save_button.setToolTip('Save')
         
         spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.lbb_hlayout.addWidget(self.add_head_set_button)
