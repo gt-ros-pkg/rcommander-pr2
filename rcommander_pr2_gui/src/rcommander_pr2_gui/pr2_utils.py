@@ -118,26 +118,8 @@ class ListManager:
         self.list_widget_buttons = QWidget(parent)
         self.lbb_hlayout = QHBoxLayout(self.list_widget_buttons)
 
-        icon = QIcon()
+
         base_path = roslib.packages.get_pkg_dir('rcommander_pr2_gui')
-        #print 'PATH', pt.join(base_path, "icons/UpButton.png")
-        icon.addPixmap(QPixmap(pt.join(base_path, "icons/UpButton.png")), QIcon.Normal, QIcon.Off)
-        self.move_up_button = QPushButton(self.list_widget_buttons)
-        self.move_up_button.setToolTip('Up')
-        self.move_up_button.setIcon(icon)
-        connector.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
-        self.lbb_hlayout.addWidget(self.move_up_button)
-
-        icon = QIcon()
-        icon.addPixmap(QPixmap(pt.join(base_path, "icons/DownButton.png")), QIcon.Normal, QIcon.Off)
-        self.move_down_button = QPushButton(self.list_widget_buttons)
-        self.move_down_button.setToolTip('Down')
-        self.move_down_button.setIcon(icon)
-        connector.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
-        self.lbb_hlayout.addWidget(self.move_down_button)
-
-        spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
-        self.lbb_hlayout.addItem(spacer)
 
         icon = QIcon()
         icon.addPixmap(QPixmap(pt.join(base_path, "icons/AddButton.png")), QIcon.Normal, QIcon.Off)
@@ -160,9 +142,29 @@ class ListManager:
         self.save_button.setIcon(icon)
         connector.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
 
+        spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
+
+        icon = QIcon()
+        #print 'PATH', pt.join(base_path, "icons/UpButton.png")
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/UpButton.png")), QIcon.Normal, QIcon.Off)
+        self.move_up_button = QPushButton(self.list_widget_buttons)
+        self.move_up_button.setToolTip('Up')
+        self.move_up_button.setIcon(icon)
+        connector.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
+
+        icon = QIcon()
+        icon.addPixmap(QPixmap(pt.join(base_path, "icons/DownButton.png")), QIcon.Normal, QIcon.Off)
+        self.move_down_button = QPushButton(self.list_widget_buttons)
+        self.move_down_button.setToolTip('Down')
+        self.move_down_button.setIcon(icon)
+        connector.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
+
         self.lbb_hlayout.addWidget(self.add_button)
         self.lbb_hlayout.addWidget(self.remove_button)
         self.lbb_hlayout.addWidget(self.save_button)
+        self.lbb_hlayout.addItem(spacer)
+        self.lbb_hlayout.addWidget(self.move_up_button)
+        self.lbb_hlayout.addWidget(self.move_down_button)
         self.lbb_hlayout.setContentsMargins(2, 2, 2, 2)
         return [self.list_box, self.list_widget_buttons]
 
