@@ -44,15 +44,15 @@ class PTPArmActionServer:
         if arm == 'left':
             self.controller = 'l_cart'
             #self.joint_controller = 'l_arm_controller'
-            #self.tool_frame = 'l_gripper_tool_frame'
             self.controller_frame = rospy.get_param('/l_cart/tip_name')
-            self.tool_frame = rospy.get_param('/l_cart/tip_name')
+            #self.tool_frame = rospy.get_param('/l_cart/tip_name')
+            self.tool_frame = 'l_gripper_tool_frame'
         elif arm == 'right':
             self.controller = 'r_cart'
             #self.joint_controller = 'r_arm_controller'
-            #self.tool_frame = 'r_gripper_tool_frame'
             self.controller_frame = rospy.get_param('/r_cart/tip_name')
-            self.tool_frame = rospy.get_param('/r_cart/tip_name')
+            #self.tool_frame = rospy.get_param('/r_cart/tip_name')
+            self.tool_frame = 'r_gripper_tool_frame'
         else:
             raise RuntimeError('Invalid parameter for arm: %s' % arm)
 
@@ -104,15 +104,21 @@ class PTPArmActionServer:
             goal_ps.pose.position.z, goal_ps.header.frame_id))
 
         goal_torso = change_pose_stamped_frame(self.tf, goal_ps, 'torso_lift_link')
+        rospy.loginfo('BEFORE TIP Goal is x %f y %f z %f in %s' % (goal_torso.pose.position.x, goal_torso.pose.position.y, 
+            goal_torso.pose.position.z, goal_torso.header.frame_id))
+
+        rospy.loginfo('Tool Frame %s Controller Frame %s' % (self.tool_frame, self.controller_frame))
+
         tll_T_tip = pose_to_mat(goal_torso.pose)
-        tip_T_w = tf_as_matrix(self.tf.lookupTransform(self.controller_frame, self.tool_frame, rospy.Time(0)))
+        tip_T_w = tf_as_matrix(self.tf.lookupTransform(self.tool_frame, self.controller_frame,  rospy.Time(0)))
+        #print 'TRANSFORM', tip_T_w
         tll_T_w = tll_T_tip * tip_T_w
         goal_torso = stamp_pose(mat_to_pose(tll_T_w), 'torso_lift_link')
 
-        rospy.loginfo('Goal is x %f y %f z %f in %s' % (goal_torso.pose.position.x, goal_torso.pose.position.y, 
+        rospy.loginfo('AFTER TIP Goal is x %f y %f z %f in %s' % (goal_torso.pose.position.x, goal_torso.pose.position.y, 
             goal_torso.pose.position.z, goal_torso.header.frame_id))
 
-        verbose = True
+        verbose = False
         time_ang = None
         min_ang_error = None
         time_trans = None
@@ -121,7 +127,7 @@ class PTPArmActionServer:
         while True:
             cur_time = rospy.get_time()
 
-            gripper_matrix = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', self.tool_frame, rospy.Time(0)))
+            gripper_matrix = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', self.controller_frame, rospy.Time(0)))
             gripper_ps = stamp_pose(mat_to_pose(gripper_matrix), 'torso_lift_link')
             #Someone preempted us!
             if self.linear_movement_as.is_preempt_requested():
@@ -188,6 +194,7 @@ class PTPArmActionServer:
                 print 'clamped_target', clamped_target.pose.position.x, clamped_target.pose.position.y, 
                 print clamped_target.pose.position.z, clamped_target.header.frame_id, '\n'
 
+            #break
             self.target_pub.publish(clamped_target)
             #break
 
