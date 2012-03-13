@@ -56,8 +56,9 @@ class JointSequenceTool(tu.ToolBase):
                 self.set_invalid_color(joint, True)
             else:
                 self.set_invalid_color(joint, False)
+        self._check_time_validity(self.time_box.value())
 
-    def _time_changed_validate(self, value):
+    def _check_time_validity(self, value):
         self.set_invalid_color('time_box', False)
         arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
         if arm == 'left':
@@ -100,6 +101,9 @@ class JointSequenceTool(tu.ToolBase):
                 self.set_invalid_color('time_box', True, color)
                 return
 
+    def _time_changed_validate(self, value):
+        self._check_time_validity(value)
+
     def set_invalid_color(self, joint_name, invalid, color = [255,0,0]):
         r,g,b = color
 
@@ -116,10 +120,6 @@ class JointSequenceTool(tu.ToolBase):
         formlayout = pbox.layout()
 
         self.arm_radio_boxes, self.arm_radio_buttons = tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
-        #self.arm_box = QComboBox(pbox)
-        #self.arm_box.addItem('left')
-        #self.arm_box.addItem('right')
-        #formlayout.addRow('&Arm', self.arm_box)
         formlayout.addRow('&Arm', self.arm_radio_boxes)
 
         #Controls for displaying the current joint states
@@ -133,13 +133,7 @@ class JointSequenceTool(tu.ToolBase):
             formlayout.addRow("&%s" % name, box)
             vchanged_func = ft.partial(self._value_changed_validate, joint=name)
             self.rcommander.connect(box, SIGNAL('valueChanged(double)'), vchanged_func)
-            #palette.setColor(QPalette.Inactive, QPalette.Base, QColor(255, 0, 0, 255))
-            #palette.setColor(QPalette.Active, QPalette.Base, QColor(255, 0, 0, 255))
-            #palette.setColor(QPalette.Highlight, QColor(255, 0, 0, 255))
-            #exec("self.%s.setSingleStep(.5)" % name)
-            #exec("formlayout.addRow(\"&\" + name, self.%s)" % name)
 
-        #self.pose_button = QPushButton(self.list_widget_buttons)
         self.time_box = QDoubleSpinBox(pbox)
         self.time_box.setMinimum(0)
         self.time_box.setMaximum(1000.)
@@ -148,11 +142,6 @@ class JointSequenceTool(tu.ToolBase):
         formlayout.addRow('&Time', self.time_box)
         self.rcommander.connect(self.time_box, SIGNAL('valueChanged(double)'), self._time_changed_validate)
     
-        #self.update_checkbox = QCheckBox(pbox) 
-        #self.update_checkbox.setTristate(False)
-        #formlayout.addRow('&Live Update', self.update_checkbox)
-        #self.rcommander.connect(self.update_checkbox, SIGNAL('stateChanged(int)'), self.update_selected_cb)
-
         self.live_update_button = QPushButton(pbox)
         self.live_update_button.setText('Live Update')
         self.rcommander.connect(self.live_update_button, SIGNAL('clicked()'), self.update_selected_cb)
@@ -174,22 +163,8 @@ class JointSequenceTool(tu.ToolBase):
         self.rcommander.connect(self.list_widget, SIGNAL('itemSelectionChanged()'), self.item_selection_changed_cb)
         self.list_box_layout.addWidget(self.list_widget)
 
-        #self.movement_buttons_widget = QWidget(self.list_box)
-        #self.movement_buttons_widgetl = QVBoxLayout(self.movement_buttons_widget)
-        #self.movement_buttons_widgetl.setMargin(0)
-
         self.list_widget_buttons = QWidget(pbox)
         self.lbb_hlayout = QHBoxLayout(self.list_widget_buttons)
-
-        #self.move_up_button = QPushButton(self.list_widget_buttons)
-        #self.move_up_button.setText('Up')
-        #self.rcommander.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
-        #self.lbb_hlayout.addWidget(self.move_up_button)
-
-        #self.move_down_button = QPushButton(self.list_widget_buttons)
-        #self.move_down_button.setText('Down')
-        #self.rcommander.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
-        
 
         self.move_up_button = QPushButton(self.list_widget_buttons) #
         self.move_up_button.setText("")
@@ -199,6 +174,7 @@ class JointSequenceTool(tu.ToolBase):
         self.move_up_button.setIcon(icon)
         self.move_up_button.setObjectName("up_button")
         self.rcommander.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
+        self.move_up_button.setToolTip('Move Up')
 
         self.move_down_button = QPushButton(self.list_widget_buttons)
         self.move_down_button.setText("")
@@ -207,6 +183,7 @@ class JointSequenceTool(tu.ToolBase):
         self.move_down_button.setIcon(icon)
         self.move_down_button.setObjectName("down_button")
         self.rcommander.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
+        self.move_down_button.setToolTip('Move Down')
 	
         self.add_joint_set_button = QPushButton(self.list_widget_buttons) #
         self.add_joint_set_button.setText("")
@@ -215,6 +192,8 @@ class JointSequenceTool(tu.ToolBase):
         self.add_joint_set_button.setIcon(icon)
         self.add_joint_set_button.setObjectName("add_button")
         self.rcommander.connect(self.add_joint_set_button, SIGNAL('clicked()'), self.add_joint_set_cb)
+        #QToolTip.add(add_joint_set_button, 'Add')
+        self.add_joint_set_button.setToolTip('Add')
 
         self.remove_joint_set_button = QPushButton(self.list_widget_buttons)
         self.remove_joint_set_button.setText("")
@@ -223,6 +202,7 @@ class JointSequenceTool(tu.ToolBase):
         self.remove_joint_set_button.setIcon(icon)
         self.remove_joint_set_button.setObjectName("remove_button")
         self.rcommander.connect(self.remove_joint_set_button, SIGNAL('clicked()'), self.remove_pose_cb)
+        self.remove_joint_set_button.setToolTip('Remove')
 
         self.save_button = QPushButton(self.list_widget_buttons)
         self.save_button.setText("")
@@ -231,6 +211,7 @@ class JointSequenceTool(tu.ToolBase):
         self.save_button.setIcon(icon)
         self.save_button.setObjectName("save_button")
         self.rcommander.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
+        self.save_button.setToolTip('Save')
         
         spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding) #
 
@@ -240,54 +221,20 @@ class JointSequenceTool(tu.ToolBase):
         self.lbb_hlayout.addItem(spacer) #
         self.lbb_hlayout.addWidget(self.move_up_button) #
         self.lbb_hlayout.addWidget(self.move_down_button) #
-
-        #spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
-        #self.lbb_hlayout.addItem(spacer)
-
-        #self.add_joint_set_button = QPushButton(self.list_widget_buttons)
-        #self.add_joint_set_button.setText('Add')
-        #self.rcommander.connect(self.add_joint_set_button, SIGNAL('clicked()'), self.add_joint_set_cb)
-
-        #self.remove_joint_set_button = QPushButton(self.list_widget_buttons)
-        #self.remove_joint_set_button.setText('Remove')
-        #self.rcommander.connect(self.remove_joint_set_button, SIGNAL('clicked()'), self.remove_pose_cb)
-
-        #self.save_button = QPushButton(self.list_widget_buttons)
-        #self.save_button.setText('Save')
-        #self.rcommander.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
-
-        #self.lbb_hlayout.addWidget(self.add_joint_set_button)
-        #self.lbb_hlayout.addWidget(self.remove_joint_set_button)
-        #self.lbb_hlayout.addWidget(self.save_button)
         self.lbb_hlayout.setContentsMargins(2, 2, 2, 2)
 
-        #self.list_box_layout.addWidget(self.movement_buttons_widget)
-        #formlayout.addRow(self.list_widget)
-
         formlayout.addRow('\n', self.list_box)      #
-        formlayout.addRow('&Create a Joint Movement Sequence:', self.list_box) #
+        formlayout.addRow('&Sequence:', self.list_box) #
         formlayout.addRow(self.list_box)
         formlayout.addRow(self.list_widget_buttons)
         self.reset()
 
-    def update_selected_cb(self):
-        # checked
-        #if state == 2:
-            #self.status_bar_timer.start(30)
-            #self.pose_button.setEnabled(False)
-
-        # unchecked
-        #if state == 0:
-            #self.status_bar_timer.stop()
-            #self.pose_button.setEnabled(True)
-
-        self.pose_button.setEnabled(True)
-        if self.live_update_button.text() == 'Live Update':
+    def set_update_mode(self, on):
+        if on:
             self.live_update_button.setText('End Live Update')
             self.live_update_button.setEnabled(True)
             self.pose_button.setEnabled(False)
             self.status_bar_timer.start(30)
-           	#Determine which color to use
             self.current_update_color = create_color(0,180,75,255)
         else:
             self.live_update_button.setText('Live Update')
@@ -295,10 +242,15 @@ class JointSequenceTool(tu.ToolBase):
             self.status_bar_timer.stop()
             self.current_update_color = create_color(0,0,0,255)
 
-        #Sets color of the QDoubleSpinBox
         for name in self.joint_name_fields:      
             palette = self.current_update_color
             exec('self.%s.setPalette(palette)' % name)
+
+    def update_selected_cb(self):
+        if self.live_update_button.text() == 'Live Update':
+            self.set_update_mode(True)
+        else:
+            self.set_update_mode(False)
 
     def _refill_list_widget(self, joints_list):
         self.list_widget.clear()
@@ -340,6 +292,7 @@ class JointSequenceTool(tu.ToolBase):
         return tentative_name
 
     def item_selection_changed_cb(self):
+        self.set_update_mode(False)
         selected = self.list_widget.selectedItems()
         if len(selected) == 0:
             return
@@ -351,9 +304,8 @@ class JointSequenceTool(tu.ToolBase):
         self.time_box.setValue(self.joint_angs_list[idx]['time'])
         self._time_changed_validate(self.joint_angs_list[idx]['time'])
 
-        #self.update_checkbox.setCheckState(False)
-        self.status_bar_timer.stop()
-        self.pose_button.setEnabled(True)
+        #self.status_bar_timer.stop()
+        #self.pose_button.setEnabled(True)
 
     def add_joint_set_cb(self):
         #Create a new string, check to see whether it's in the current list
