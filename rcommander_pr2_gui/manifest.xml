@@ -21,6 +21,7 @@
   <depend package="arm_navigation_msgs"/>
   <depend package="sensor_msgs"/>
   <depend package="std_msgs"/>
+  <depend package="face_detector"/>
 
   <depend package="move_base_msgs"/>
   <depend package="pr2_common_action_msgs"/>
