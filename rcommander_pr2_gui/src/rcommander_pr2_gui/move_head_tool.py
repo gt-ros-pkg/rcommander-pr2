@@ -12,10 +12,10 @@ class MoveHeadTool(tu.ToolBase):
 
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'move_head_ang', 'Move Head (ang)', MoveHeadState)
-	self.head_angs_list = None
-	self.joint_names = ["head_pan_joint", "head_tilt_joint"]
-	self.status_bar_timer = QTimer()
-	self.rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles_cb)
+        self.head_angs_list = None
+        self.joint_names = ["head_pan_joint", "head_tilt_joint"]
+        self.status_bar_timer = QTimer()
+        self.rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles_cb)
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
@@ -84,7 +84,7 @@ class MoveHeadTool(tu.ToolBase):
         #spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
         #self.lbb_hlayout.addItem(spacer)
 
-	#formlayout.addRow('&Create a Joint Sequence', self.time_box)
+	    #formlayout.addRow('&Create a Joint Sequence', self.time_box)
 
         self.move_up_button = QPushButton(self.list_widget_buttons)
         self.move_up_button.setText("")
@@ -174,8 +174,11 @@ class MoveHeadTool(tu.ToolBase):
     def set_node_properties(self, my_node):
         self.joint_boxes[0].setValue(np.degrees(my_node.poses[0,0]))
         self.joint_boxes[1].setValue(np.degrees(my_node.poses[1,0]))
-        #self.time_box.setValue(my_node.mot_time)
-	self.head_angs_list = my_node.joint_waypoints
+        #self.time_box.setValue(my_node.mot_time) 
+        self.head_angs_list = my_node.joint_waypoints
+        self._refill_list_widget(my_node.joint_waypoints)
+        self.list_widget.setCurrentItem(self.list_widget.item(0))
+
 #added   
     def item_selection_changed_cb(self):
         selected = self.list_widget.selectedItems()
