@@ -8,6 +8,7 @@ import rcommander.graph_model as gm
 
 from PyQt4 import QtCore, QtGui
 import sys
+import signal
 import os
 import os.path as pt
 import pdb
@@ -65,6 +66,7 @@ class RCommanderAutoServer:
     def _load(self, action):
         rospy.loginfo('Loaded ' + action)
         action_path = os.path.join(self.path_to_rcommander_files, action)
+        rospy.sleep(3)
         return  {'server':  ScriptedActionServer(action, action_path, self.robot),
                  'watcher': WatchDirectory(action_path, self.action_directory_changed)}
 
@@ -140,6 +142,7 @@ def run(robot, path):
     #options, args = p.parse_args()
     #print options.name, options.dir
     app = QtGui.QApplication(sys.argv)
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
     server = RCommanderAutoServer(robot, path)
     rospy.loginfo('RCommander server UP!')
     app.exec_()
