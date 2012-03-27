@@ -39,6 +39,20 @@ class JointSequenceTool(tu.ToolBase):
 
     def _value_changed_validate(self, value, joint):
         arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+        #limits = self.limits[idx]
+        #jname = pref + joint
+        #if limits.has_key(jname):
+        #    exec('box = self.%s' % joint)
+        #    mina, maxa = limits[jname]
+        #    v = np.radians(value)
+        #    if v < mina or v > maxa:
+        #        self.set_invalid_color(joint, True)
+        #    else:
+        #        self.set_invalid_color(joint, False)
+        self._check_limit(arm, value, joint)
+        self._check_time_validity(self.time_box.value())
+
+    def _check_limit(self, arm, value, joint):
         if arm == 'left':
             idx = 0
             pref = 'l_'
@@ -56,10 +70,14 @@ class JointSequenceTool(tu.ToolBase):
                 self.set_invalid_color(joint, True)
             else:
                 self.set_invalid_color(joint, False)
-        self._check_time_validity(self.time_box.value())
 
     def _check_time_validity(self, value):
-        self.set_invalid_color('time_box', False)
+        #self.set_invalid_color('time_box', False)
+        r,g,b = 0,0,0
+        palette = QPalette(QColor(r, g, b, 255))
+        palette.setColor(QPalette.Text, QColor(r, g, b, 255))
+        self.time_box.setPalette(palette)
+
         arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
         if arm == 'left':
             #idx = 0
@@ -98,7 +116,11 @@ class JointSequenceTool(tu.ToolBase):
         #print 'min_time', min_time
         for multiplier, color in [[1., [255,0,0]], [2., [255,153,0]]]:
             if curr_time <= (min_time * multiplier):
-                self.set_invalid_color('time_box', True, color)
+                r,g,b = color
+                palette = QPalette(QColor(r, g, b, 255))
+                palette.setColor(QPalette.Text, QColor(r, g, b, 255))
+                self.time_box.setPalette(palette)
+                #self.set_invalid_color('time_box', True, color)
                 return
 
     def _time_changed_validate(self, value):
@@ -111,8 +133,11 @@ class JointSequenceTool(tu.ToolBase):
             palette = QPalette(QColor(r, g, b, 255))
             palette.setColor(QPalette.Text, QColor(r, g, b, 255))
         else:
-            palette = QPalette(QColor(0, 0, 0, 255))
-            palette.setColor(QPalette.Text, QColor(0, 0, 0, 255))
+            #exec('self.%s.setPalette(palette)' % name)
+            palette = self.current_update_color
+            #palette = QPalette(QColor(0, 0, 0, 255))
+            #palette.setColor(QPalette.Text, QColor(0, 0, 0, 255))
+
         exec('self.%s.setPalette(palette)' % joint_name)
 
     def fill_property_box(self, pbox):
@@ -246,6 +271,12 @@ class JointSequenceTool(tu.ToolBase):
             palette = self.current_update_color
             exec('self.%s.setPalette(palette)' % name)
 
+        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+        for idx, name in enumerate(self.joint_name_fields):
+            exec('line_edit = self.%s' % name)
+            self._check_limit(arm, line_edit.value(), name)
+            #line_edit.setValue(line_edit.value())
+
     def update_selected_cb(self):
         if self.live_update_button.text() == 'Live Update':
             self.set_update_mode(True)
@@ -266,12 +297,10 @@ class JointSequenceTool(tu.ToolBase):
 
         pose_mat = arm_obj.pose()
 
-        palette = self.current_update_color
         for idx, name in enumerate(self.joint_name_fields):
             deg = np.degrees(pose_mat[idx, 0])
             exec('line_edit = self.%s' % name)
             line_edit.setValue(deg)
-            exec('self.%s.setPalette(palette)' % name)
 
 
     def _has_name(self, test_name):

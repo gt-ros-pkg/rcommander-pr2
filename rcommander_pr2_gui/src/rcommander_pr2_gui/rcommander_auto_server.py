@@ -111,14 +111,14 @@ class ScriptedActionServer:
         #Check on execution status
         while True:
             if actserver.is_preempt_requested():
-		self.graph_model.preempt()
+                self.graph_model.preempt()
                 actserver.set_preempted()
                 success = False
                 break
 
             if not self.graph_model.is_running():
                 outcome = self.graph_model.get_last_outcome()
-		if outcome != None:
+                if outcome != None:
                     state_machine_output, end_time = outcome
                     success = True
                 else:
