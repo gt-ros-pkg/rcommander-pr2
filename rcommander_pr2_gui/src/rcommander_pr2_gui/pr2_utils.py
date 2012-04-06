@@ -21,6 +21,7 @@ from tf_broadcast_server.srv import GetTransforms
 import rcommander.tool_utils as tu
 import roslib
 import os.path as pt
+import copy
 
 
 class SE3Tool:
@@ -87,14 +88,28 @@ class ListManager:
         self.add_element_cb = add_element_cb
         self.name_preffix = name_preffix
         self.data_list = []
+        self.curr_selected = None
+        self.disable_saving = False
+
+    def reset(self):
+        self.curr_selected = None
+        self.disable_saving = False
+        self.data_list = []
+        self.list_widget.clear()
 
     def item_selection_changed_cb(self):
+        if self.curr_selected != None and not self.disable_saving:
+            self.save_currently_selected_item()
+
         selected = self.list_widget.selectedItems()
         if len(selected) == 0:
             return
         idx = self._find_index_of(str(selected[0].text()))
         self.curr_selected = idx
         self.set_current_data_cb(self.data_list[idx]['data'])
+
+    def get_selected_idx(self):
+        return self.curr_selected
 
     def set_default_selection(self):
         if len(self.data_list) > 0:
@@ -117,8 +132,6 @@ class ListManager:
 
         self.list_widget_buttons = QWidget(parent)
         self.lbb_hlayout = QHBoxLayout(self.list_widget_buttons)
-
-
         base_path = roslib.packages.get_pkg_dir('rcommander_pr2_gui')
 
         icon = QIcon()
@@ -135,12 +148,12 @@ class ListManager:
         self.remove_button.setIcon(icon)
         connector.connect(self.remove_button, SIGNAL('clicked()'), self.remove_pose_cb)
 
-        icon = QIcon()
-        icon.addPixmap(QPixmap(pt.join(base_path, "icons/SaveButton.png")), QIcon.Normal, QIcon.Off)
-        self.save_button = QPushButton(self.list_widget_buttons)
-        self.save_button.setToolTip('Save')
-        self.save_button.setIcon(icon)
-        connector.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
+        #icon = QIcon()
+        #icon.addPixmap(QPixmap(pt.join(base_path, "icons/SaveButton.png")), QIcon.Normal, QIcon.Off)
+        #self.save_button = QPushButton(self.list_widget_buttons)
+        #self.save_button.setToolTip('Save')
+        #self.save_button.setIcon(icon)
+        #connector.connect(self.save_button, SIGNAL('clicked()'), self.save_currently_selected_item)
 
         spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
 
@@ -161,7 +174,7 @@ class ListManager:
 
         self.lbb_hlayout.addWidget(self.add_button)
         self.lbb_hlayout.addWidget(self.remove_button)
-        self.lbb_hlayout.addWidget(self.save_button)
+        #self.lbb_hlayout.addWidget(self.save_button)
         self.lbb_hlayout.addItem(spacer)
         self.lbb_hlayout.addWidget(self.move_up_button)
         self.lbb_hlayout.addWidget(self.move_down_button)
@@ -178,8 +191,7 @@ class ListManager:
         for rec in self.data_list:
             if rec['name'] == test_name:
                 return True
-            else:
-                return False
+        return False
 
     def _create_name(self):
         idx = len(self.data_list)
@@ -187,15 +199,19 @@ class ListManager:
         while self._has_name(tentative_name):
             idx = idx + 1
             tentative_name = self.name_preffix + ('%d' % idx)
+        #print 'CREATED', tentative_name, self._has_name(tentative_name)
         return tentative_name
 
     def add_cb(self):
         name = self._create_name()
         self.data_list.append({'name': name, 
                                'data': self.get_current_data_cb()})
+        self.disable_saving = True
         self._refill_list_widget(self.data_list)
         if self.add_element_cb != None:
             self.add_element_cb()
+        self.list_widget.setCurrentRow(self._find_index_of(name))
+        self.disable_saving = False
 
     def _selected_idx(self):
         #Get currently selected
@@ -239,11 +255,13 @@ class ListManager:
     def select_default_item(self):
         self.list_widget.setCurrentItem(self.list_widget.item(0))
 
-    def save_button_cb(self):
-        idx = self._selected_idx()
-        if idx == None:
+    def save_currently_selected_item(self):
+        #idx = self._selected_idx()
+        idx = self.curr_selected
+        if idx == None or idx >= len(self.data_list):
             return
         el = self.data_list[idx]
+        #rospy.loginfo('SAVING SAVING SAVING: ' + el['name'])
         self.data_list[idx] = {'name': el['name'],
                                'data': self.get_current_data_cb()}
 
@@ -257,12 +275,15 @@ class ListManager:
             self.data_list.pop(idx)
         self._refill_list_widget(self.data_list)
 
-    def get_data(self):
+    def get_data(self, clean=False):
         #return [p['data'] for p in self.data_list]
-        return self.data_list
+        if clean:
+            return [d['data'] for d in self.data_list]
+        else:
+            return self.data_list
 
     def set_data(self, data_list):
-        self.data_list = data_list
+        self.data_list = copy.deepcopy(data_list)
         self._refill_list_widget(self.data_list)
 
 

@@ -105,6 +105,7 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.time_box.setValue(data['time'])
 
     def new_node(self, name=None):
+        self.list_manager.save_currently_selected_item()
         if name == None:
             nname = self.name + str(self.counter)
         else:
@@ -123,6 +124,7 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.frame_box.setCurrentIndex(self.frame_box.findText(self.default_frame))
         #self.source_box.setCurrentIndex(self.source_box.findText(' '))
         self.time_box.setValue(0.5)
+        self.list_manager.reset()
         self.list_manager.set_default_selection()
 
 
