@@ -42,6 +42,8 @@ class SpeakTool(tu.ToolBase):
 
     def set_node_properties(self, my_node):
         self.document.setPlainText(my_node.text)
+        idx = tu.combobox_idx(self.voices_box, my_node.voice)
+        self.voices_box.setCurrentIndex(idx)
 
     def reset(self):
         self.document = QTextDocument(self.DEFAULT_TEXT)

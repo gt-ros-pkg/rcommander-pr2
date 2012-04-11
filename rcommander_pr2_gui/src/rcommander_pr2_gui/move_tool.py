@@ -340,8 +340,8 @@ class JointSequenceStateSmach(smach.State):
         times = []
         wps = []
         for d in self.joint_waypoints:
-            wps.append(np.matrix(d['angs']).T)
-            times.append(d['time'])
+            wps.append(np.matrix(d['data']['angs']).T)
+            times.append(d['data']['time'])
 
         self.arm_obj.set_poses(np.column_stack(wps), np.cumsum(np.array(times)), block=False)
         client = self.arm_obj.client
