@@ -1,10 +1,8 @@
 <package>
   <description brief="pycontroller_manager">
-
-     pycontroller_manager
-
+     Creates a Python interface to PR2's controller manager.
   </description>
-  <author>Hai</author>
+  <author>Hai Nguyen (haidai@gmail.com)</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/pycontroller_manager</url>

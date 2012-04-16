@@ -1,9 +1,9 @@
 <package>
   <description brief="rcommander_pr2_gui">
-     rcommander_pr2
+     Contains RCommander Plugins for the PR2.
   </description>
 
-  <author>Hai Nguyen</author>
+  <author>Hai Nguyen (haidai@gmail.com)</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/rcommander_pr2</url>
