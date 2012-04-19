@@ -4,7 +4,7 @@
     Text-to-speech server (uses Festival).
 
   </description>
-  <author>Hai Nguyen (haidai@gmail.com)</author>
+  <author>Hai Nguyen (haidai@gmail.com) and Charles C. Kemp (Georgia Tech)</author>
   <license>BSD</license>
 
   <review status="unreviewed" notes=""/>
