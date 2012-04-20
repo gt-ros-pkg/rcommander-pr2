@@ -1,0 +1,5 @@
+<launch>
+  <include file="$(find tts_server)/tts_server.launch"/>
+  <include file="$(find rcommander_pr2_gui)/launch/pr2_gripper_sensor_actions.launch"/>
+  <include file="$(find rcommander_pr2_gui)/launch/rcommander_servers_common.launch"/>
+</launch>

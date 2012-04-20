@@ -1,4 +1,0 @@
-<launch>
-    <node pkg="rcommander_pr2_gui" type="rcommander_pr2.py" output="screen" name="rcommander_pr2_gui"/>
-    <include file="$(find rcommander_pr2_gui)/launch/rcommander_pr2_server.launch"/>
-</launch>

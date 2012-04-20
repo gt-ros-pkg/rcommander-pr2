@@ -1,0 +1,3 @@
+<launch>
+  <include file="$(find rcommander_pr2_gui)/launch/rcommander_servers_common.launch"/>
+</launch>

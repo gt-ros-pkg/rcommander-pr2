@@ -1,12 +1,4 @@
 <launch>
-  <!--
-  <node pkg="pr2_tuckarm" type="tuck_arms.py" output="screen" name="tuck_arms"/>
-  -->
-  <!--
-  DON'T ENABLE THIS IN SIMULATION
-  <include file="$(find tts_server)/tts_server.launch"/>
-  <include file="$(find rcommander_pr2_gui)/launch/pr2_gripper_sensor_actions.launch"/>
-  --> 
   <include file="$(find face_detector)/launch/face_detector_action.wide.launch"/>
 
   <node pkg="ptp_arm_action" type="ptp_arm_action_server.py" args="left" output="screen" name="ptp_action_left">
@@ -25,5 +17,5 @@
 
   <node pkg="rcommander_pr2_gui" type="min_time_node" output="screen" name="min_time_to_move_node"/>
   <node pkg="tf_broadcast_server" type="tf_broadcast_server.py" output="screen" name="rcommander_tf_broadcast"/>
-
 </launch>
+
