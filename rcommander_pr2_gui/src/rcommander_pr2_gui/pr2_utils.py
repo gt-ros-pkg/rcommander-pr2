@@ -75,7 +75,7 @@ class SE3Tool:
         for value, vr in zip(position(pose_stamped.pose.position), [self.xline, self.yline, self.zline]):
             vr.setValue(value)
         for value, vr in zip(tr.euler_from_quaternion(quaternion(pose_stamped.pose.orientation)), [self.phi_line, self.theta_line, self.psi_line]):
-            vr.setValue(value)
+            vr.setValue(np.degrees(value))
         idx = tu.combobox_idx(self.frame_box, pose_stamped.header.frame_id)
         self.frame_box.setCurrentIndex(idx)
 
