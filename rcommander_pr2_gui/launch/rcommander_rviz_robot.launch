@@ -1,4 +1,5 @@
 <launch>
     <include file="$(find rcommander_pr2_gui)/launch/rcommander_pr2_desktop_robot.launch"/>
-    <node pkg="rviz" name="$(anon rviz-1)" type="rviz" respawn="false" output="screen"/>
+    <include file="$(find pr2_interactive_manipulation)/launch/pr2_interactive_manipulation_desktop.launch"/>
+    <!--<node pkg="rviz" name="$(anon rviz-1)" type="rviz" respawn="false" output="screen"/>-->
 </launch>
