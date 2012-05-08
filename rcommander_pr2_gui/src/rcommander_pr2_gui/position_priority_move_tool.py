@@ -45,11 +45,18 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.timeout_box.setMinimum(0)
         self.timeout_box.setMaximum(1000.)
         self.timeout_box.setSingleStep(.2)
+
+        self.tolerance_box = QDoubleSpinBox(pbox)
+        self.tolerance_box.setMinimum(0)
+        self.tolerance_box.setMaximum(1.)
+        self.tolerance_box.setSingleStep(.01)
+
         motion_box = QGroupBox('Motion', pbox)
         motion_layout = QFormLayout(motion_box)
         motion_box.setLayout(motion_layout)
         motion_layout.addRow('Speed', self.trans_vel_line)
         motion_layout.addRow('Speed (rotational)', self.rot_vel_line)
+        motion_layout.addRow('&Tolerance', self.tolerance_box)
         motion_layout.addRow("&Arm", self.arm_radio_boxes)
         motion_layout.addRow('&Time Out', self.timeout_box)
 
@@ -94,8 +101,9 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
         frame  = str(self.frame_box.currentText())
         timeout = self.timeout_box.value()
+        trans_tolerance = self.tolerance_box.value()
         pose_stamped = self.get_posestamped()
-        return PositionPriorityState(nname, pose_stamped, trans_vel, rot_vel, arm, timeout)
+        return PositionPriorityState(nname, pose_stamped, trans_vel, rot_vel, arm, timeout, tolerance_box=trans_tolerance)
 
     def set_node_properties(self, node):
         self.set_posestamped(node.pose_stamped)
@@ -109,6 +117,7 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 
         self.frame_box.setCurrentIndex(self.frame_box.findText(str(node.pose_stamped.header.frame_id)))
         self.timeout_box.setValue(node.timeout)
+        self.tolerance_box.setValue(node.trans_tolerance)
 
     def reset(self):
         self.frame_box.setCurrentIndex(self.frame_box.findText(self.default_frame))
@@ -118,11 +127,12 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.rot_vel_line.setValue(.16)
         self.timeout_box.setValue(20)
         self.arm_radio_buttons[0].setChecked(True)
+        self.tolerance_box.setValue(.02)
 
 class PositionPriorityState(tu.StateBase): # smach_ros.SimpleActionState):
 
     def __init__(self, name, pose_stamped, trans_vel, rot_vel, arm, #frame, 
-            timeout):#, source_for_origin):
+            timeout, trans_tolerance):#, source_for_origin):
         tu.StateBase.__init__(self, name)
         self.pose_stamped  = pose_stamped
         self.trans_vel = trans_vel
@@ -131,20 +141,21 @@ class PositionPriorityState(tu.StateBase): # smach_ros.SimpleActionState):
         self.arm = arm
         #self.frame = frame
         self.timeout = timeout
+        self.trans_tolerance = trans_tolerance
         #self.set_remapping_for('origin', source_for_origin)
 
     def get_smach_state(self):
        return PositionPrioritySmach(self.pose_stamped, self.trans_vel, self.rot_vel,
                 self.arm, 
                 #self.frame, 
-                self.timeout)#, self.remapping_for('origin'))
+                self.timeout, trans_tolerance)#, self.remapping_for('origin'))
 
 class PositionPrioritySmach(smach.State):
 
     def __init__(self, pose_stamped, trans_vel, rot_vel, arm, 
                 #frame, 
-                timeout):#, source_for_origin):
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], 
+                timeout, trans_tolerance):#, source_for_origin):
+        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'timed_out', 'goal_not_reached'], 
                              input_keys = [], output_keys = [])
 
         self.pose_stamped  = pose_stamped
@@ -152,6 +163,7 @@ class PositionPrioritySmach(smach.State):
         self.rot_vel = rot_vel
         self.action_client = actionlib.SimpleActionClient(arm + '_ptp', ptp.LinearMovementAction)
         self.timeout = timeout
+        self.trans_tolerance = trans_tolerance
 
     def set_robot(self, robot_obj):
         if robot_obj != None:
@@ -159,10 +171,12 @@ class PositionPrioritySmach(smach.State):
 
     def execute_goal(self, goal, timeout):
         self.action_client.send_goal(goal)
-        succeeded = False
+        state = None
+
+        #succeeded = False
         preempted = False
         r = rospy.Rate(30)
-        start_time = rospy.get_time()
+        #start_time = rospy.get_time()
 
         while True:
             #we have been preempted
@@ -173,18 +187,18 @@ class PositionPrioritySmach(smach.State):
                 preempted = True
                 break
 
-            if (rospy.get_time() - start_time) > timeout:
-                self.action_client.cancel_goal()
-                rospy.loginfo('PositionPrioritySmach: timed out!')
-                succeeded = False
-                break
+            #if (rospy.get_time() - start_time) > timeout:
+            #    self.action_client.cancel_goal()
+            #    rospy.loginfo('PositionPrioritySmach: timed out!')
+            #    succeeded = False
+            #    break
 
             #print tu.goal_status_to_string(state)
             state = self.action_client.get_state()
             if (state not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING]):
-                if state == am.GoalStatus.SUCCEEDED:
-                    rospy.loginfo('PositionPrioritySmach: Succeeded!')
-                    succeeded = True
+                #if state == am.GoalStatus.SUCCEEDED:
+                #    rospy.loginfo('PositionPrioritySmach: Succeeded!')
+                #    succeeded = True
                 break
 
             r.sleep()
@@ -192,15 +206,34 @@ class PositionPrioritySmach(smach.State):
         if preempted:
             return 'preempted'
 
-        if succeeded:
+        if state == am.GoalStatus.SUCCEEDED:
             return 'succeeded'
 
-        return 'failed'
+        elif state == am.GoalStatus.ABORTED:
+            result = self.action_client.get_result()
+            if result.message == 'timed_out':
+                return 'timed_out'
+            elif result.message == 'goal_not_reached':
+                return 'goal_not_reached'
+            else:
+                raise Exception('Unknown failure result: %s' % result.message)
+        else:
+            raise Exception('Unexpected state reached: %d' % state)
+
+            
+
+
+
+        #if succeeded:
+        #    return 'succeeded'
+
+        #return 'failed'
 
     def execute(self, userdata):
         goal = ptp.LinearMovementGoal()
         goal.goal = self.pose_stamped
         goal.trans_vel = self.trans_vel
         goal.rot_vel   = self.rot_vel
+        goal.trans_tolerance = self.trans_tolerance
         return self.execute_goal(goal, self.timeout)
 

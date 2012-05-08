@@ -61,11 +61,11 @@ class PTPArmActionServer:
         #self.pose_sub = rospy.Subscriber(self.controller + '/state/x', gm.PoseStamped, self.pose_callback)
 
         self.tf = tf.TransformListener()
-        self.trans_tolerance = rospy.get_param("~translation_tolerance")
+        #self.trans_tolerance = rospy.get_param("~translation_tolerance")
         self.rot_tolerance = math.radians(rospy.get_param("~rotation_tolerance"))
         self.stall_time = rospy.get_param("~stall_time")
         #rospy.loginfo('trans tolerance ' + str(self.trans_tolerance))
-        self.time_out = rospy.get_param("~timeout")
+        #self.time_out = rospy.get_param("~timeout")
 
         self.controller_manager = ControllerManager()
         #self.controller_manager.cart_mode(self.arm)
@@ -80,10 +80,11 @@ class PTPArmActionServer:
     def action_cb(self, msg):
         rospy.loginfo('message that we got:\n' + str(msg))
         self.controller_manager.cart_mode(self.arm)
-        #self._wait_for_pose_message()
-        self.trans_tolerance = rospy.get_param("~translation_tolerance")
+        trans_tolerance = msg.trans_tolerance #rospy.get_param("~translation_tolerance")
+        time_out = msg.time_out #rospy.get_param("~timeout")
         self.rot_tolerance = math.radians(rospy.get_param("~rotation_tolerance"))
-        self.time_out = rospy.get_param("~timeout")
+
+        #self._wait_for_pose_message()
 
         success = False
         r = rospy.Rate(100)
@@ -98,7 +99,7 @@ class PTPArmActionServer:
             rot_vel = pi/20.
 
         tstart = rospy.get_time()
-        tmax = tstart + self.time_out
+        tmax = tstart + time_out
         self.controller_manager = ControllerManager()
         rospy.loginfo('Goal is x %f y %f z %f in %s' % (goal_ps.pose.position.x, goal_ps.pose.position.y, 
             goal_ps.pose.position.z, goal_ps.header.frame_id))
@@ -123,6 +124,7 @@ class PTPArmActionServer:
         min_ang_error = None
         time_trans = None
         min_trans_error = None
+        timed_out = False
 
         while True:
             cur_time = rospy.get_time()
@@ -169,13 +171,14 @@ class PTPArmActionServer:
                 min_ang_error = abs(ang)
                 time_ang = cur_time
 
-            if self.trans_tolerance > trans_mag and self.rot_tolerance > abs(ang):
+            if trans_tolerance > trans_mag and self.rot_tolerance > abs(ang):
                 rospy.loginfo('action_cb: reached goal.')
                 break
 
             #Timed out! is this a failure?
             if cur_time > tmax:
                 rospy.loginfo('action_cb: timed out.')
+                timed_out = True
                 break
 
             #if it has been a while since we made progress
@@ -200,11 +203,16 @@ class PTPArmActionServer:
 
         trans, ang, _ = pose_distance(gripper_ps, goal_torso, self.tf)
         result = ptp.LinearMovementResult(gm.Vector3(trans[0,0], trans[1,0], trans[2,0]))
-        if self.trans_tolerance > np.linalg.norm(trans):
+        if trans_tolerance > np.linalg.norm(trans):
             rospy.loginfo( 'SUCCEEDED! %.3f ang %.3f' % (np.linalg.norm(trans), np.degrees(ang)))
+            result.message = 'succeeded'
             self.linear_movement_as.set_succeeded(result)
         else:
             rospy.loginfo('ABORTED! %.3f ang %.3f' % (np.linalg.norm(trans), np.degrees(ang)))
+            if timed_out:
+                result.message = 'timed_out'
+            else:
+                result.message = 'goal_not_reached'
             self.linear_movement_as.set_aborted(result)
 
     
