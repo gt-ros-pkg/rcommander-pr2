@@ -121,6 +121,12 @@ class ListManager:
                 return idx
         return None
 
+    def monitor_changing_values_in(self, connector, widgets):
+        def value_changed_func(new_value):
+            self.save_currently_selected_item()
+        for w in widgets:
+            connector.connect(w, SIGNAL('valueChanged(double)'), value_changed_func)
+
     def make_widgets(self, parent, connector):
         self.list_box = QWidget(parent)
         self.list_box_layout = QHBoxLayout(self.list_box)
@@ -235,8 +241,10 @@ class ListManager:
         self.data_list.insert(idx-1, item)
 
         #refresh
+        self.disable_saving = True
         self._refill_list_widget(self.data_list)
         self.list_widget.setCurrentItem(self.list_widget.item(idx-1))
+        self.disable_saving = False
 
     def move_down_cb(self):
         #get the current index
@@ -249,8 +257,10 @@ class ListManager:
         self.data_list.insert(idx+1, item)
 
         #refresh
+        self.disable_saving = True
         self._refill_list_widget(self.data_list)
         self.list_widget.setCurrentItem(self.list_widget.item(idx+1))
+        self.disable_saving = False
 
     def select_default_item(self):
         self.list_widget.setCurrentItem(self.list_widget.item(0))
