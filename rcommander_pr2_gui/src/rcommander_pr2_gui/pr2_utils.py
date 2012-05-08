@@ -52,6 +52,9 @@ class SE3Tool:
         orientation_layout.addRow("&Psi",   self.psi_line)
     
         return [position_box, orientation_box]
+
+    def get_all_data_input_widgets(self):
+        return [self.xline, self.yline, self.zline, self.phi_line, self.theta_line, self.psi_line]
     
     def make_frame_box(self, pbox):
         frame_box = QComboBox(pbox)

@@ -103,7 +103,7 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         timeout = self.timeout_box.value()
         trans_tolerance = self.tolerance_box.value()
         pose_stamped = self.get_posestamped()
-        return PositionPriorityState(nname, pose_stamped, trans_vel, rot_vel, arm, timeout, tolerance_box=trans_tolerance)
+        return PositionPriorityState(nname, pose_stamped, trans_vel, rot_vel, arm, timeout, trans_tolerance)
 
     def set_node_properties(self, node):
         self.set_posestamped(node.pose_stamped)
