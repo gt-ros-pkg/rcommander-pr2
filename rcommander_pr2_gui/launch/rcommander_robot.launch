@@ -7,20 +7,8 @@
     <include unless="$(arg sim)" file="$(find rcommander_pr2_gui)/launch/pr2_gripper_sensor_actions.launch"/>
 
     <include file="$(find face_detector)/launch/face_detector_action.wide.launch"/>
-    <node pkg="ptp_arm_action" type="ptp_arm_action_server.py" args="left" output="screen" name="ptp_action_left">
-    	<param name="translation_tolerance" value=".015"/>	
-          <param name="rotation_tolerance" value="5"/>
-          <param name="timeout" value="30"/>
-          <param name="stall_time" value="3."/>
-    </node>
 
-    <node pkg="ptp_arm_action" type="ptp_arm_action_server.py" args="right" output="screen" name="ptp_action_right">
-    	<param name="translation_tolerance" value=".015"/>	
-          <param name="rotation_tolerance" value="5"/>
-          <param name="timeout" value="30"/>
-          <param name="stall_time" value="3."/>
-    </node>
-
+    <!--<include file="$(find rcommander_pr2_gui)/launch/ptp_arm_action.launch"/>-->
     <node pkg="rcommander_pr2_gui" type="min_time_node" output="screen" name="min_time_to_move_node"/>
     <node pkg="tf_broadcast_server" type="tf_broadcast_server.py" output="screen" name="rcommander_tf_broadcast"/>
     <node pkg="topic_tools" type="throttle" output="screen" name="joint_states_throttler" args="messages joint_states"/>
