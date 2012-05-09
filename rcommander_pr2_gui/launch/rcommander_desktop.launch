@@ -1,11 +1,18 @@
 <launch>
     <arg name="sim" default="false"/>
     <arg name="interactive_manipulation" default="false"/>
+    <arg name="use_relay" default="true"/>
 
-    <node pkg="rcommander_pr2_gui" type="rcommander_pr2_server.py" 
-        output="screen" name="rcommander_actions_server"
-            args="$(env HOME)/Desktop/robot_behaviors"/>
-
+    <node if="$(arg use_relay)" name="relay_tf" pkg="topic_tools" type="relay" args="tf relay_tf"/>
     <include if="$(arg sim)" file="$(find tts_server)/tts_server.launch"/>
-    <include unless="$(arg interactive_manipulation)" file="$(find pr2_interactive_manipulation)/launch/pr2_interactive_manipulation_desktop.launch"/>
+    <group>
+        <remap if="$(arg use_relay)" from="tf" to="relay_tf"/>
+        <node pkg="rcommander_pr2_gui" type="rcommander_pr2_server.py" 
+            output="screen" name="rcommander_actions_server"
+            args="$(env HOME)/Desktop/robot_behaviors">
+            <remap from="joint_states" to="joint_states_throttle"/>
+        </node>
+        <include unless="$(arg interactive_manipulation)" 
+            file="$(find pr2_interactive_manipulation)/launch/pr2_interactive_manipulation_desktop.launch"/>
+    </group>
 </launch>
