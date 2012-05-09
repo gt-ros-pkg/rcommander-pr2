@@ -23,6 +23,7 @@ import roslib
 import os.path as pt
 import copy
 import unittest
+import math
 
 
 class SE3Tool:
@@ -332,7 +333,7 @@ def angle_consistency_check(current_angle, angles_list):
         angles.append(start_angle + (n - prev))
     return [start_angle] + angles
 
-ra = m.radians
+ra = math.radians
 class TestAngleConsistency(unittest.TestCase):
 
     def test_01(self):
