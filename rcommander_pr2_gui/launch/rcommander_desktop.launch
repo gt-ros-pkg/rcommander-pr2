@@ -1,0 +1,11 @@
+<launch>
+    <arg name="sim" default="false"/>
+    <arg name="interactive_manipulation" default="false"/>
+
+    <node pkg="rcommander_pr2_gui" type="rcommander_pr2_server.py" 
+        output="screen" name="rcommander_actions_server"
+            args="$(env HOME)/Desktop/robot_behaviors"/>
+
+    <include if="$(arg sim)" file="$(find tts_server)/tts_server.launch"/>
+    <include unless="$(arg interactive_manipulation)" file="$(find pr2_interactive_manipulation)/launch/pr2_interactive_manipulation_desktop.launch"/>
+</launch>

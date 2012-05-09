@@ -1,5 +1,0 @@
-<launch>
-    <node pkg="rcommander_pr2_gui" type="rcommander_pr2_server.py" 
-        output="screen" name="rcommander_actions_server"
-            args="$(env HOME)/Desktop/robot_behaviors"/>
-</launch>
