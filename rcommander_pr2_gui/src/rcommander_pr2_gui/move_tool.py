@@ -147,6 +147,7 @@ class JointSequenceTool(tu.ToolBase):
     def fill_property_box(self, pbox):
         #self.curr_selected = None
         formlayout = pbox.layout()
+        items_to_monitor = []
 
         self.arm_radio_boxes, self.arm_radio_buttons = tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
         formlayout.addRow('&Arm', self.arm_radio_boxes)
@@ -156,6 +157,7 @@ class JointSequenceTool(tu.ToolBase):
             #exec("self.%s = QLineEdit(pbox)" % name)
             exec("self.%s = QDoubleSpinBox(pbox)" % name)
             exec('box = self.%s' % name)
+            items_to_monitor.append(box)
             box.setSingleStep(.5)
             box.setMinimum(-9999999)
             box.setMaximum(9999999)
@@ -168,6 +170,7 @@ class JointSequenceTool(tu.ToolBase):
         self.time_box.setMaximum(1000.)
         self.time_box.setSingleStep(.2)
         self.time_box.setValue(1.)
+        items_to_monitor.append(self.time_box)
         formlayout.addRow('&Time', self.time_box)
         self.rcommander.connect(self.time_box, SIGNAL('valueChanged(double)'), self._time_changed_validate)
     
@@ -185,6 +188,7 @@ class JointSequenceTool(tu.ToolBase):
         #self.joint_angs_list = []
         self.list_manager = p2u.ListManager(self.get_current_data_cb, self.set_current_data_cb, None, name_preffix='point')
         list_widgets = self.list_manager.make_widgets(pbox, self.rcommander)
+        self.list_manager.monitor_changing_values_in(self.rcommander, items_to_monitor)
 
         formlayout.addRow('\n', list_widgets[0])
         formlayout.addRow('&Sequence:', list_widgets[0])

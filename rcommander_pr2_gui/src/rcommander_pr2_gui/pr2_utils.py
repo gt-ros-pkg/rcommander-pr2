@@ -1,4 +1,4 @@
-import roslib; roslib.load_manifest('rcommander')
+import roslib; roslib.load_manifest('rcommander_pr2_gui')
 import rospy
 import actionlib
 import trajectory_msgs.msg as tm
@@ -22,6 +22,7 @@ import rcommander.tool_utils as tu
 import roslib
 import os.path as pt
 import copy
+import unittest
 
 
 class SE3Tool:
@@ -52,6 +53,9 @@ class SE3Tool:
         orientation_layout.addRow("&Psi",   self.psi_line)
     
         return [position_box, orientation_box]
+
+    def get_all_data_input_widgets(self):
+        return [self.xline, self.yline, self.zline, self.phi_line, self.theta_line, self.psi_line]
     
     def make_frame_box(self, pbox):
         frame_box = QComboBox(pbox)
@@ -75,7 +79,7 @@ class SE3Tool:
         for value, vr in zip(position(pose_stamped.pose.position), [self.xline, self.yline, self.zline]):
             vr.setValue(value)
         for value, vr in zip(tr.euler_from_quaternion(quaternion(pose_stamped.pose.orientation)), [self.phi_line, self.theta_line, self.psi_line]):
-            vr.setValue(value)
+            vr.setValue(np.degrees(value))
         idx = tu.combobox_idx(self.frame_box, pose_stamped.header.frame_id)
         self.frame_box.setCurrentIndex(idx)
 
@@ -120,6 +124,12 @@ class ListManager:
             if tup['name'] == name:
                 return idx
         return None
+
+    def monitor_changing_values_in(self, connector, widgets):
+        def value_changed_func(new_value):
+            self.save_currently_selected_item()
+        for w in widgets:
+            connector.connect(w, SIGNAL('valueChanged(double)'), value_changed_func)
 
     def make_widgets(self, parent, connector):
         self.list_box = QWidget(parent)
@@ -235,8 +245,10 @@ class ListManager:
         self.data_list.insert(idx-1, item)
 
         #refresh
+        self.disable_saving = True
         self._refill_list_widget(self.data_list)
         self.list_widget.setCurrentItem(self.list_widget.item(idx-1))
+        self.disable_saving = False
 
     def move_down_cb(self):
         #get the current index
@@ -249,8 +261,10 @@ class ListManager:
         self.data_list.insert(idx+1, item)
 
         #refresh
+        self.disable_saving = True
         self._refill_list_widget(self.data_list)
         self.list_widget.setCurrentItem(self.list_widget.item(idx+1))
+        self.disable_saving = False
 
     def select_default_item(self):
         self.list_widget.setCurrentItem(self.list_widget.item(0))
@@ -306,6 +320,40 @@ def standard_rad(t):
         return ((t + np.pi) % (np.pi * 2))  - np.pi
     else:
         return ((t - np.pi) % (np.pi * -2)) + np.pi
+
+## Make sure that the first element is close to the current angle and make sure
+## that every other element conforms.
+def angle_consistency_check(current_angle, angles_list):
+    diff = standard_rad(angles_list[0] - current_angle)
+    start_angle = current_angle + diff
+    angles = []
+    prev = angles_list[0]
+    for n in angles_list[1:]:
+        angles.append(start_angle + (n - prev))
+    return [start_angle] + angles
+
+ra = m.radians
+class TestAngleConsistency(unittest.TestCase):
+
+    def test_01(self):
+        sa = ra(360 + 10.)
+        la = [ra(20.), ra(360+180.)]
+        ret = angle_consistency_check(sa, la)
+        self.assertEqual(ret, [ra(360+20.), ra(360.+360.+180)])
+
+    def test_02(self):
+        sa = ra(10 - 360)
+        la = [ra(20.), ra(360+180.)]
+        ret = angle_consistency_check(sa, la)
+        self.assertEqual(ret, [ra(20.-360), ra(-360.+360.+180)])
+
+    def test_03(self):
+        ret = angle_consistency_check(0, [ra(3620), ra(3960), ra(4320)])
+        self.assertEqual(ret, [ra(20.), ra(360.), ra(720.)])
+
+    def test_04(self):
+        ret = angle_consistency_check(ra(-3600.), [ra(0), ra(10), ra(360)])
+        self.assertEqual(ret, [ra(-3600.), ra(-3590.), ra(-3240.)])
 
 ##
 # Takes a normal ROS callback channel and gives it an on demand query style
@@ -575,7 +623,11 @@ class PR2Arm(Joint):
         #    pos_mat[6,i] = unwrap2(p[6,0], pos_mat[6,i])
         #    p = pos_mat[:,i]
 
-        pos_mat = np.column_stack([self.pose(), pos_mat])
+        cur_pose = self.pose()
+        pos_mat[4,:] = np.matrix(angle_consistency_check(cur_pose[4,0], pos_mat[4,:].A1))
+        pos_mat[6,:] = np.matrix(angle_consistency_check(cur_pose[6,0], pos_mat[6,:].A1))
+
+        pos_mat = np.column_stack([cur_pose, pos_mat])
         #print 'SETPOSES', times, times.__class__
         times   = np.concatenate(([0], times))
         times = times + .1
@@ -672,3 +724,5 @@ class PR2:
         self.head = PR2Head(joint_provider)
         self.controller_manager = ControllerManager()
 
+if __name__ == '__main__':
+    unittest.main()
