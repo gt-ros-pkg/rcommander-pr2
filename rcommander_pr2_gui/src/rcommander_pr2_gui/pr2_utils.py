@@ -329,8 +329,8 @@ def angle_consistency_check(current_angle, angles_list):
     start_angle = current_angle + diff
     angles = []
     prev = angles_list[0]
-    for n in angles_list[1:]:
-        angles.append(start_angle + (n - prev))
+    for current in angles_list[1:]:
+        angles.append(start_angle + (current - prev))
     return [start_angle] + angles
 
 ra = math.radians
