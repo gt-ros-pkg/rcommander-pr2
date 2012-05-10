@@ -5,6 +5,8 @@
 
     <node if="$(arg use_relay)" name="relay_tf" pkg="topic_tools" type="relay" args="tf relay_tf"/>
     <include if="$(arg sim)" file="$(find tts_server)/tts_server.launch"/>
+    <node pkg="tf_broadcast_server" type="tf_broadcast_server.py" output="screen" name="rcommander_tf_broadcast"/>
+
     <group>
         <remap if="$(arg use_relay)" from="tf" to="relay_tf"/>
         <node pkg="rcommander_pr2_gui" type="rcommander_pr2_server.py" 
