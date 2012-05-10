@@ -29,7 +29,7 @@ import math
 class SE3Tool:
 
     def __init__(self):
-        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms)
+        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
 
     def make_se3_boxes(self, pbox):
         self.xline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
@@ -581,7 +581,7 @@ class PR2Arm(Joint):
     def _limits(self):
         service_name = '/pr2_%s_arm_kinematics/get_ik_solver_info' % self.full_arm_name
         print service_name
-        proxy = rospy.ServiceProxy(service_name, GetKinematicSolverInfo)
+        proxy = rospy.ServiceProxy(service_name, GetKinematicSolverInfo, persistent=True)
         #import pdb
         #pdb.set_trace()
         info = proxy().kinematic_solver_info

@@ -13,7 +13,7 @@ class SpeakTool(tu.ToolBase):
 
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'speak', 'Speak', SpeakNode)
-        self.available_voices = rospy.ServiceProxy('available_voices', AvailableVoices)
+        self.available_voices = rospy.ServiceProxy('available_voices', AvailableVoices, persistent=True)
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()

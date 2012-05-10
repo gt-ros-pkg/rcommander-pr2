@@ -33,7 +33,7 @@ class JointSequenceTool(tu.ToolBase):
         self.status_bar_timer = QTimer()
         self.rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles_cb)
         self.limits = [self.rcommander.robot.left.get_limits(), self.rcommander.robot.right.get_limits()]
-        self.min_time_service = rospy.ServiceProxy('min_time_to_move', MinTime)
+        self.min_time_service = rospy.ServiceProxy('min_time_to_move', MinTime, persistent=True)
         #self.vel_limits = [self.rcommander.robot.left.get_vel_limits(), self.rcommander.robot.right.get_vel_limits()]
         self.current_update_color = create_color(0,0,0,255)
 
