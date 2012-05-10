@@ -3,7 +3,7 @@
      Contains RCommander Plugins for the PR2.
   </description>
 
-  <author>Hai Nguyen (haidai@gmail.com), Ishwarya Venkatachalam (ishwarya.v12@gmail.com), and Charles C. Kemp (Healthcare Robotics Lab, Georgia Tech)</author>
+  <author>Hai Nguyen (haidai@gmail.com), and Ishwarya Venkatachalam (ishwarya.v12@gmail.com), Advisor: Charles C. Kemp (Healthcare Robotics Lab, Georgia Tech)</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/rcommander_pr2</url>
