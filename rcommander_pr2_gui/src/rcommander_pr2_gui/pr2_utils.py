@@ -31,6 +31,166 @@ JOINT_NAME_FIELDS = ["shoulder_pan_joint", "shoulder_lift_joint", "upper_arm_rol
 HUMAN_JOINT_NAMES = ['Shoulder Pan', 'Shoulder Lift', 'Uper Arm Roll', 'Elbow Flex', 
                      'Forearm Roll', 'Wrist Flex', 'Wrist Roll']
 
+def create_color(a, r,g,b):
+    palette = QPalette(QColor(a, r, g, b))
+    palette.setColor(QPalette.Text, QColor(a, r, g, b))
+    return palette
+
+class JointTool:
+
+    def __init__(self, robot, rcommander):
+        self.limits = [robot.left.get_limits(), robot.right.get_limits()]
+        self.current_update_color = create_color(0,0,0,255)
+        self.status_bar_timer = QTimer()
+        self.robot = robot
+        rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles_cb)
+
+    def stop_timer(self):
+        self.status_bar_timer.stop()
+
+    def set_arm_radio(self, arm):
+        if 'left' == arm:
+            self.arm_radio_buttons[0].setChecked(True)
+        if arm == 'right':
+            self.arm_radio_buttons[1].setChecked(True)
+
+    def get_arm_radio(self):
+        return tu.selected_radio_button(self.arm_radio_buttons).lower()
+
+    def set_all_fields_to_zero(self):
+        for name in JOINT_NAME_FIELDS:
+            exec('self.%s.setValue(0)' % name)
+
+    def make_joint_boxes(self, pbox, connector):
+        fields = []
+        formlayout = pbox.layout()
+
+        self.arm_radio_boxes, self.arm_radio_buttons = tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
+        for name, friendly_name in zip(JOINT_NAME_FIELDS, HUMAN_JOINT_NAMES):
+            exec("self.%s = QDoubleSpinBox(pbox)" % name)
+            exec('box = self.%s' % name)
+            box.setSingleStep(.5)
+            box.setMinimum(-9999999)
+            box.setMaximum(9999999)
+            fields.append({"name": "&%s" % friendly_name, 
+                           "item": box, 
+                           'joint': name})
+
+        self.live_update_button = QPushButton(pbox)
+        self.live_update_button.setText('Live Update')
+        connector.connect(self.live_update_button, SIGNAL('clicked()'), self.update_selected_cb)
+
+        self.pose_button = QPushButton(pbox)
+        self.pose_button.setText('Current Pose')
+        connector.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_joint_angles_cb)
+
+        return fields, self.arm_radio_boxes, [self.live_update_button, self.pose_button]
+
+    def set_joints_to_fields(self, joints):
+        for idx, name in enumerate(JOINT_NAME_FIELDS):
+            deg = np.degrees(joints[idx])
+            exec('line_edit = self.%s' % name)
+            line_edit.setValue(deg)
+
+    def read_joints_from_fields(self, limit_ranges=False):
+        arm = self.get_arm_radio()
+        if arm == 'left':
+            idx = 0
+            pref = 'l_'
+        else:
+            idx = 1
+            pref = 'r_'
+
+        limits = self.limits[idx]
+        joints = []
+        for name in JOINT_NAME_FIELDS:
+            #exec('rad = np.radians(float(str(self.%s.text())))' % name)
+            exec('rad = np.radians(self.%s.value())' % name)
+            if limit_ranges and limits.has_key(pref+name):
+                mn, mx = limits[pref+name]
+                nrad = max(min(rad, mx-.005), mn+.005)
+                rad = nrad
+            joints.append(rad)
+        return joints
+
+
+    def update_selected_cb(self):
+        if self.live_update_button.text() == 'Live Update':
+            self.set_update_mode(True)
+        else:
+            self.set_update_mode(False)
+
+    def set_update_mode(self, on):
+        if on:
+            self.live_update_button.setText('End Live Update')
+            self.live_update_button.setEnabled(True)
+            self.pose_button.setEnabled(False)
+            self.status_bar_timer.start(30)
+            self.current_update_color = create_color(0,180,75,255)
+        else:
+            self.live_update_button.setText('Live Update')
+            self.pose_button.setEnabled(True)
+            self.status_bar_timer.stop()
+            self.current_update_color = create_color(0,0,0,255)
+
+        for name in JOINT_NAME_FIELDS:      
+            palette = self.current_update_color
+            exec('self.%s.setPalette(palette)' % name)
+
+        arm = self.get_arm_radio()
+        for idx, name in enumerate(JOINT_NAME_FIELDS):
+            exec('line_edit = self.%s' % name)
+            self.check_joint_limits(arm, line_edit.value(), name)
+
+    def get_current_joint_angles_cb(self):
+        arm = self.get_arm_radio()#tu.selected_radio_button(self.arm_radio_buttons).lower()
+        if ('left' == arm):
+            arm_obj = self.robot.left
+        else:
+            arm_obj = self.robot.right
+
+        pose_mat = arm_obj.pose()
+        for idx, name in enumerate(JOINT_NAME_FIELDS):
+            deg = np.degrees(pose_mat[idx, 0])
+            exec('line_edit = self.%s' % name)
+            line_edit.setValue(deg)
+
+    def check_joint_limits(self, arm, value, joint):
+        if arm == 'left':
+            idx = 0
+            pref = 'l_'
+        else:
+            idx = 1
+            pref = 'r_'
+
+        limits = self.limits[idx]
+        jname = pref + joint
+        if limits.has_key(jname):
+            exec('box = self.%s' % joint)
+            mina, maxa = limits[jname]
+            v = np.radians(value)
+            if v < mina or v > maxa:
+                self.set_invalid_color(joint, True)
+            else:
+                self.set_invalid_color(joint, False)
+
+    def set_invalid_color(self, joint_name, invalid, color = [255,0,0]):
+        r,g,b = color
+        if invalid:
+            palette = QPalette(QColor(r, g, b, 255))
+            palette.setColor(QPalette.Text, QColor(r, g, b, 255))
+        else:
+            palette = self.current_update_color
+        exec('self.%s.setPalette(palette)' % joint_name)
+
+
+
+
+
+
+
+
+
 class SE3Tool:
 
     def __init__(self):
