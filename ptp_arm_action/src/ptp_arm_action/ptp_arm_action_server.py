@@ -202,7 +202,7 @@ class PTPArmActionServer:
             #break
 
         trans, ang, _ = pose_distance(gripper_ps, goal_torso, self.tf)
-        result = ptp.LinearMovementResult(gm.Vector3(trans[0,0], trans[1,0], trans[2,0]))
+        result = ptp.LinearMovementResult(gm.Vector3(trans[0,0], trans[1,0], trans[2,0]), 'unknown')
         if trans_tolerance > np.linalg.norm(trans):
             rospy.loginfo( 'SUCCEEDED! %.3f ang %.3f' % (np.linalg.norm(trans), np.degrees(ang)))
             result.message = 'succeeded'
