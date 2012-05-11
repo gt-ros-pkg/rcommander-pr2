@@ -5,6 +5,6 @@ float64 time_out
 geometry_msgs/PoseStamped goal
 ---
 geometry_msgs/Vector3 error
+string message
 ---
 geometry_msgs/Vector3 error
-string message
