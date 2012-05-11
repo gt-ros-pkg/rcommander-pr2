@@ -148,7 +148,7 @@ class PositionPriorityState(tu.StateBase): # smach_ros.SimpleActionState):
        return PositionPrioritySmach(self.pose_stamped, self.trans_vel, self.rot_vel,
                 self.arm, 
                 #self.frame, 
-                self.time_out, trans_tolerance)#, self.remapping_for('origin'))
+                self.time_out, self.trans_tolerance)#, self.remapping_for('origin'))
 
 class PositionPrioritySmach(smach.State):
 
