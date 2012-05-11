@@ -8,57 +8,34 @@ import actionlib
 import actionlib_msgs.msg as am
 import numpy as np
 import smach
+import functools as ft
 import pr2_utils as p2u
 
 
-class SafeMoveArmTool(tu.ToolBase):
+class SafeMoveArmTool(tu.ToolBase, p2u.JointTool):
 
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'save_move', 'Safe Move', SafeMoveArmState)
+        p2u.JointTool.__init__(self, rcommander.robot, rcommander)
         self.shoulder_pan_joint = None 
+
+    def _value_changed_validate(self, value, joint):
+        arm = self.get_arm_radio()
+        self.check_joint_limits(arm, value, joint)
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
-        self.arm_radio_boxes, self.arm_radio_buttons = tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
-        formlayout.addRow('&Arm', self.arm_radio_boxes)
+        fields, arm_radio_boxes, buttons = self.make_joint_boxes(pbox, self.rcommander)
+        formlayout.addRow('&Arm', arm_radio_boxes)
+        for field in fields:
+            formlayout.addRow(field['name'], field['item'])
+            vchanged_func = ft.partial(self._value_changed_validate, joint=field['joint'])
+            self.rcommander.connect(field['item'], SIGNAL('valueChanged(double)'), vchanged_func)
 
-        if self.shoulder_pan_joint == None:
-            self.shoulder_pan_joint   = QLineEdit(pbox)  
-            self.shoulder_lift_joint  = QLineEdit(pbox)                   
-            self.upper_arm_roll_joint = QLineEdit(pbox)         
-            self.elbow_flex_joint     = QLineEdit(pbox)              
-            self.forearm_roll_joint   = QLineEdit(pbox)                
-            self.wrist_flex_joint     = QLineEdit(pbox)              
-            self.wrist_roll_joint     = QLineEdit(pbox)   
+        for button in buttons:
+            formlayout.addRow(button)
 
-
-        fields = [self.shoulder_pan_joint, self.shoulder_lift_joint,
-                    self.upper_arm_roll_joint, self.elbow_flex_joint,    
-                    self.forearm_roll_joint, self.wrist_flex_joint,    
-                    self.wrist_roll_joint] 
-
-        for n, f in zip(p2u.HUMAN_JOINT_NAMES, fields):
-            formlayout.addRow('&'+n,  f)
-
-        #Controls for getting the current joint states
-        self.pose_button = QPushButton(pbox)
-        self.pose_button.setText('Current Joint Angles')
-        self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_joint_angles)
-        formlayout.addRow(self.pose_button)
         self.reset()
-
-    def get_current_joint_angles(self):
-        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
-        if 'left' == arm:
-            arm_obj = self.rcommander.robot.left
-        else:
-            arm_obj = self.rcommander.robot.right
-
-        pose_mat = arm_obj.pose()
-        for idx, name in enumerate(p2u.JOINT_NAME_FIELDS):
-            deg = np.degrees(pose_mat[idx, 0])
-            exec('line_edit = self.%s' % name)
-            line_edit.setText(str(deg))
 
     def new_node(self, name=None):
         if name == None:
@@ -66,29 +43,18 @@ class SafeMoveArmTool(tu.ToolBase):
         else:
             nname = name
 
-        joints = []
-        for name in p2u.JOINT_NAME_FIELDS:
-            exec('rad = np.radians(float(str(self.%s.text())))' % name)
-            joints.append(rad)
-
         arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+        joints = self.read_joints_from_fields(True)
         return SafeMoveArmState(nname, arm, joints)
 
     def set_node_properties(self, my_node):
-        if 'left' == my_node.arm:
-            self.arm_radio_buttons[0].setChecked(True)
-        if my_node.arm == 'right':
-            self.arm_radio_buttons[1].setChecked(True)
-
-        for idx, name in enumerate(p2u.JOINT_NAME_FIELDS):
-            deg = np.degrees(my_node.joints[idx])
-            exec('line_edit = self.%s' % name)
-            line_edit.setText(str(deg))
+        self.set_arm_radio(my_node.arm)
+        self.set_joints_to_fields(my_node.joints)
 
     def reset(self):
-        self.arm_radio_buttons[0].setChecked(True)
-        for name in p2u.JOINT_NAME_FIELDS:
-            exec('self.%s.setText(str(0.))' % name)
+        self.set_update_mode(False)
+        self.set_arm_radio('left')
+        self.set_all_fields_to_zero()
 
 
 class SafeMoveArmState(tu.StateBase): 
@@ -109,7 +75,7 @@ class SafeMoveArmStateSmach(smach.State):
     TIME_OUT = 60
 
     def __init__(self, arm, joints):
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], input_keys = [], output_keys = [])
+        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'start_in_collision', 'goal_in_collision'], input_keys = [], output_keys = [])
         self.joints = joints
 
         if arm == 'left':
@@ -167,12 +133,16 @@ class SafeMoveArmStateSmach(smach.State):
                 break
 
             if (state not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING]):
+                result = self.move_arm_client.get_result()
                 if state == am.GoalStatus.SUCCEEDED:
                     if result.error_code.val == 1:
                         rospy.loginfo('SafeMoveArmState: Succeeded!')
                         succeeded = True
-                    #elif result.error_code.val == ArmNavigationErrorCodes.START_STATE_IN_COLLISION:
-                    #    succeeded = False
+                elif result.error_code.val == an.ArmNavigationErrorCodes.START_STATE_IN_COLLISION:
+                    return 'start_in_collision'
+                elif result.error_code.val == an.ArmNavigationErrorCodes.GOAL_IN_COLLISION:
+                    return 'goal_in_collision'
+                rospy.loginfo('Got error code %d' % result.error_code.val)
                 break
 
             state = self.move_arm_client.get_state()
@@ -183,6 +153,7 @@ class SafeMoveArmStateSmach(smach.State):
 
         if succeeded:
             return 'succeeded'
+
 
         return 'failed'
 
