@@ -24,10 +24,9 @@ class JointSequenceTool(tu.ToolBase):
 
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'joint_sequence', 'Joint Sequence', JointSequenceState)
-        self.joint_name_fields = ["shoulder_pan_joint", "shoulder_lift_joint", "upper_arm_roll_joint", 
-                                  "elbow_flex_joint", "forearm_roll_joint", "wrist_flex_joint", "wrist_roll_joint"]
+
         self.reverse_idx = {}
-        for idx, n in enumerate(self.joint_name_fields):
+        for idx, n in enumerate(p2u.JOINT_NAME_FIELDS):
             self.reverse_idx[n] = idx
 
         self.status_bar_timer = QTimer()
@@ -100,13 +99,13 @@ class JointSequenceTool(tu.ToolBase):
                 ref = self.get_joint_angs_list()[pidx]
 
         start_point = tm.JointTrajectoryPoint()
-        start_point.velocities = [0.] * len(self.joint_name_fields)
-        for name in self.joint_name_fields:
+        start_point.velocities = [0.] * len(p2u.JOINT_NAME_FIELDS)
+        for name in p2u.JOINT_NAME_FIELDS:
             exec('box = self.%s' % name)
             start_point.positions.append(np.radians(box.value()))
 
         end_point = tm.JointTrajectoryPoint()
-        end_point.velocities = [0.] * len(self.joint_name_fields)
+        end_point.velocities = [0.] * len(p2u.JOINT_NAME_FIELDS)
         end_point.positions = ref['angs']
 
         min_time = self.min_time_service(start_point, end_point, left_arm).time
@@ -153,7 +152,7 @@ class JointSequenceTool(tu.ToolBase):
         formlayout.addRow('&Arm', self.arm_radio_boxes)
 
         #Controls for displaying the current joint states
-        for name in self.joint_name_fields:
+        for name, friendly_name in zip(p2u.JOINT_NAME_FIELDS, p2u.HUMAN_JOINT_NAMES):
             #exec("self.%s = QLineEdit(pbox)" % name)
             exec("self.%s = QDoubleSpinBox(pbox)" % name)
             exec('box = self.%s' % name)
@@ -161,7 +160,7 @@ class JointSequenceTool(tu.ToolBase):
             box.setSingleStep(.5)
             box.setMinimum(-9999999)
             box.setMaximum(9999999)
-            formlayout.addRow("&%s" % name, box)
+            formlayout.addRow("&%s" % friendly_name, box)
             vchanged_func = ft.partial(self._value_changed_validate, joint=name)
             self.rcommander.connect(box, SIGNAL('valueChanged(double)'), vchanged_func)
 
@@ -210,12 +209,12 @@ class JointSequenceTool(tu.ToolBase):
             self.status_bar_timer.stop()
             self.current_update_color = create_color(0,0,0,255)
 
-        for name in self.joint_name_fields:      
+        for name in p2u.JOINT_NAME_FIELDS:      
             palette = self.current_update_color
             exec('self.%s.setPalette(palette)' % name)
 
         arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
-        for idx, name in enumerate(self.joint_name_fields):
+        for idx, name in enumerate(p2u.JOINT_NAME_FIELDS):
             exec('line_edit = self.%s' % name)
             self._check_limit(arm, line_edit.value(), name)
             #line_edit.setValue(line_edit.value())
@@ -235,7 +234,7 @@ class JointSequenceTool(tu.ToolBase):
 
         pose_mat = arm_obj.pose()
 
-        for idx, name in enumerate(self.joint_name_fields):
+        for idx, name in enumerate(p2u.JOINT_NAME_FIELDS):
             deg = np.degrees(pose_mat[idx, 0])
             exec('line_edit = self.%s' % name)
             line_edit.setValue(deg)
@@ -251,7 +250,7 @@ class JointSequenceTool(tu.ToolBase):
 
         limits = self.limits[idx]
         joints = []
-        for name in self.joint_name_fields:
+        for name in p2u.JOINT_NAME_FIELDS:
             #exec('rad = np.radians(float(str(self.%s.text())))' % name)
             exec('rad = np.radians(self.%s.value())' % name)
             if limit_ranges and limits.has_key(pref+name):
@@ -264,7 +263,7 @@ class JointSequenceTool(tu.ToolBase):
         return joints
 
     def _set_joints_to_fields(self, joints):
-        for idx, name in enumerate(self.joint_name_fields):
+        for idx, name in enumerate(p2u.JOINT_NAME_FIELDS):
             deg = np.degrees(joints[idx])
             exec('line_edit = self.%s' % name)
             line_edit.setValue(deg)
@@ -296,7 +295,7 @@ class JointSequenceTool(tu.ToolBase):
 
     def reset(self):
         self.arm_radio_buttons[0].setChecked(True)
-        for name in self.joint_name_fields:
+        for name in p2u.JOINT_NAME_FIELDS:
             exec('self.%s.setValue(0)' % name)
 
         self.status_bar_timer.stop()

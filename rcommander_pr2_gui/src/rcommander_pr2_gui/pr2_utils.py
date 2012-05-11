@@ -25,6 +25,11 @@ import copy
 import unittest
 import math
 
+JOINT_NAME_FIELDS = ["shoulder_pan_joint", "shoulder_lift_joint", "upper_arm_roll_joint", 
+                      "elbow_flex_joint", "forearm_roll_joint", "wrist_flex_joint", "wrist_roll_joint"]
+
+HUMAN_JOINT_NAMES = ['Shoulder Pan', 'Shoulder Lift', 'Uper Arm Roll', 'Elbow Flex', 
+                     'Forearm Roll', 'Wrist Flex', 'Wrist Roll']
 
 class SE3Tool:
 
