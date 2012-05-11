@@ -8,6 +8,7 @@ import actionlib
 import actionlib_msgs.msg as am
 import numpy as np
 import smach
+import pr2_utils as p2u
 
 
 class SafeMoveArmTool(tu.ToolBase):
@@ -17,6 +18,7 @@ class SafeMoveArmTool(tu.ToolBase):
         #self.left, self.right = pu.PR2Arm.create_arms(rcommander.tf_listener, 'both')
         self.joint_name_fields = ["shoulder_pan_joint", "shoulder_lift_joint", "upper_arm_roll_joint", 
                                   "elbow_flex_joint", "forearm_roll_joint", "wrist_flex_joint", "wrist_roll_joint"]
+        self.shoulder_pan_joint = None 
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
@@ -27,9 +29,27 @@ class SafeMoveArmTool(tu.ToolBase):
         formlayout.addRow('&Arm', self.arm_box)
 
         #Controls for displaying the current joint states
-        for name in self.joint_name_fields:
-            exec("self.%s = QLineEdit(pbox)" % name)
-            exec("formlayout.addRow(\"&\" + name, self.%s)" % name)
+        #for name in self.joint_name_fields:
+        #    exec("self.%s = QLineEdit(pbox)" % name)
+        #    exec("formlayout.addRow(\"&\" + name, self.%s)" % name)
+
+        if self.shoulder_pan_joint == None:
+            self.shoulder_pan_joint   = QLineEdit(pbox)  
+            self.shoulder_lift_joint  = QLineEdit(pbox)                   
+            self.upper_arm_roll_joint = QLineEdit(pbox)         
+            self.elbow_flex_joint     = QLineEdit(pbox)              
+            self.forearm_roll_joint   = QLineEdit(pbox)                
+            self.wrist_flex_joint     = QLineEdit(pbox)              
+            self.wrist_roll_joint     = QLineEdit(pbox)   
+
+        formlayout.addRow('&Shoulder Pan', self.shoulder_pan_joint  )
+        formlayout.addRow('&Shoulder Lift', self.shoulder_lift_joint )
+        formlayout.addRow('&Uper Arm Roll', self.upper_arm_roll_joint)
+        formlayout.addRow('&Elbow Flex', self.elbow_flex_joint    )  
+        formlayout.addRow('&Forearm Roll', self.forearm_roll_joint  )    
+        formlayout.addRow('&Wrist Flex', self.wrist_flex_joint    )  
+        formlayout.addRow('&Wrist Roll', self.wrist_roll_joint    )  
+
 
         #Controls for getting the current joint states
         self.pose_button = QPushButton(pbox)
@@ -46,7 +66,7 @@ class SafeMoveArmTool(tu.ToolBase):
             arm_obj = self.rcommander.robot.right
 
         pose_mat = arm_obj.pose()
-        for idx, name in enumerate(self.joint_name_fields):
+        for idx, name in enumerate(p2u.JOINT_NAME_FIELDS):
             deg = np.degrees(pose_mat[idx, 0])
             exec('line_edit = self.%s' % name)
             line_edit.setText(str(deg))
@@ -59,21 +79,21 @@ class SafeMoveArmTool(tu.ToolBase):
             nname = name
 
         joints = []
-        for name in self.joint_name_fields:
+        for name in p2u.JOINT_NAME_FIELDS:
             exec('rad = np.radians(float(str(self.%s.text())))' % name)
             joints.append(rad)
         return SafeMoveArmState(nname, str(self.arm_box.currentText()), joints)
 
     def set_node_properties(self, my_node):
         self.arm_box.setCurrentIndex(self.arm_box.findText(my_node.arm))
-        for idx, name in enumerate(self.joint_name_fields):
+        for idx, name in enumerate(p2u.JOINT_NAME_FIELDS):
             deg = np.degrees(my_node.joints[idx])
             exec('line_edit = self.%s' % name)
             line_edit.setText(str(deg))
 
     def reset(self):
         self.arm_box.setCurrentIndex(self.arm_box.findText('left'))
-        for name in self.joint_name_fields:
+        for name in p2u.JOINT_NAME_FIELDS:
             exec('self.%s.setText(str(0.))' % name)
 
 
