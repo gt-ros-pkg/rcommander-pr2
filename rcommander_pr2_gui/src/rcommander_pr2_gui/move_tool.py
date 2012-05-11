@@ -15,8 +15,6 @@ import roslib
 import pr2_utils as p2u
 
 
-
-
 class JointSequenceTool(tu.ToolBase, p2u.JointTool):
 
     def __init__(self, rcommander):
