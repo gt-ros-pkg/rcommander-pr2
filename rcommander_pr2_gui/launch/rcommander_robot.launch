@@ -1,0 +1,14 @@
+<launch>
+    <arg name="sim" default="false"/>
+    <arg name="interactive_manipulation" default="false"/>
+
+    <include unless="$(arg interactive_manipulation)" file="$(find pr2_interactive_manipulation)/launch/pr2_interactive_manipulation_robot.launch"/>
+    <include unless="$(arg sim)" file="$(find tts_server)/tts_server.launch"/>
+    <include unless="$(arg sim)" file="$(find rcommander_pr2_gui)/launch/pr2_gripper_sensor_actions.launch"/>
+
+    <include file="$(find face_detector)/launch/face_detector_action.wide.launch"/>
+
+    <include file="$(find rcommander_pr2_gui)/launch/ptp_arm_action.launch"/>
+    <node pkg="rcommander_pr2_gui" type="min_time_node" output="screen" name="min_time_to_move_node"/>
+    <node pkg="topic_tools" type="throttle" output="screen" name="joint_states_throttler" args="messages joint_states 20."/>
+</launch>
