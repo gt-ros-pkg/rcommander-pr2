@@ -15,8 +15,8 @@ class FaceDetectTool(tu.ToolBase):
 
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'face_detect', 'Detect Face', FaceDetectState)
-        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms)
-        self.clear_frames_service = rospy.ServiceProxy('clear_all_transforms', ClearTransforms)
+        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
+        self.clear_frames_service = rospy.ServiceProxy('clear_all_transforms', ClearTransforms, persistent=True)
         self.default_frame = '/base_link'
         self.tf_listener = rcommander.tf_listener
 

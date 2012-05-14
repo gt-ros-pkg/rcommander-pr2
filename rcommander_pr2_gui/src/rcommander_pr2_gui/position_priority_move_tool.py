@@ -100,10 +100,10 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         rot_vel   = self.rot_vel_line.value()
         arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
         frame  = str(self.frame_box.currentText())
-        timeout = self.timeout_box.value()
+        time_out = self.timeout_box.value()
         trans_tolerance = self.tolerance_box.value()
         pose_stamped = self.get_posestamped()
-        return PositionPriorityState(nname, pose_stamped, trans_vel, rot_vel, arm, timeout, trans_tolerance)
+        return PositionPriorityState(nname, pose_stamped, trans_vel, rot_vel, arm, time_out, trans_tolerance)
 
     def set_node_properties(self, node):
         self.set_posestamped(node.pose_stamped)
@@ -116,7 +116,7 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
             self.arm_radio_buttons[1].setChecked(True)
 
         self.frame_box.setCurrentIndex(self.frame_box.findText(str(node.pose_stamped.header.frame_id)))
-        self.timeout_box.setValue(node.timeout)
+        self.timeout_box.setValue(node.time_out)
         self.tolerance_box.setValue(node.trans_tolerance)
 
     def reset(self):
@@ -132,7 +132,7 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 class PositionPriorityState(tu.StateBase): # smach_ros.SimpleActionState):
 
     def __init__(self, name, pose_stamped, trans_vel, rot_vel, arm, #frame, 
-            timeout, trans_tolerance):#, source_for_origin):
+            time_out, trans_tolerance):#, source_for_origin):
         tu.StateBase.__init__(self, name)
         self.pose_stamped  = pose_stamped
         self.trans_vel = trans_vel
@@ -140,7 +140,7 @@ class PositionPriorityState(tu.StateBase): # smach_ros.SimpleActionState):
 
         self.arm = arm
         #self.frame = frame
-        self.timeout = timeout
+        self.time_out = time_out
         self.trans_tolerance = trans_tolerance
         #self.set_remapping_for('origin', source_for_origin)
 
@@ -148,13 +148,13 @@ class PositionPriorityState(tu.StateBase): # smach_ros.SimpleActionState):
        return PositionPrioritySmach(self.pose_stamped, self.trans_vel, self.rot_vel,
                 self.arm, 
                 #self.frame, 
-                self.timeout, self.trans_tolerance)#, self.remapping_for('origin'))
+                self.time_out, self.trans_tolerance)#, self.remapping_for('origin'))
 
 class PositionPrioritySmach(smach.State):
 
     def __init__(self, pose_stamped, trans_vel, rot_vel, arm, 
                 #frame, 
-                timeout, trans_tolerance):#, source_for_origin):
+                time_out, trans_tolerance):#, source_for_origin):
         smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'timed_out', 'goal_not_reached'], 
                              input_keys = [], output_keys = [])
 
@@ -162,14 +162,14 @@ class PositionPrioritySmach(smach.State):
         self.trans_vel = trans_vel
         self.rot_vel = rot_vel
         self.action_client = actionlib.SimpleActionClient(arm + '_ptp', ptp.LinearMovementAction)
-        self.timeout = timeout
+        self.time_out = time_out
         self.trans_tolerance = trans_tolerance
 
     def set_robot(self, robot_obj):
         if robot_obj != None:
             self.robot = robot_obj
 
-    def execute_goal(self, goal, timeout):
+    def execute_goal(self, goal):
         self.action_client.send_goal(goal)
         state = None
 
@@ -178,7 +178,7 @@ class PositionPrioritySmach(smach.State):
         r = rospy.Rate(30)
         #start_time = rospy.get_time()
 
-        while True:
+        while not rospy.is_shutdown():
             #we have been preempted
             if self.preempt_requested():
                 rospy.loginfo('PositionPrioritySmach: preempt requested')
@@ -187,13 +187,12 @@ class PositionPrioritySmach(smach.State):
                 preempted = True
                 break
 
-            #if (rospy.get_time() - start_time) > timeout:
+            #if (rospy.get_time() - start_time) > time_out:
             #    self.action_client.cancel_goal()
             #    rospy.loginfo('PositionPrioritySmach: timed out!')
             #    succeeded = False
             #    break
-
-            #print tu.goal_status_to_string(state)
+#print tu.goal_status_to_string(state)
             state = self.action_client.get_state()
             if (state not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING]):
                 #if state == am.GoalStatus.SUCCEEDED:
@@ -235,5 +234,7 @@ class PositionPrioritySmach(smach.State):
         goal.trans_vel = self.trans_vel
         goal.rot_vel   = self.rot_vel
         goal.trans_tolerance = self.trans_tolerance
-        return self.execute_goal(goal, self.timeout)
+        goal.time_out = self.time_out
+        print 'SENT TIME OUT', goal.time_out
+        return self.execute_goal(goal)
 

@@ -100,7 +100,7 @@ class PTPArmActionServer:
 
         tstart = rospy.get_time()
         tmax = tstart + time_out
-        self.controller_manager = ControllerManager()
+        #self.controller_manager = ControllerManager()
         rospy.loginfo('Goal is x %f y %f z %f in %s' % (goal_ps.pose.position.x, goal_ps.pose.position.y, 
             goal_ps.pose.position.z, goal_ps.header.frame_id))
 

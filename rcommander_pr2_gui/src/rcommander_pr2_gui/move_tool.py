@@ -14,64 +14,30 @@ import os.path as pt
 import roslib
 import pr2_utils as p2u
 
-def create_color(a, r,g,b):
-    palette = QPalette(QColor(a, r, g, b))
-    palette.setColor(QPalette.Text, QColor(a, r, g, b))
-    return palette
 
-
-class JointSequenceTool(tu.ToolBase):
+class JointSequenceTool(tu.ToolBase, p2u.JointTool):
 
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'joint_sequence', 'Joint Sequence', JointSequenceState)
-        self.joint_name_fields = ["shoulder_pan_joint", "shoulder_lift_joint", "upper_arm_roll_joint", 
-                                  "elbow_flex_joint", "forearm_roll_joint", "wrist_flex_joint", "wrist_roll_joint"]
-        self.reverse_idx = {}
-        for idx, n in enumerate(self.joint_name_fields):
-            self.reverse_idx[n] = idx
-
-        self.status_bar_timer = QTimer()
-        self.rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles_cb)
-        self.limits = [self.rcommander.robot.left.get_limits(), self.rcommander.robot.right.get_limits()]
-        self.min_time_service = rospy.ServiceProxy('min_time_to_move', MinTime)
-        #self.vel_limits = [self.rcommander.robot.left.get_vel_limits(), self.rcommander.robot.right.get_vel_limits()]
-        self.current_update_color = create_color(0,0,0,255)
+        p2u.JointTool.__init__(self, rcommander.robot, rcommander)
+        self.min_time_service = rospy.ServiceProxy('min_time_to_move', MinTime, persistent=True)
 
     def _value_changed_validate(self, value, joint):
-        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
-        self._check_limit(arm, value, joint)
+        arm = self.get_arm_radio()
+        self.check_joint_limits(arm, value, joint)
         self._check_time_validity(self.time_box.value())
-
-    def _check_limit(self, arm, value, joint):
-        if arm == 'left':
-            idx = 0
-            pref = 'l_'
-        else:
-            idx = 1
-            pref = 'r_'
-
-        limits = self.limits[idx]
-        jname = pref + joint
-        if limits.has_key(jname):
-            exec('box = self.%s' % joint)
-            mina, maxa = limits[jname]
-            v = np.radians(value)
-            if v < mina or v > maxa:
-                self.set_invalid_color(joint, True)
-            else:
-                self.set_invalid_color(joint, False)
 
     def get_joint_angs_list(self):
         return self.list_manager.get_data(clean=True)
 
     def _check_time_validity(self, value):
-        #self.set_invalid_color('time_box', False)
         r,g,b = 0,0,0
         palette = QPalette(QColor(r, g, b, 255))
         palette.setColor(QPalette.Text, QColor(r, g, b, 255))
         self.time_box.setPalette(palette)
 
-        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+        #arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+        arm = self.get_arm_radio()
         if arm == 'left':
             #idx = 0
             pref = 'l_'
@@ -81,32 +47,26 @@ class JointSequenceTool(tu.ToolBase):
             pref = 'r_'
             left_arm = False
 
-        # vel_limits = self.vel_limits[idx]
-        #if len(self.joint_angs_list) == 0:
         if len(self.get_joint_angs_list()) == 0:
             return
 
-        #if self.curr_selected == None:
         if self.list_manager.get_selected_idx() == None:
-            #ref = self.joint_angs_list[-1]
             ref = self.get_joint_angs_list()[-1]
         else:
-            #pidx = self.curr_selected - 1
             pidx = self.list_manager.get_selected_idx() - 1
             if pidx < 0:
                 return 
             else:
-                #ref = self.joint_angs_list[pidx]
                 ref = self.get_joint_angs_list()[pidx]
 
         start_point = tm.JointTrajectoryPoint()
-        start_point.velocities = [0.] * len(self.joint_name_fields)
-        for name in self.joint_name_fields:
+        start_point.velocities = [0.] * len(p2u.JOINT_NAME_FIELDS)
+        for name in p2u.JOINT_NAME_FIELDS:
             exec('box = self.%s' % name)
             start_point.positions.append(np.radians(box.value()))
 
         end_point = tm.JointTrajectoryPoint()
-        end_point.velocities = [0.] * len(self.joint_name_fields)
+        end_point.velocities = [0.] * len(p2u.JOINT_NAME_FIELDS)
         end_point.positions = ref['angs']
 
         min_time = self.min_time_service(start_point, end_point, left_arm).time
@@ -118,74 +78,43 @@ class JointSequenceTool(tu.ToolBase):
                 palette = QPalette(QColor(r, g, b, 255))
                 palette.setColor(QPalette.Text, QColor(r, g, b, 255))
                 self.time_box.setPalette(palette)
-                #self.set_invalid_color('time_box', True, color)
                 return
 
     def _time_changed_validate(self, value):
         self._check_time_validity(value)
 
-    def set_invalid_color(self, joint_name, invalid, color = [255,0,0]):
-        r,g,b = color
-
-        if invalid:
-            palette = QPalette(QColor(r, g, b, 255))
-            palette.setColor(QPalette.Text, QColor(r, g, b, 255))
-        else:
-            palette = self.current_update_color
-        exec('self.%s.setPalette(palette)' % joint_name)
-
     def get_current_data_cb(self):
         return {'time': self.time_box.value(), 
-                'angs': self._read_joints_from_fields(True)}
+                'angs': self.read_joints_from_fields(True)}
 
     def set_current_data_cb(self, data):
         self.set_update_mode(False)
-        self._set_joints_to_fields(data['angs'])
+        self.set_joints_to_fields(data['angs'])
         self.time_box.setValue(data['time'])
         self._time_changed_validate(data['time'])
 
     def fill_property_box(self, pbox):
-        #self.curr_selected = None
         formlayout = pbox.layout()
         items_to_monitor = []
 
-        self.arm_radio_boxes, self.arm_radio_buttons = tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
-        formlayout.addRow('&Arm', self.arm_radio_boxes)
+        fields, arm_radio_boxes, buttons = self.make_joint_boxes(pbox, self.rcommander)
+        formlayout.addRow('&Arm', arm_radio_boxes)
+        for field in fields:
+            formlayout.addRow(field['name'], field['item'])
+            vchanged_func = ft.partial(self._value_changed_validate, joint=field['joint'])
+            self.rcommander.connect(field['item'], SIGNAL('valueChanged(double)'), vchanged_func)
+            items_to_monitor.append(field['item'])
 
-        #Controls for displaying the current joint states
-        for name in self.joint_name_fields:
-            #exec("self.%s = QLineEdit(pbox)" % name)
-            exec("self.%s = QDoubleSpinBox(pbox)" % name)
-            exec('box = self.%s' % name)
-            items_to_monitor.append(box)
-            box.setSingleStep(.5)
-            box.setMinimum(-9999999)
-            box.setMaximum(9999999)
-            formlayout.addRow("&%s" % name, box)
-            vchanged_func = ft.partial(self._value_changed_validate, joint=name)
-            self.rcommander.connect(box, SIGNAL('valueChanged(double)'), vchanged_func)
-
-        self.time_box = QDoubleSpinBox(pbox)
-        self.time_box.setMinimum(0)
-        self.time_box.setMaximum(1000.)
-        self.time_box.setSingleStep(.2)
+        self.time_box = tu.double_spin_box(pbox, 0, 1000, .2)
         self.time_box.setValue(1.)
-        items_to_monitor.append(self.time_box)
         formlayout.addRow('&Time', self.time_box)
         self.rcommander.connect(self.time_box, SIGNAL('valueChanged(double)'), self._time_changed_validate)
-    
-        self.live_update_button = QPushButton(pbox)
-        self.live_update_button.setText('Live Update')
-        self.rcommander.connect(self.live_update_button, SIGNAL('clicked()'), self.update_selected_cb)
-        formlayout.addRow(self.live_update_button)
+        items_to_monitor.append(self.time_box)
 
-        self.pose_button = QPushButton(pbox)
-        self.pose_button.setText('Current Pose')
-        self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_joint_angles_cb)
-        formlayout.addRow(self.pose_button)
+        for button in buttons:
+            formlayout.addRow(button)
 
         #Controls for getting the current joint states
-        #self.joint_angs_list = []
         self.list_manager = p2u.ListManager(self.get_current_data_cb, self.set_current_data_cb, None, name_preffix='point')
         list_widgets = self.list_manager.make_widgets(pbox, self.rcommander)
         self.list_manager.monitor_changing_values_in(self.rcommander, items_to_monitor)
@@ -195,79 +124,6 @@ class JointSequenceTool(tu.ToolBase):
         for gb in list_widgets:
             formlayout.addRow(gb)
         self.reset()
-
-
-    def set_update_mode(self, on):
-        if on:
-            self.live_update_button.setText('End Live Update')
-            self.live_update_button.setEnabled(True)
-            self.pose_button.setEnabled(False)
-            self.status_bar_timer.start(30)
-            self.current_update_color = create_color(0,180,75,255)
-        else:
-            self.live_update_button.setText('Live Update')
-            self.pose_button.setEnabled(True)
-            self.status_bar_timer.stop()
-            self.current_update_color = create_color(0,0,0,255)
-
-        for name in self.joint_name_fields:      
-            palette = self.current_update_color
-            exec('self.%s.setPalette(palette)' % name)
-
-        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
-        for idx, name in enumerate(self.joint_name_fields):
-            exec('line_edit = self.%s' % name)
-            self._check_limit(arm, line_edit.value(), name)
-            #line_edit.setValue(line_edit.value())
-
-    def update_selected_cb(self):
-        if self.live_update_button.text() == 'Live Update':
-            self.set_update_mode(True)
-        else:
-            self.set_update_mode(False)
-
-    def get_current_joint_angles_cb(self):
-        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
-        if ('left' == arm):
-            arm_obj = self.rcommander.robot.left
-        else:
-            arm_obj = self.rcommander.robot.right
-
-        pose_mat = arm_obj.pose()
-
-        for idx, name in enumerate(self.joint_name_fields):
-            deg = np.degrees(pose_mat[idx, 0])
-            exec('line_edit = self.%s' % name)
-            line_edit.setValue(deg)
-
-    def _read_joints_from_fields(self, limit_ranges=False):
-        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
-        if arm == 'left':
-            idx = 0
-            pref = 'l_'
-        else:
-            idx = 1
-            pref = 'r_'
-
-        limits = self.limits[idx]
-        joints = []
-        for name in self.joint_name_fields:
-            #exec('rad = np.radians(float(str(self.%s.text())))' % name)
-            exec('rad = np.radians(self.%s.value())' % name)
-            if limit_ranges and limits.has_key(pref+name):
-                mn, mx = limits[pref+name]
-                nrad = max(min(rad, mx-.005), mn+.005)
-                #if rad != nrad:
-                #    print pref+name, nrad, rad
-                rad = nrad
-            joints.append(rad)
-        return joints
-
-    def _set_joints_to_fields(self, joints):
-        for idx, name in enumerate(self.joint_name_fields):
-            deg = np.degrees(joints[idx])
-            exec('line_edit = self.%s' % name)
-            line_edit.setValue(deg)
 
     def new_node(self, name=None):
         self.list_manager.save_currently_selected_item()
@@ -279,29 +135,21 @@ class JointSequenceTool(tu.ToolBase):
         #if (self.joint_angs_list == None or len(self.joint_angs_list) == 0) and (name != None):
         if (len(self.get_joint_angs_list()) == 0) and (name != None):
             return None
-    
         arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
         sstate = JointSequenceState(nname, arm, self.list_manager.get_data())
         return sstate
 
     def set_node_properties(self, my_node):
-        #self.joint_angs_list = my_node.joint_waypoints
         self.list_manager.set_data(my_node.joint_waypoints)
         self.list_manager.select_default_item()
-        if 'left' == my_node.arm:
-            self.arm_radio_buttons[0].setChecked(True)
-        if my_node.arm == 'right':
-            self.arm_radio_buttons[1].setChecked(True)
-        #self.list_widget.setCurrentItem(self.list_widget.item(0))
+        self.set_arm_radio(my_node.arm)
 
     def reset(self):
-        self.arm_radio_buttons[0].setChecked(True)
-        for name in self.joint_name_fields:
-            exec('self.%s.setValue(0)' % name)
-
-        self.status_bar_timer.stop()
+        self.set_arm_radio('left')
+        self.set_all_fields_to_zero()
         self.pose_button.setEnabled(True)
         self.list_manager.reset()
+        self.stop_timer()
 
 
 class JointSequenceState(tu.StateBase): 
@@ -357,7 +205,7 @@ class JointSequenceStateSmach(smach.State):
         preempted = False
         r = rospy.Rate(30)
         start_time = rospy.get_time()
-        while True:
+        while not rospy.is_shutdown():
             #we have been preempted
             if self.preempt_requested():
                 rospy.loginfo('JointSequenceState: preempt requested')
