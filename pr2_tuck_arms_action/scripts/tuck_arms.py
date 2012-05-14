@@ -35,5 +35,5 @@
 
 import roslib
 roslib.load_manifest('pr2_tuck_arms_action')
-from rc_tuck_arms_action import tuck_arms_main
+from pr2_tuck_arms_action import tuck_arms_main
 tuck_arms_main.main()
