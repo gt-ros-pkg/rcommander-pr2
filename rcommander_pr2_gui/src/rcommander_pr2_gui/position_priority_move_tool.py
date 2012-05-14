@@ -178,7 +178,7 @@ class PositionPrioritySmach(smach.State):
         r = rospy.Rate(30)
         #start_time = rospy.get_time()
 
-        while True:
+        while not rospy.is_shutdown():
             #we have been preempted
             if self.preempt_requested():
                 rospy.loginfo('PositionPrioritySmach: preempt requested')
