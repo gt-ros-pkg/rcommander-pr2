@@ -327,7 +327,7 @@ if __name__ == '__main__':
 
 
 def main():
-  action_name = 'pr2_tuck_arms'
+  action_name = 'tuck_arms'
   rospy.init_node(action_name)
   rospy.sleep(0.001)  # wait for time
   tuck_arms_action_server = TuckArmsActionServer(action_name)
