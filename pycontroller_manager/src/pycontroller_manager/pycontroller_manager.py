@@ -60,15 +60,41 @@ class ControllerManager:
 
     def joint_mode(self, arm):
         #get current state
+        statuses = True
+        all_started = []
+        all_stopped = []
         if arm == 'left' or arm == 'both':
-            return self.switch([self.joint_controllers['l']], [self.cart_controllers['l']])
+            status, started, stopped = self.switch([self.joint_controllers['l']], [self.cart_controllers['l']])
+            statuses = status and statuses
+            all_started += started
+            all_stopped += stopped
+
         if arm == 'right' or arm == 'both':
-            return self.switch([self.joint_controllers['r']], [self.cart_controllers['r']])
+            status, started, stopped = self.switch([self.joint_controllers['r']], [self.cart_controllers['r']])
+            statuses = status and statuses
+            all_started += started
+            all_stopped += stopped
+
+        return statuses, all_started, all_stopped
 
     def cart_mode(self, arm):
+        statuses = True
+        all_started = []
+        all_stopped = []
         if arm == 'left' or arm == 'both':
             #print 'switchleft'
-            return self.switch([self.cart_controllers['l']], [self.joint_controllers['l']])
+            status, started, stopped = self.switch([self.cart_controllers['l']], [self.joint_controllers['l']])
+            statuses = status and statuses
+            all_started += started
+            all_stopped += stopped
         if arm == 'right' or arm == 'both':
             #print 'switchright'
-            return self.switch([self.cart_controllers['r']], [self.joint_controllers['r']])
+            status, started, stopped = self.switch([self.cart_controllers['r']], [self.joint_controllers['r']])
+            statuses = status and statuses
+            all_started += started
+            all_stopped += stopped
+
+        return statuses, all_started, all_stopped
+
+
+
