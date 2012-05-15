@@ -43,7 +43,8 @@ class JointTool:
         self.current_update_color = create_color(0,0,0,255)
         self.status_bar_timer = QTimer()
         self.robot = robot
-        rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.get_current_joint_angles_cb)
+        self.live_update = False
+        rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.live_update_cb)
 
     def stop_timer(self):
         self.status_bar_timer.stop()
@@ -81,8 +82,8 @@ class JointTool:
         connector.connect(self.live_update_button, SIGNAL('clicked()'), self.update_selected_cb)
 
         self.pose_button = QPushButton(pbox)
-        self.pose_button.setText('Current Pose')
-        connector.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_joint_angles_cb)
+        self.pose_button.setText('Set to Current Pose')
+        connector.connect(self.pose_button, SIGNAL('clicked()'), self.current_pose_cb)
 
         return fields, self.arm_radio_boxes, [self.live_update_button, self.pose_button]
 
@@ -113,15 +114,25 @@ class JointTool:
             joints.append(rad)
         return joints
 
-
     def update_selected_cb(self):
         if self.live_update_button.text() == 'Live Update':
             self.set_update_mode(True)
         else:
             self.set_update_mode(False)
 
+    def get_live_update(self):
+        return self.live_update
+
+    def live_update_toggle_cb(state):
+        pass
+
     def set_update_mode(self, on):
+        self.live_update = on
+
         if on:
+            self.live_update_toggle_cb(self.live_update)
+
+        if self.live_update:
             self.live_update_button.setText('End Live Update')
             self.live_update_button.setEnabled(True)
             self.pose_button.setEnabled(False)
@@ -142,14 +153,23 @@ class JointTool:
             exec('line_edit = self.%s' % name)
             self.check_joint_limits(arm, line_edit.value(), name)
 
-    def get_current_joint_angles_cb(self):
+        if not on:
+            self.live_update_toggle_cb(self.live_update)
+
+    def get_robot_joint_angles(self):
         arm = self.get_arm_radio()#tu.selected_radio_button(self.arm_radio_buttons).lower()
         if ('left' == arm):
             arm_obj = self.robot.left
         else:
             arm_obj = self.robot.right
-
         pose_mat = arm_obj.pose()
+        return pose_mat
+
+    def live_update_cb(self):
+        self.current_pose_cb()
+
+    def current_pose_cb(self):
+        pose_mat = self.get_robot_joint_angles()
         for idx, name in enumerate(JOINT_NAME_FIELDS):
             deg = np.degrees(pose_mat[idx, 0])
             exec('line_edit = self.%s' % name)
@@ -182,13 +202,6 @@ class JointTool:
         else:
             palette = self.current_update_color
         exec('self.%s.setPalette(palette)' % joint_name)
-
-
-
-
-
-
-
 
 
 class SE3Tool:
@@ -260,6 +273,7 @@ class ListManager:
         self.data_list = []
         self.curr_selected = None
         self.disable_saving = False
+        self.displayed_record = False
 
     def reset(self):
         self.curr_selected = None
@@ -268,18 +282,31 @@ class ListManager:
         self.list_widget.clear()
 
     def item_selection_changed_cb(self):
-        if self.curr_selected != None and not self.disable_saving:
+        if self.curr_selected != None:
             self.save_currently_selected_item()
 
         selected = self.list_widget.selectedItems()
         if len(selected) == 0:
             return
-        idx = self._find_index_of(str(selected[0].text()))
-        self.curr_selected = idx
-        self.set_current_data_cb(self.data_list[idx]['data'])
+
+        selected_name = str(selected[0].text())
+        self.set_selected_by_name(selected_name)
 
     def get_selected_idx(self):
         return self.curr_selected
+
+    def get_selected_name(self):
+        selected = self.list_widget.selectedItems() 
+        if len(selected) == 0:
+            return None
+        name_selected = str(selected[0].text())
+        return name_selected
+
+    def set_selected_by_name(self, name):
+        idx = self._find_index_of(name)
+        self.curr_selected = idx
+        self.set_current_data_cb(self.data_list[idx]['data'])
+        self.displayed_record = False
 
     def set_default_selection(self):
         if len(self.data_list) > 0:
@@ -383,10 +410,16 @@ class ListManager:
         self.data_list.append({'name': name, 
                                'data': self.get_current_data_cb()})
         self.disable_saving = True
-        self._refill_list_widget(self.data_list)
         if self.add_element_cb != None:
             self.add_element_cb()
+        self._refill_list_widget(self.data_list)
         self.list_widget.setCurrentRow(self._find_index_of(name))
+        self.disable_saving = False
+
+    def display_record(self, data_record):
+        self.disable_saving = True
+        self.set_current_data_cb(data_record)
+        self.displayed_record = True
         self.disable_saving = False
 
     def _selected_idx(self):
@@ -396,7 +429,6 @@ class ListManager:
             return None
         sname = str(selected[0].text())
 
-        #Remove it from list_widget and joint_angs_list
         idx = self._find_index_of(sname)
         return idx
     
@@ -436,12 +468,13 @@ class ListManager:
         self.list_widget.setCurrentItem(self.list_widget.item(0))
 
     def save_currently_selected_item(self):
-        #idx = self._selected_idx()
+        if self.disable_saving or self.displayed_record:
+            return
+
         idx = self.curr_selected
         if idx == None or idx >= len(self.data_list):
             return
         el = self.data_list[idx]
-        #rospy.loginfo('SAVING SAVING SAVING: ' + el['name'])
         self.data_list[idx] = {'name': el['name'],
                                'data': self.get_current_data_cb()}
 
@@ -456,7 +489,6 @@ class ListManager:
         self._refill_list_widget(self.data_list)
 
     def get_data(self, clean=False):
-        #return [p['data'] for p in self.data_list]
         if clean:
             return [d['data'] for d in self.data_list]
         else:
@@ -465,6 +497,8 @@ class ListManager:
     def set_data(self, data_list):
         self.data_list = copy.deepcopy(data_list)
         self._refill_list_widget(self.data_list)
+
+
 
 
 
