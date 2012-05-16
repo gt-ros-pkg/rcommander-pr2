@@ -75,7 +75,8 @@ class SafeMoveArmStateSmach(smach.State):
     TIME_OUT = 60
 
     def __init__(self, arm, joints):
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'start_in_collision', 'goal_in_collision'], input_keys = [], output_keys = [])
+        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'start_in_collision', 
+                                               'goal_in_collision', 'joint_limit_violated'], input_keys = [], output_keys = [])
         self.joints = joints
 
         if arm == 'left':
@@ -142,6 +143,8 @@ class SafeMoveArmStateSmach(smach.State):
                     return 'start_in_collision'
                 elif result.error_code.val == an.ArmNavigationErrorCodes.GOAL_IN_COLLISION:
                     return 'goal_in_collision'
+                elif result.error_code.val == an.ArmNavigationErrorCodes.JOINT_LIMITS_VIOLATED:
+                    return 'joint_limit_violated'
                 rospy.loginfo('Got error code %d' % result.error_code.val)
                 break
 
