@@ -21,6 +21,9 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
         tu.ToolBase.__init__(self, rcommander, 'joint_sequence', 'Joint Sequence', JointSequenceState)
         p2u.JointTool.__init__(self, rcommander.robot, rcommander)
         self.min_time_service = rospy.ServiceProxy('min_time_to_move', MinTime, persistent=True)
+        #self.current_selected = None
+        self.reset_live_update = True
+        self.element_will_be_added = False
 
     def _value_changed_validate(self, value, joint):
         arm = self.get_arm_radio()
@@ -88,10 +91,43 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
                 'angs': self.read_joints_from_fields(True)}
 
     def set_current_data_cb(self, data):
-        self.set_update_mode(False)
+        if self.reset_live_update and not self.element_will_be_added:
+            # - This is here so that when user selects another point live
+            #   update is turned OFF but add also uses this function, which turns
+            #   OFF live update!
+            # - The toggle button function only remembers the element activated
+            #   when it was clicked.
+            self.set_update_mode(False) 
+
         self.set_joints_to_fields(data['angs'])
         self.time_box.setValue(data['time'])
         self._time_changed_validate(data['time'])
+
+        if self.element_will_be_added:
+            self.element_will_be_added = False
+
+    def live_update_cb(self):
+        pose_mat = self.get_robot_joint_angles()
+        self.reset_live_update = False
+        self.list_manager.display_record({'time': self.time_box.value(),
+                                          'angs': pose_mat.A1.tolist()})
+        self.reset_live_update = True
+
+    def live_update_toggle_cb(self, state):
+        if not state:
+            self.reset_live_update = False
+            self.list_manager.set_selected_by_name(self.list_manager.get_selected_name())
+            self.reset_live_update = True
+
+    def add_element_cb(self):
+        self.element_will_be_added = True
+
+    #    #Live update is off at this point, and we have a new point
+    #    #If current exists, overwrite its old value, reset variable current
+    #    #   (do a _refill to make sure ordering is ok)
+    #    #   (reselect element)
+
+    #    #turn live update back on, this will save the just added element!
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
@@ -115,7 +151,8 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
             formlayout.addRow(button)
 
         #Controls for getting the current joint states
-        self.list_manager = p2u.ListManager(self.get_current_data_cb, self.set_current_data_cb, None, name_preffix='point')
+        self.list_manager = p2u.ListManager(self.get_current_data_cb, self.set_current_data_cb, 
+                                            self.add_element_cb, name_preffix='point')
         list_widgets = self.list_manager.make_widgets(pbox, self.rcommander)
         self.list_manager.monitor_changing_values_in(self.rcommander, items_to_monitor)
 
