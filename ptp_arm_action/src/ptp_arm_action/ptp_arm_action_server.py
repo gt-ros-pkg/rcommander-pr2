@@ -6,7 +6,7 @@ import actionlib
 import geometry_msgs.msg as gm
 import ptp_arm_action.msg as ptp
 
-from object_manipulator.convert_functions import *
+#from object_manipulator.convert_functions import *
 from math import sqrt, pi, fabs
 import tf_utils as tfu
 import numpy as np
@@ -16,6 +16,41 @@ import tf.transformations as tr
 import tf
 from pycontroller_manager.pycontroller_manager import ControllerManager
 import object_manipulator.convert_functions as cf
+
+##make a PoseStamped out of a Pose
+def stamp_pose(pose, frame_id):
+    pose_stamped = PoseStamped()
+    stamp_msg(pose_stamped, frame_id)
+    pose_stamped.pose = pose
+    return pose_stamped
+
+
+##change the frame of a PoseStamped
+def change_pose_stamped_frame(tf_listener, pose, frame):
+
+    #convert the PoseStamped to the desired frame, if necessary
+    if pose.header.frame_id != frame:
+        pose.header.stamp = rospy.Time(0)
+        tf_listener.waitForTransform(frame, pose.header.frame_id, pose.header.stamp, rospy.Duration(5))
+        try:
+            trans_pose = tf_listener.transformPose(frame, pose)
+        except rospy.ServiceException, e:
+            print "pose:\n", pose
+            print "frame:", frame
+            rospy.logerr("change_pose_stamped_frame: error in transforming pose from " + pose.header.frame_id + " to " + frame + "error msg: %s"%e)
+            return None
+    else:
+        trans_pose = pose
+
+    return trans_pose
+
+
+def pose_to_mat(pose):
+    quat = [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
+    pos = np.matrix([pose.position.x, pose.position.y, pose.position.z]).T
+    mat = np.matrix(tf.transformations.quaternion_matrix(quat))
+    mat[0:3, 3] = pos
+    return mat
 
 ##
 # Measures the distance between two pose stamps, independently factors out
