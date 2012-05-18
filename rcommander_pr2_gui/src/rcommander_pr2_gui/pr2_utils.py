@@ -123,7 +123,7 @@ class JointTool:
     def get_live_update(self):
         return self.live_update
 
-    def live_update_toggle_cb(state):
+    def live_update_toggle_cb(self, state):
         pass
 
     def set_update_mode(self, on):

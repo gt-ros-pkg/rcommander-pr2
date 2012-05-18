@@ -116,7 +116,9 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
     def live_update_toggle_cb(self, state):
         if not state:
             self.reset_live_update = False
-            self.list_manager.set_selected_by_name(self.list_manager.get_selected_name())
+            selected_name = self.list_manager.get_selected_name()
+            if selected_name != None:
+                self.list_manager.set_selected_by_name(selected_name)
             self.reset_live_update = True
 
     def add_element_cb(self):

@@ -8,7 +8,6 @@
 
     <group>
         <remap if="$(arg use_relay)" from="tf" to="relay_tf"/>
-        <node pkg="tf_broadcast_server" type="tf_broadcast_server.py" output="screen" name="rcommander_tf_broadcast"/>
         <node pkg="rcommander_pr2_gui" type="rcommander_pr2_server.py" 
             output="screen" name="rcommander_actions_server"
             args="$(env HOME)/Desktop/robot_behaviors">
