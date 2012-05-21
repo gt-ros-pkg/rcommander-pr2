@@ -182,7 +182,7 @@ class PositionPrioritySmach(smach.State):
             #we have been preempted
             if self.preempt_requested():
                 rospy.loginfo('PositionPrioritySmach: preempt requested')
-                self.action_client.cancel_goal()
+                self.action_client.cancel_all_goals()
                 self.service_preempt()
                 preempted = True
                 break
@@ -192,7 +192,7 @@ class PositionPrioritySmach(smach.State):
             #    rospy.loginfo('PositionPrioritySmach: timed out!')
             #    succeeded = False
             #    break
-#print tu.goal_status_to_string(state)
+            #print tu.goal_status_to_string(state)
             state = self.action_client.get_state()
             if (state not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING]):
                 #if state == am.GoalStatus.SUCCEEDED:
@@ -210,10 +210,10 @@ class PositionPrioritySmach(smach.State):
 
         elif state == am.GoalStatus.ABORTED:
             result = self.action_client.get_result()
-            if result.message == 'timed_out':
-                return 'timed_out'
-            elif result.message == 'goal_not_reached':
+            if result == None or result.message == 'goal_not_reached':
                 return 'goal_not_reached'
+            elif result.message == 'timed_out':
+                return 'timed_out'
             else:
                 raise Exception('Unknown failure result: %s' % result.message)
         else:
@@ -235,6 +235,5 @@ class PositionPrioritySmach(smach.State):
         goal.rot_vel   = self.rot_vel
         goal.trans_tolerance = self.trans_tolerance
         goal.time_out = self.time_out
-        print 'SENT TIME OUT', goal.time_out
         return self.execute_goal(goal)
 
