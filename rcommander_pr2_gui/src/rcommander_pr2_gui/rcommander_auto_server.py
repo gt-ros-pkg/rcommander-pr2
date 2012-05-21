@@ -66,7 +66,7 @@ class RCommanderAutoServer:
     def _load(self, action):
         rospy.loginfo('Loading ' + action)
         action_path = os.path.join(self.path_to_rcommander_files, action)
-        for i in range(3):
+        for i in range(4):
             try:
                 load_dict = {'server':  ScriptedActionServer(action, action_path, self.robot),
                              'watcher': WatchDirectory(action_path, self.action_directory_changed)}
@@ -75,7 +75,7 @@ class RCommanderAutoServer:
             except IOError, e:
                 rospy.loginfo(str(e))
                 rospy.loginfo('IOError encountered, retrying.')
-                rospy.sleep(1)
+                rospy.sleep(3)
 
     def action_directory_changed(self, action_path_name):
         action_path_name = str(action_path_name)

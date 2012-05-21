@@ -117,7 +117,7 @@ class GripperEventStateSmach(smach.State):
             sm = self.child_gm.create_state_machine(robot)
             input_keys = list(sm.get_registered_input_keys())
             output_keys = list(sm.get_registered_output_keys())
-            outcomes = list(sm.get_registered_outcomes()) + [GripperEventStateSmach.EVENT_OUTCOME]
+            outcomes = list(sm.get_registered_outcomes()) + [GripperEventStateSmach.EVENT_OUTCOME, 'failed']
         smach.State.__init__(self, outcomes = outcomes, input_keys = input_keys, output_keys = output_keys)
         #self.init=True
 
@@ -164,7 +164,7 @@ class GripperEventStateSmach(smach.State):
 
             if not rthread.isAlive():
                 rospy.loginfo('Gripper Event Tool: child node died')
-                break
+                return 'failed'
 
             if self.preempt_requested():
                 rospy.loginfo('Gripper Event Tool: preempt requested')

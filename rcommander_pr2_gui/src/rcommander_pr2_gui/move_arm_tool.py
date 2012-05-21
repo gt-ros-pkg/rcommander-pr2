@@ -78,6 +78,7 @@ class SafeMoveArmStateSmach(smach.State):
         smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'start_in_collision', 
                                                'goal_in_collision', 'joint_limit_violated'], input_keys = [], output_keys = [])
         self.joints = joints
+        self.arm = arm
 
         if arm == 'left':
             self.move_arm_client = actionlib.SimpleActionClient('move_left_arm', an.MoveArmAction)
@@ -89,6 +90,10 @@ class SafeMoveArmStateSmach(smach.State):
             self.joint_names = rospy.get_param('/r_arm_controller/joints')
             self.group_name = 'right_arm'
 
+    def set_robot(self, robot):
+        if robot != None:
+            self.controller_manager = robot.controller_manager
+
     def _still_going(self):
         state = self.action_client.get_state()
         gripper_event_detected = state not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING]
@@ -96,6 +101,8 @@ class SafeMoveArmStateSmach(smach.State):
 
     def execute(self, userdata):        
         #Construct goal and send it
+        status, started, stopped = self.controller_manager.joint_mode(self.arm)
+
         goal = an.MoveArmGoal()
         goal.motion_plan_request.group_name = self.group_name
         goal.motion_plan_request.num_planning_attempts = 2;
@@ -118,7 +125,7 @@ class SafeMoveArmStateSmach(smach.State):
         state = self.move_arm_client.get_state()
         preempted = False
         succeeded = False
-        while True:
+        while not rospy.is_shutdown():
             #we have been preempted
             if self.preempt_requested():
                 rospy.loginfo('SafeMoveArmState: preempt requested')
