@@ -6,7 +6,7 @@ import actionlib
 import geometry_msgs.msg as gm
 import ptp_arm_action.msg as ptp
 
-from object_manipulator.convert_functions import *
+#from object_manipulator.convert_functions import *
 from math import sqrt, pi, fabs
 import tf_utils as tfu
 import numpy as np
@@ -16,6 +16,62 @@ import tf.transformations as tr
 import tf
 from pycontroller_manager.pycontroller_manager import ControllerManager
 import object_manipulator.convert_functions as cf
+
+##stamp a message by giving it a header with a timestamp of now
+def stamp_msg(msg, frame_id):
+    msg.header.frame_id = frame_id
+    msg.header.stamp = rospy.Time.now()
+
+##convert a 4x4 scipy matrix to a Pose message 
+#(first premultiply by transform if given)
+def mat_to_pose(mat, transform = None):
+    if transform != None:
+        mat = transform * mat
+    pose = gm.Pose()
+    pose.position.x = mat[0,3]
+    pose.position.y = mat[1,3]
+    pose.position.z = mat[2,3]
+    quat = tf.transformations.quaternion_from_matrix(mat)
+    pose.orientation.x = quat[0]
+    pose.orientation.y = quat[1]
+    pose.orientation.z = quat[2]
+    pose.orientation.w = quat[3]
+    return pose
+
+##make a PoseStamped out of a Pose
+def stamp_pose(pose, frame_id):
+    pose_stamped = gm.PoseStamped()
+    stamp_msg(pose_stamped, frame_id)
+    pose_stamped.pose = pose
+    return pose_stamped
+
+
+##change the frame of a PoseStamped
+def change_pose_stamped_frame(tf_listener, pose, frame):
+
+    #convert the PoseStamped to the desired frame, if necessary
+    if pose.header.frame_id != frame:
+        pose.header.stamp = rospy.Time(0)
+        tf_listener.waitForTransform(frame, pose.header.frame_id, pose.header.stamp, rospy.Duration(5))
+        try:
+            trans_pose = tf_listener.transformPose(frame, pose)
+        except rospy.ServiceException, e:
+            print "pose:\n", pose
+            print "frame:", frame
+            rospy.logerr("change_pose_stamped_frame: error in transforming pose from " + pose.header.frame_id + " to " + frame + "error msg: %s"%e)
+            return None
+    else:
+        trans_pose = pose
+
+    return trans_pose
+
+
+def pose_to_mat(pose):
+    quat = [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
+    pos = np.matrix([pose.position.x, pose.position.y, pose.position.z]).T
+    mat = np.matrix(tf.transformations.quaternion_matrix(quat))
+    mat[0:3, 3] = pos
+    return mat
 
 ##
 # Measures the distance between two pose stamps, independently factors out
@@ -126,7 +182,7 @@ class PTPArmActionServer:
         min_trans_error = None
         timed_out = False
 
-        while True:
+        while not rospy.is_shutdown():
             cur_time = rospy.get_time()
 
             gripper_matrix = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', self.controller_frame, rospy.Time(0)))
@@ -136,7 +192,7 @@ class PTPArmActionServer:
                 #Stop our motion
                 self.target_pub.publish(stamp_pose(gripper_ps.pose, gripper_ps.header.frame_id))
                 self.linear_movement_as.set_preempted()
-                rospy.loginfo('action_cb: preempted!')
+                rospy.loginfo('action_cb: PREEMPTED!')
                 break
 
             #Calc feedback
