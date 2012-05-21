@@ -17,9 +17,30 @@ import tf
 from pycontroller_manager.pycontroller_manager import ControllerManager
 import object_manipulator.convert_functions as cf
 
+##stamp a message by giving it a header with a timestamp of now
+def stamp_msg(msg, frame_id):
+    msg.header.frame_id = frame_id
+    msg.header.stamp = rospy.Time.now()
+
+##convert a 4x4 scipy matrix to a Pose message 
+#(first premultiply by transform if given)
+def mat_to_pose(mat, transform = None):
+    if transform != None:
+        mat = transform * mat
+    pose = gm.Pose()
+    pose.position.x = mat[0,3]
+    pose.position.y = mat[1,3]
+    pose.position.z = mat[2,3]
+    quat = tf.transformations.quaternion_from_matrix(mat)
+    pose.orientation.x = quat[0]
+    pose.orientation.y = quat[1]
+    pose.orientation.z = quat[2]
+    pose.orientation.w = quat[3]
+    return pose
+
 ##make a PoseStamped out of a Pose
 def stamp_pose(pose, frame_id):
-    pose_stamped = PoseStamped()
+    pose_stamped = gm.PoseStamped()
     stamp_msg(pose_stamped, frame_id)
     pose_stamped.pose = pose
     return pose_stamped
@@ -161,7 +182,7 @@ class PTPArmActionServer:
         min_trans_error = None
         timed_out = False
 
-        while True:
+        while not rospy.is_shutdown():
             cur_time = rospy.get_time()
 
             gripper_matrix = tfu.tf_as_matrix(self.tf.lookupTransform('torso_lift_link', self.controller_frame, rospy.Time(0)))
@@ -171,7 +192,7 @@ class PTPArmActionServer:
                 #Stop our motion
                 self.target_pub.publish(stamp_pose(gripper_ps.pose, gripper_ps.header.frame_id))
                 self.linear_movement_as.set_preempted()
-                rospy.loginfo('action_cb: preempted!')
+                rospy.loginfo('action_cb: PREEMPTED!')
                 break
 
             #Calc feedback
