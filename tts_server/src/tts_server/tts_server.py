@@ -21,7 +21,10 @@ class TTSServer:
         voices = glob.glob('/usr/share/festival/voices/us/*')
         voices += glob.glob('/usr/share/festival/voices/english/*')
         for vname in voices:
-            voice_list.append(pt.split(vname)[1])
+            n = pt.split(vname)[1]
+            if n == 'cmu_us_kal_com_hts' or n == 'cstr_us_ked_timit_hts':
+                continue
+            voice_list.append(n)
         return AvailableVoicesResponse(voice_list)
 
     def say_cb(self, req):
