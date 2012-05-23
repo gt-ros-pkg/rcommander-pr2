@@ -154,7 +154,7 @@ class GripperEventStateSmach(smach.State):
         event = self._detected_event()
         preempted = False
         r = rospy.Rate(100)
-        while not event:
+        while not event and not rospy.is_shutdown():
             if rthread.exception != None:
                 raise rthread.exception
 
