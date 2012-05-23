@@ -682,7 +682,13 @@ class Joint:
 
     def __init__(self, name, joint_provider):
         self.joint_provider = joint_provider
-        self.joint_names = rospy.get_param('/%s/joints' % name)
+        try:
+            self.joint_names = rospy.get_param('/%s/joints' % name)
+        except KeyError, e:
+            self.joint_names = ['l_shoulder_pan_joint', 'l_shoulder_lift_joint', 
+                    'l_upper_arm_roll_joint', 'l_elbow_flex_joint', 'l_forearm_roll_joint', 
+                    'l_wrist_flex_joint', 'l_wrist_roll_joint']
+
         self.pub = rospy.Publisher('%s/command' % name, tm.JointTrajectory)
         self.names_index = None
         self.zeros = [0 for j in range(len(self.joint_names))]
@@ -779,10 +785,9 @@ class PR2Arm(Joint):
 
     def _limits(self):
         service_name = '/pr2_%s_arm_kinematics/get_ik_solver_info' % self.full_arm_name
-        print service_name
         proxy = rospy.ServiceProxy(service_name, GetKinematicSolverInfo, persistent=True)
-        #import pdb
-        #pdb.set_trace()
+        rospy.loginfo('Waiting for %s' % service_name)
+        rospy.wait_for_service(service_name)
         info = proxy().kinematic_solver_info
         limit_dict = {}
         vel_limit_dict = {}
