@@ -7,6 +7,7 @@ import functools as ft
 import sensor_msgs.msg as sm
 import std_msgs.msg as stdm
 import pr2_controllers_msgs.msg as pm
+import move_base_msgs.msg as mm
 import geometry_msgs.msg as gm
 import geometry_msgs.msg as geo
 import time
@@ -24,6 +25,8 @@ import os.path as pt
 import copy
 import unittest
 import math
+
+import hrl_pr2_lib.msg as hm #TODO move this somewhere
 
 JOINT_NAME_FIELDS = ["shoulder_pan_joint", "shoulder_lift_joint", "upper_arm_roll_joint", 
                       "elbow_flex_joint", "forearm_roll_joint", "wrist_flex_joint", "wrist_roll_joint"]
@@ -909,6 +912,94 @@ class PR2Head(Joint):
         MIN_TIME = .1
         self.set_poses(np.column_stack([cpos, pos]), np.array([MIN_TIME, MIN_TIME+length]))
 
+
+class PR2Base:
+    def __init__(self, tflistener):
+        self.tflistener = tflistener
+        self.client = actionlib.SimpleActionClient('move_base', mm.MoveBaseAction)
+        self.go_angle_client = actionlib.SimpleActionClient('go_angle', hm.GoAngleAction)
+        self.go_xy_client = actionlib.SimpleActionClient('go_xy', hm.GoXYAction)
+        #rospy.loginfo('pr2base: waiting for move_base')
+        #self.client.wait_for_server()
+        #rospy.loginfo('pr2base: waiting transforms')
+        #try:
+        #    self.tflistener.waitForTransform('map', 'base_footprint', rospy.Time(), rospy.Duration(20))
+        #except Exception, e:
+        #    rospy.loginfo('pr2base: WARNING! Transform from map to base_footprint not found! Did you launch the nav stack?')
+
+    def set_pose(self, t, r, frame, block=True):
+        g = mm.MoveBaseGoal()
+        p = g.target_pose
+        
+        p.header.frame_id = frame
+        p.header.stamp = rospy.get_rostime()
+        p.pose.position.x = t[0]
+        p.pose.position.y = t[1]
+        p.pose.position.z = 0
+        
+        p.pose.orientation.x = r[0]
+        p.pose.orientation.y = r[1]
+        p.pose.orientation.z = r[2]
+        p.pose.orientation.w = r[3]
+    
+        self.client.send_goal(g)
+        if block:
+            self.client.wait_for_result()
+        return self.client.get_state()
+
+    def get_pose(self):
+        p_base = tfu.transform('map', 'base_footprint', self.tflistener) \
+                * tfu.tf_as_matrix(([0., 0., 0., 1.], tr.quaternion_from_euler(0,0,0)))
+        return tfu.matrix_as_tf(p_base)
+
+
+    ##
+    # Turns to given angle using pure odometry
+    def turn_to(self, angle, block=True):
+        goal = hm.GoAngleGoal()
+        goal.angle = angle
+        self.go_angle_client.send_goal(goal)
+        print 'SENT TURN GOAL'
+        if block:
+            rospy.loginfo('turn_to: waiting for turn..')
+            self.go_angle_client.wait_for_result()
+            rospy.loginfo('turn_to: done.')
+            
+
+    ##
+    # Turns a relative amount given angle using pure odometry
+    def turn_by(self, delta_ang, block=True, overturn=False):
+        #overturn
+        if overturn and (abs(delta_ang) < math.radians(10.)):
+            #turn in that direction by an extra 15 deg
+            turn1 = np.sign(delta_ang) * math.radians(15.) + delta_ang
+            turn2 = -np.sign(delta_ang) * math.radians(15.)
+            rospy.loginfo('Requested really small turn angle.  Using overturn trick.')
+            #pdb.set_trace()
+            self._turn_by(turn1, block=True)
+            time.sleep(3) #TODO remove this restriction
+            self._turn_by(turn2, block)
+        else:
+            self._turn_by(delta_ang, block)
+
+
+    def _turn_by(self, delta_ang, block=True):
+        current_ang_odom = tr.euler_from_matrix(tfu.transform('base_footprint',\
+                                'odom_combined', self.tflistener)[0:3, 0:3], 'sxyz')[2]
+        self.turn_to(current_ang_odom + delta_ang, block)
+
+
+    ##
+    # Move to xy_loc_bf
+    def move_to(self, xy_loc_bf, block=True):
+        goal = hm.GoXYGoal()
+        goal.x = xy_loc_bf[0,0]
+        goal.y = xy_loc_bf[1,0]
+        self.go_xy_client.send_goal(goal)
+        if block:
+            self.go_xy_client.wait_for_result()
+
+
 class PR2:
 
     def __init__(self, tf_listener):
@@ -918,10 +1009,11 @@ class PR2:
         self.tf_listener = tf_listener
         jl = GenericListener('joint_state_listener', sm.JointState, 'joint_states', 100)
         joint_provider = ft.partial(jl.read, allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
-        self.left = PR2Arm(joint_provider, tf_listener, 'l')
+        self.left  = PR2Arm(joint_provider, tf_listener, 'l')
         self.right = PR2Arm(joint_provider, tf_listener, 'r')
         self.torso = PR2Torso(joint_provider)
-        self.head = PR2Head(joint_provider)
+        self.head  = PR2Head(joint_provider)
+        self.base  = PR2Base(tf_listener)
         self.controller_manager = ControllerManager()
 
 if __name__ == '__main__':
