@@ -1,8 +1,31 @@
 <launch>
     <arg name="sim" default="false"/>
     <arg name="interactive_manipulation" default="false"/>
+    <arg name="nav" default="true"/>
 
-    <include unless="$(arg interactive_manipulation)" file="$(find pr2_interactive_manipulation)/launch/pr2_interactive_manipulation_robot.launch"/>
+    <arg name="wg" default="false"/>
+    <arg name="aware_home" default="false"/>
+    <arg name="hrl" default="true"/>
+
+    <group if="$(arg nav)">
+        <group if="$(arg aware_home)">
+            <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/aware_home_025.yaml"/>
+        </group>
+
+        <group if="$(arg wg)">
+          <node name="map_server" pkg="map_server" type="map_server"
+                args="$(find willow_maps)/willow-sans-whitelab-2010-02-18-0.025.pgm 0.025" machine="c2" />
+        </group>
+
+        <group if="$(arg hrl)">
+            <node name="map_server" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/hsi_full_4_24.yaml" machine="c2"/>
+        </group>
+    </group>
+
+    <include unless="$(arg interactive_manipulation)" file="$(find pr2_interactive_manipulation)/launch/pr2_interactive_manipulation_robot.launch">
+        <arg name="nav" value="$(arg nav)"/>
+    </include>
+
     <include unless="$(arg sim)" file="$(find tts_server)/tts_server.launch"/>
     <include unless="$(arg sim)" file="$(find rcommander_pr2_gui)/launch/pr2_gripper_sensor_actions.launch"/>
 
