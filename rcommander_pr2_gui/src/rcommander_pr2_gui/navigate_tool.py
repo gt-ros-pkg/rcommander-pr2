@@ -115,17 +115,18 @@ class NavigateState(tu.SimpleStateBase): # smach_ros.SimpleActionState):
         p.pose.position.y = self.xy[1]
         p.pose.position.z = 0
         
-        p.pose.orientation.x = self.r[0]
-        p.pose.orientation.y = self.r[1]
-        p.pose.orientation.z = self.r[2]
-        p.pose.orientation.w = self.r[3]
+        r = tr.quaternion_from_euler(0, 0, self.theta)
+        p.pose.orientation.x = r[0]
+        p.pose.orientation.y = r[1]
+        p.pose.orientation.z = r[2]
+        p.pose.orientation.w = r[3]
         return g
 
-    def _get_theta(self):
-        return tr.euler_from_quaternion(self.r)[2]
+    #def _get_theta(self):
+    #    return tr.euler_from_quaternion(self.r)[2]
 
-    def _set_theta(self, theta):
-        self.r = tr.quaternion_from_euler(0, 0, theta)
+    #def _set_theta(self, theta):
+    #    self.r = tr.quaternion_from_euler(0, 0, theta)
 
     #    def _get_xy(self):
     #        return [self.xy[0], self.xy[1]]
@@ -134,7 +135,7 @@ class NavigateState(tu.SimpleStateBase): # smach_ros.SimpleActionState):
     #        self.xy = xy
     #        #self.t = [xy[0], xy[1], 0]
     #
-    theta = property(_get_theta, _set_theta)
+    #theta = property(_get_theta, _set_theta)
 
     #xy = property(_get_xy, _set_xy)
 
