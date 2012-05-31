@@ -55,6 +55,9 @@ class JointTool:
         if arm == 'right':
             self.arm_radio_buttons[1].setChecked(True)
 
+    def get_arm_radio_buttons(self):
+        return self.arm_radio_buttons
+
     def get_arm_radio(self):
         return tu.selected_radio_button(self.arm_radio_buttons).lower()
 
@@ -174,6 +177,12 @@ class JointTool:
             deg = np.degrees(pose_mat[idx, 0])
             exec('line_edit = self.%s' % name)
             line_edit.setValue(deg)
+
+    def check_all_joint_limits(self):
+        arm = self.get_arm_radio()
+        for idx, name in enumerate(JOINT_NAME_FIELDS):
+            exec('line_edit = self.%s' % name)
+            self.check_joint_limits(arm, line_edit.value(), name)
 
     def check_joint_limits(self, arm, value, joint):
         if arm == 'left':
