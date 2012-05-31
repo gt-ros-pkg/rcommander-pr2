@@ -95,6 +95,11 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 
         for gb in list_widgets:
             formlayout.addRow(gb)
+
+        items_to_monitor = [self.time_box]
+        items_to_monitor += self.get_all_data_input_widgets()
+        self.list_manager.monitor_changing_values_in(self.rcommander, items_to_monitor)
+
         self.reset()
 
     def get_current_pose(self):
