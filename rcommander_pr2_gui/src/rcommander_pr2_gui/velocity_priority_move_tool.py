@@ -29,6 +29,28 @@ def pose_distance(ps_a, ps_b, tflistener):
     desired_angle, desired_axis, _ = tf.transformations.rotation_from_matrix(a_T_b)
     return desired_trans, desired_angle, desired_axis
 
+def interpolate_pose_stamped(pose_stamped_a, pose_stamped_b, frac):
+    apose = pose_stamped_a.pose
+    bpose = pose_stamped_b.pose
+    ap = np.matrix([apose.position.x, apose.position.y, apose.position.z])
+    bp = np.matrix([bpose.position.x, bpose.position.y, bpose.position.z])
+    ip = ap + (bp - ap) * frac
+
+    aq = [apose.orientation.x, apose.orientation.y, apose.orientation.z, apose.orientation.w]
+    bq = [bpose.orientation.x, bpose.orientation.y, bpose.orientation.z, bpose.orientation.w]
+    iq = tr.quaternion_slerp(aq, bq, frac)
+
+    ps = geo.PoseStamped()
+    ps.header = pose_stamped_b.header
+    ps.pose.position.x = ip[0,0]
+    ps.pose.position.y = ip[0,1]
+    ps.pose.position.z = ip[0,2]
+    ps.pose.orientation.x = iq[0]
+    ps.pose.orientation.y = iq[1]
+    ps.pose.orientation.z = iq[2]
+    ps.pose.orientation.w = iq[3]
+    return ps
+
 
 class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 
@@ -150,6 +172,7 @@ class PlayTrajectory(threading.Thread):
         self.controller_frame = controller_frame
         self.tip_frame = tip_frame
         self.tf_listener = tf_listener
+        self.step_resolution = 1./100. #50hz
 
     def set_stop(self):
         self.stop = True
@@ -158,15 +181,57 @@ class PlayTrajectory(threading.Thread):
         #Change duration to cumulative time.
         if len(self.messages) == 0:
             return
+
+        #put in the current pose so that we'll interpolate there
+        messages = []
+        frame_described_in = self.messages[0]['pose_stamped'].header.frame_id
+        if self.messages[0]['arm'] == 'left':
+            arm_tip_frame = VelocityPriorityMoveTool.LEFT_TIP
+        else:
+            arm_tip_frame = VelocityPriorityMoveTool.RIGHT_TIP
+        p_arm = tfu.tf_as_matrix(self.tf_listener.lookupTransform(frame_described_in, arm_tip_frame, rospy.Time(0)))
+        trans, rotation = tr.translation_from_matrix(p_arm), tr.quaternion_from_matrix(p_arm)
+        initial_pose = geo.PoseStamped()
+        initial_pose.pose.position.x = trans[0]
+        initial_pose.pose.position.y = trans[1]
+        initial_pose.pose.position.z = trans[2]
+        initial_pose.pose.orientation.x = rotation[0]
+        initial_pose.pose.orientation.y = rotation[1]
+        initial_pose.pose.orientation.z = rotation[2]
+        initial_pose.pose.orientation.w = rotation[3]
+        initial_pose.header = self.messages[0]['pose_stamped'].header
+
+        current_self_messages = [{'arm': self.messages[0]['arm'],
+                                  'pose_stamped': initial_pose,
+                                  'time': self.messages[0]['time']}]
+        current_self_messages = current_self_messages + self.messages
+
+        #interpolate
+        for msg_a, msg_b, idx_a in zip(current_self_messages[:-1], current_self_messages[1:], range(len(current_self_messages[:-1]))):
+            n_steps = np.floor(msg_b['time'] / self.step_resolution)
+            if n_steps == 0:
+                messages.append(msg_a)
+            else:
+                for i in range(n_steps):
+                    ps    = interpolate_pose_stamped(msg_a['pose_stamped'], msg_b['pose_stamped'], i/float(n_steps))
+                    msg_i = {'arm': msg_a['arm'],
+                             'pose_stamped': ps,
+                             'time': self.step_resolution}
+                    messages.append(msg_i)
+
+        messages.append({'arm': self.messages[-1]['arm'],
+                         'pose_stamped': self.messages[-1]['pose_stamped'],
+                         'time': self.step_resolution})
+
         timeslp = [0.0]
-        for idx, message in enumerate(self.messages[1:]):
+        for idx, message in enumerate(messages[1:]):
             timeslp.append(message['time'] + timeslp[idx])
 
         current_pose = tfu.tf_as_matrix(self.tf_listener.lookupTransform(VelocityPriorityMoveTool.COMMAND_FRAME, 
             self.controller_frame, rospy.Time(0)))
         #print 'current_pose\n', current_pose
         wall_start_time = rospy.get_rostime().to_time()
-        for t, el in zip(timeslp, self.messages):
+        for t, el in zip(timeslp, messages):
             #Sleep if needed
             cur_time = rospy.get_rostime().to_time()
             wall_time_from_start = cur_time - wall_start_time
