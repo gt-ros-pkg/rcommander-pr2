@@ -204,7 +204,7 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
     def set_node_properties(self, my_node):
         self.list_manager.set_data(my_node.joint_waypoints)
         self.list_manager.select_default_item()
-        self.set_arm_radio(my_node.arm)
+        #self.set_arm_radio(my_node.arm)
 
     def reset(self):
         self.set_arm_radio('left')
@@ -245,7 +245,7 @@ class JointSequenceStateSmach(smach.State):
 
 
     def execute(self, userdata):
-        left_points, right_points = split_joints_list(self.joint_waypoints)
+        left_points, right_points = split_joints_list([wp['data'] for wp in self.joint_waypoints])
         if len(left_points) > 0 and len(right_points) > 0:
             arms = 'both'
         elif len(left_points) > 0:
@@ -264,12 +264,12 @@ class JointSequenceStateSmach(smach.State):
             times = []
             wps = []
             for d in points:
-                wps.append(np.matrix(d['data']['angs']).T)
-                times.append(d['data']['time'])
+                wps.append(np.matrix(d['angs']).T)
+                times.append(d['time'])
 
             arm_obj.set_poses(np.column_stack(wps), np.cumsum(np.array(times)), block=False)
-            clients.append(self.arm_obj.client)
-            states.append(client.get_state())
+            clients.append(arm_obj.client)
+            states.append(arm_obj.client.get_state())
             time_out = JointSequenceStateSmach.TIME_OUT_FACTOR * np.sum(times)
             trajectory_time_out = max(time_out, trajectory_time_out)
 
