@@ -23,68 +23,72 @@ class NavigateTool(tu.ToolBase):
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
-        self.xline = QLineEdit(pbox)
-        self.yline = QLineEdit(pbox)
-        self.tline = QLineEdit(pbox)
-        self.frameline = QLineEdit(pbox)
-        self.frameline.setText(self.default_frame)
+
+        self.xline = tu.double_spin_box(pbox, -999., 999., .01) #QLineEdit(pbox)
+        self.yline = tu.double_spin_box(pbox, -999., 999., .01) #QLineEdit(pbox)
+        self.tline = tu.double_spin_box(pbox, -180., 180., .01) #QLineEdit(pbox)
+
+        #self.xline = QLineEdit(pbox)
+        #self.yline = QLineEdit(pbox)
+        #self.tline = QLineEdit(pbox)
+        #self.frameline = QLineEdit(pbox)
+        #self.frameline.setText(self.default_frame)
+
         self.pose_button = QPushButton(pbox)
         self.pose_button.setText('Current Pose')
-        self.pose_tool = QPushButton(pbox)
-        self.pose_tool.setText('Specify Pose')
+        #self.pose_tool = QPushButton(pbox)
+        #self.pose_tool.setText('Specify Pose')
         self.reset()
 
         formlayout.addRow("&x", self.xline)
         formlayout.addRow("&y", self.yline)
         formlayout.addRow("&theta", self.tline)
-        formlayout.addRow("&frame", self.frameline)
+        #formlayout.addRow("&frame", self.frameline)
         formlayout.addRow(self.pose_button)
         self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_pose)
-        formlayout.addRow(self.pose_tool)
-        self.pose_tool.setEnabled(False)
+        #formlayout.addRow(self.pose_tool)
+        #self.pose_tool.setEnabled(False)
         #self.rcommander.connect(self.pose_tool, SIGNAL('clicked()'), self.
         pbox.update()
         #print 'outcomes!', self.create_node()._outcomes
 
     def get_current_pose(self):
-        frame = str(self.frameline.text())
-        self.tf_listener.waitForTransform(frame, self.robot_frame_name, rospy.Time(), rospy.Duration(2.))
-        p_base = tfu.transform(frame, self.robot_frame_name, self.tf_listener) \
+        #frame = str(self.frameline.text())
+        self.tf_listener.waitForTransform(self.default_frame, self.robot_frame_name, rospy.Time(), rospy.Duration(2.))
+        p_base = tfu.transform(self.default_frame, self.robot_frame_name, self.tf_listener) \
                     * tfu.tf_as_matrix(([0., 0., 0., 1.], tr.quaternion_from_euler(0,0,0)))
         t, r = tfu.matrix_as_tf(p_base)
         x = t[0]
         y = t[1]
         theta = tr.euler_from_quaternion(r)[2]
-        print x,y,theta
         
-        self.xline.setText(str(x))
-        self.yline.setText(str(y))
-        self.tline.setText(str(math.degrees(theta)))
+        self.xline.setValue(x)
+        self.yline.setValue(y)
+        self.tline.setValue(math.degrees(theta))
 
     def new_node(self, name=None):
-        xy = [float(self.xline.text()), float(self.yline.text())]
-        theta = math.radians(float(self.tline.text()))
-        frame = str(self.frameline.text())
+        xy = [self.xline.value(), self.yline.value()]
+        theta = math.radians(self.tline.value())
         if name == None:
             nname = self.name + str(self.counter)
         else:
             nname = name
-        state = NavigateState(nname, xy, theta, frame)
+        state = NavigateState(nname, xy, theta)
         return state
 
     def set_node_properties(self, node):
         xy = node.xy
-        self.xline.setText(str(xy[0]))
-        self.yline.setText(str(xy[1]))
-        self.tline.setText(str(math.degrees(node.theta)))
-        self.frameline.setText(node.frame)
+        self.xline.setValue(xy[0])
+        self.yline.setValue(xy[1])
+        self.tline.setValue(math.degrees(node.theta))
+        #self.frameline.setText(node.frame)
         #print 'node_selected called', xy
 
     def reset(self):
-        self.xline.setText('0.')
-        self.yline.setText('0.')
-        self.tline.setText('0.')
-        self.frameline.setText(self.default_frame)
+        self.xline.setValue(0.)
+        self.yline.setValue(0.)
+        self.tline.setValue(0.)
+        #self.frameline.setText(self.default_frame)
 
 #
 # name maps to tool used to create it
@@ -92,14 +96,14 @@ class NavigateTool(tu.ToolBase):
 # is a state that can be stuffed into a state machine
 class NavigateState(tu.SimpleStateBase): # smach_ros.SimpleActionState):
 
-    def __init__(self, name, xy, theta, frame):
+    def __init__(self, name, xy, theta): #, frame):
         tu.SimpleStateBase.__init__(self, name, \
                 'move_base', mm.MoveBaseAction, 
                 goal_cb_str = 'ros_goal') 
 
         self.xy = xy
         self.theta = theta #stored as r internally
-        self.frame = frame
+        #self.frame = frame
 
     def ros_goal(self, userdata, default_goal):
         g = mm.MoveBaseGoal()
