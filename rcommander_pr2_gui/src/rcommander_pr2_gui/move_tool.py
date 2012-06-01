@@ -229,7 +229,7 @@ class JointSequenceStateSmach(smach.State):
     TIME_OUT_FACTOR = 3.
 
     def __init__(self, joint_waypoints):
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'aborted'], 
+        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'timed_out'], 
                              input_keys = [], output_keys = [])
         self.joint_waypoints = joint_waypoints
         self.l_arm_obj = None
@@ -273,48 +273,91 @@ class JointSequenceStateSmach(smach.State):
             time_out = JointSequenceStateSmach.TIME_OUT_FACTOR * np.sum(times)
             trajectory_time_out = max(time_out, trajectory_time_out)
 
-        succeeded = False
-        preempted = False
-        r = rospy.Rate(30)
-        start_time = rospy.get_time()
-        while not rospy.is_shutdown():
-            #we have been preempted
-            if self.preempt_requested():
-                rospy.loginfo('JointSequenceState: preempt requested')
-                [c.cancel_goal() for c in clients]
-                self.service_preempt()
-                preempted = True
-                break
-
-            if (rospy.get_time() - start_time) > trajectory_time_out:
-                [c.cancel_goal() for c in clients]
-                rospy.loginfo('JointSequenceState: timed out!')
-                succeeded = False
-                break
-
-            #print tu.goal_status_to_string(state)
-            stopped_states = [s not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING] for s in states]
-            if np.all(stopped_states):
-                #succeed if all states succeeded
-                if np.all([s == am.GoalStatus.SUCCEEDED for s in states]):
-                    rospy.loginfo('JointSequenceState: Succeeded!')
-                    succeeded = True
-                break
-                #failed if any state failed
-
-            states = [c.get_state() for c in clients]
-            r.sleep()
-
+        # returns one of failed, preempted, timed_out, or succeeded
+        result = tu.monitor_goals(self, clients, 'JointSequenceState', trajectory_time_out):
         self.controller_manager.switch(stopped, started)
+        return result
 
-        if preempted:
-            return 'preempted'
 
-        if succeeded:
-            return 'succeeded'
 
-        if state == am.GoalStatus.ABORTED:
-            return 'aborted'
 
-        return 'failed'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        #succeeded = False
+        #preempted = False
+        #r = rospy.Rate(30)
+        #start_time = rospy.get_time()
+        #while not rospy.is_shutdown():
+        #    #we have been preempted
+        #    if self.preempt_requested():
+        #        rospy.loginfo('JointSequenceState: preempt requested')
+        #        [c.cancel_goal() for c in clients]
+        #        self.service_preempt()
+        #        preempted = True
+        #        break
+
+        #    if (rospy.get_time() - start_time) > trajectory_time_out:
+        #        [c.cancel_goal() for c in clients]
+        #        rospy.loginfo('JointSequenceState: timed out!')
+        #        succeeded = False
+        #        break
+
+        #    #print tu.goal_status_to_string(state)
+        #    stopped_states = [s not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING] for s in states]
+        #    if np.all(stopped_states):
+        #        #succeed if all states succeeded
+        #        if np.all([s == am.GoalStatus.SUCCEEDED for s in states]):
+        #            rospy.loginfo('JointSequenceState: Succeeded!')
+        #            succeeded = True
+        #        break
+        #        #failed if any state failed
+
+        #    states = [c.get_state() for c in clients]
+        #    r.sleep()
+
+
+        #if preempted:
+        #    return 'preempted'
+
+        #if succeeded:
+        #    return 'succeeded'
+
+        #if state == am.GoalStatus.ABORTED:
+        #    return 'aborted'
+
+        #return 'failed'
 
