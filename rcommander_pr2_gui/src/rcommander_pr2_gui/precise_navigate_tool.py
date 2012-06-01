@@ -6,16 +6,18 @@ from PyQt4.QtCore import *
 import rospy
 import tf_utils as tfu
 import tf.transformations as tr
-import simple_move_base.msgs as smb
+import simple_move_base.msg as smb
 import math
 import actionlib
+import smach
+from tf_broadcast_server.srv import GetTransforms
 
 def se2_from_se3(mat):
     t, r = tfu.matrix_as_tf(mat)
     x = t[0]
     y = t[1]
     theta = tr.euler_from_quaternion(r)[2]
-    return x,y,t
+    return x,y,theta
 
 #
 # controller and view
@@ -28,9 +30,9 @@ class PreciseNavigateTool(tu.ToolBase):
 
         self.robot_frame_name = 'base_link'
         self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
-        gravity_aligned_frames = ['map', 'base_link']
+        gravity_aligned_frames = ['/map', '/base_link']
         self.allowed_frames = []
-        for f in self.frames_service().frames
+        for f in self.frames_service().frames:
             if f in gravity_aligned_frames:
                 self.allowed_frames.append(f)
 
@@ -41,22 +43,24 @@ class PreciseNavigateTool(tu.ToolBase):
         self.xline = tu.double_spin_box(pbox, -999., 999., .01) #QLineEdit(pbox)
         self.yline = tu.double_spin_box(pbox, -999., 999., .01) #QLineEdit(pbox)
         self.tline = tu.double_spin_box(pbox, -180., 180., .01) #QLineEdit(pbox)
+        self.time_out = tu.double_spin_box(pbox, 0., 60., 1.) #QLineEdit(pbox)
 
         self.pose_button = QPushButton(pbox)
         self.pose_button.setText('Current Pose')
-        self.reset()
 
         self.frame_box = QComboBox(pbox)
         for f in self.allowed_frames:
-            frame_box.addItem(f)
+            self.frame_box.addItem(f)
 
-        formlayout.addRow("&x", self.xline)
-        formlayout.addRow("&y", self.yline)
-        formlayout.addRow("&theta", self.tline)
+        formlayout.addRow("&X", self.xline)
+        formlayout.addRow("&Y", self.yline)
+        formlayout.addRow("&Theta", self.tline)
+        formlayout.addRow("&Time Out", self.time_out)
+        formlayout.addRow("&Frame", self.frame_box)
 
         formlayout.addRow(self.pose_button)
         self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_pose)
-        pbox.update()
+        self.reset()
 
     def get_current_pose(self):
         frame = str(self.frame_box.currentText())
@@ -69,51 +73,57 @@ class PreciseNavigateTool(tu.ToolBase):
         self.tline.setValue(math.degrees(theta))
 
     def new_node(self, name=None):
-        xy = [self.xline.value(), self.yline.value()]
+        x, y = (self.xline.value(), self.yline.value())
         theta = math.radians(self.tline.value())
         if name == None:
             nname = self.name + str(self.counter)
         else:
             nname = name
-        state = PreciseNavigateTool(nname, xy, theta, str(self.frame_box.currentText()))
+        state = PreciseNavigateState(nname, x, y, theta, 
+                str(self.frame_box.currentText()), self.time_out.value())
         return state
 
     def set_node_properties(self, node):
-        xy = node.xy
-        self.xline.setValue(xy[0])
-        self.yline.setValue(xy[1])
-        self.tline.setValue(math.degrees(node.theta))
+        self.xline.setValue(node.x)
+        self.yline.setValue(node.y)
+        self.tline.setValue(math.degrees(node.t))
+        self.frame_box.setCurrentIndex(self.frame_box.findText(node.frame))
+        self.time_out.setValue(node.time_out)
 
     def reset(self):
         self.xline.setValue(0.)
         self.yline.setValue(0.)
         self.tline.setValue(0.)
+        self.frame_box.setCurrentIndex(self.frame_box.findText('/map'))
+        self.time_out.setValue(30.)
 
 
 class PreciseNavigateState(tu.StateBase): 
 
-    def __init__(self, name, x, y, theta, frame):
+    def __init__(self, name, x, y, theta, frame, time_out):
         tu.StateBase.__init__(self, name)
         self.x = x
         self.y = y
-        self.t = t
+        self.t = theta
         self.frame = frame
+        self.time_out = time_out
 
     def get_smach_state(self):
-        return PreciseNavigateSmach(self.x, self.y, self.t, self.frame)
+        return PreciseNavigateSmach(self.x, self.y, self.t, self.frame, self.time_out)
 
 
 class PreciseNavigateSmach(smach.State): 
 
-    def __init__(self, x, y, theta, frame):
+    def __init__(self, x, y, theta, frame, time_out):
         smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], input_keys = [], output_keys = [])
         self.go_angle_client = actionlib.SimpleActionClient('go_angle', smb.GoAngleAction)
         self.go_xy_client = actionlib.SimpleActionClient('go_xy', smb.GoXYAction)
 
         self.x = x
         self.y = y
-        self.t = t
+        self.t = theta
         self.frame = frame
+        self.time_out = time_out
 
     def set_robot(self, pr2):
         self.tf_listener = pr2.tf_listener
@@ -126,13 +136,13 @@ class PreciseNavigateSmach(smach.State):
 
         xy_goal = smb.GoXYGoal(x,y)
         self.go_xy_client.send_goal(xy_goal)
-        result_xy = tu.monitor_goals(self, [self.go_xy_client], 'PreciseNavigateSmach', self.timeout)
+        result_xy = tu.monitor_goals(self, [self.go_xy_client], 'PreciseNavigateSmach', self.time_out)
         if result_xy != 'succeeded':
             return result_xy
 
-        ang_goal = smb.GoAngleGoal(ang_goal)
+        ang_goal = smb.GoAngleGoal(self.t)
         self.go_angle_client.send_goal(ang_goal)
-        result_ang = tu.monitor_goals(self, [self.go_angle_client], 'PreciseNavigateSmach', self.timeout)
+        result_ang = tu.monitor_goals(self, [self.go_angle_client], 'PreciseNavigateSmach', self.time_out)
 
         return result_ang
 
