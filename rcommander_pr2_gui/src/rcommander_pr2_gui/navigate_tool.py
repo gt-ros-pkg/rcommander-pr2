@@ -16,7 +16,7 @@ import math
 class NavigateTool(tu.ToolBase):
 
     def __init__(self, rcommander):
-        tu.ToolBase.__init__(self, rcommander, 'navigate', 'Navigate (intelligent)', NavigateState)
+        tu.ToolBase.__init__(self, rcommander, 'navigate', 'Navigate (planner)', NavigateState)
         self.tf_listener = rcommander.tf_listener
         self.default_frame = 'map'
         self.robot_frame_name = 'base_link'
