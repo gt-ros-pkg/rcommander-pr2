@@ -274,7 +274,7 @@ class JointSequenceStateSmach(smach.State):
             trajectory_time_out = max(time_out, trajectory_time_out)
 
         # returns one of failed, preempted, timed_out, or succeeded
-        result = tu.monitor_goals(self, clients, 'JointSequenceState', trajectory_time_out):
+        result = tu.monitor_goals(self, clients, 'JointSequenceState', trajectory_time_out)
         self.controller_manager.switch(stopped, started)
         return result
 
