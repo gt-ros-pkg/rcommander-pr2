@@ -36,6 +36,8 @@
   <depend package="tf_broadcast_server"/>
   <depend package="face_detector"/>
 
+  <depend package="simple_move_base"/>
+
   <export>
       <rcommander plugin="rcommander_pr2_gui.tuck_tool"                     robot="pr2" tab="Manipulation"/> 
       <rcommander plugin="rcommander_pr2_gui.position_priority_move_tool"   robot="pr2" tab="Manipulation"/>
