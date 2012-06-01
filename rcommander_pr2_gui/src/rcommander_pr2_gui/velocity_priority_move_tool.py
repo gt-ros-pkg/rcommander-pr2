@@ -137,7 +137,6 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
             nname = self.name + str(self.counter)
         else:
             nname = name
-            self
         return VelocityPriorityState(nname, self.list_manager.get_data())
 
     def set_node_properties(self, node):
