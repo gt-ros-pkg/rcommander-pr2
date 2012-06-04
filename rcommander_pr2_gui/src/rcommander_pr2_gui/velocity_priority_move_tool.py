@@ -321,10 +321,10 @@ class VelocityPriorityStateSmach(smach.State):
         frames_valid = True
 
         if len(lp) > 0:
-            frames_valid = frames_valid and has_frame(self.tf_listener, lp[0]['pose_stamped'].header.frame_id, VelocityPriorityMoveTool.LEFT_TIP)
+            frames_valid = frames_valid and has_frame(self.robot.tf_listener, lp[0]['pose_stamped'].header.frame_id, VelocityPriorityMoveTool.LEFT_TIP)
 
         if len(rp) > 0:
-            frames_valid = frames_valid and has_frame(self.tf_listener, rp[0]['pose_stamped'].header.frame_id, VelocityPriorityMoveTool.RIGHT_TIP)
+            frames_valid = frames_valid and has_frame(self.robot.tf_listener, rp[0]['pose_stamped'].header.frame_id, VelocityPriorityMoveTool.RIGHT_TIP)
 
         if not frames_valid:
             return 'frame_invalid'
