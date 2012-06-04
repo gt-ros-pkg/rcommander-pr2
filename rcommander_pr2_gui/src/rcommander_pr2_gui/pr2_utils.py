@@ -248,7 +248,13 @@ class SE3Tool:
     def make_frame_box(self, pbox):
         frame_box = QComboBox(pbox)
         #for f in self.tf_listener.getFrameStrings():
-        for f in self.frames_service().frames:
+        for i in range(3):
+            try:
+                frames = self.frames_service().frames
+                break
+            except AttributeError, e:
+                self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
+        for f in frames:
             frame_box.addItem(f)
         return frame_box
     
@@ -493,9 +499,15 @@ class ListManager:
             return
         if idx == None:
             raise RuntimeError('Inconsistency detected in list')
-        else:
-            self.data_list.pop(idx)
+
+        print 'removing', idx
+        self.disable_saving = True
+        self.data_list.pop(idx)
+        #new_select = idx+1
+        #if new_select > len(self.data_list):
         self._refill_list_widget(self.data_list)
+        self.curr_selected = None
+        self.disable_saving = False
 
     def get_data(self, clean=False):
         if clean:
@@ -506,9 +518,6 @@ class ListManager:
     def set_data(self, data_list):
         self.data_list = copy.deepcopy(data_list)
         self._refill_list_widget(self.data_list)
-
-
-
 
 
 def position(point):
