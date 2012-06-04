@@ -11,6 +11,7 @@ import math
 import actionlib
 import smach
 from tf_broadcast_server.srv import GetTransforms
+import pr2_utils as p2u
 import numpy as np
 import re
 
@@ -26,10 +27,11 @@ ROBOT_FRAME_NAME = '/base_link'
 #
 # controller and view
 # create and edits smach states
-class PreciseNavigateTool(tu.ToolBase):
+class PreciseNavigateTool(tu.ToolBase, p2u.SE3Tool):
 
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'navigate_refined', 'Navigate (precise)', PreciseNavigateState)
+        p2u.SE3Tool.__init__(self)
         self.tf_listener = rcommander.tf_listener
 
         self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
@@ -45,9 +47,10 @@ class PreciseNavigateTool(tu.ToolBase):
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
 
-        self.xline = tu.double_spin_box(pbox, -999., 999., .01) #QLineEdit(pbox)
-        self.yline = tu.double_spin_box(pbox, -999., 999., .01) #QLineEdit(pbox)
-        self.tline = tu.double_spin_box(pbox, -180., 180., .01) #QLineEdit(pbox)
+        #self.xline = tu.double_spin_box(pbox, -999., 999., .01) #QLineEdit(pbox)
+        #self.yline = tu.double_spin_box(pbox, -999., 999., .01) #QLineEdit(pbox)
+        #self.tline = tu.double_spin_box(pbox, -180., 180., .01) #QLineEdit(pbox)
+        group_boxes = self.make_se3_boxes(pbox)
         self.time_out = tu.double_spin_box(pbox, 0., 60., 1.) #QLineEdit(pbox)
 
         self.pose_button = QPushButton(pbox)
@@ -57,9 +60,12 @@ class PreciseNavigateTool(tu.ToolBase):
         for f in self.allowed_frames:
             self.frame_box.addItem(f)
 
-        formlayout.addRow("&X", self.xline)
-        formlayout.addRow("&Y", self.yline)
-        formlayout.addRow("&Theta", self.tline)
+        #formlayout.addRow("&X", self.xline)
+        #formlayout.addRow("&Y", self.yline)
+        #formlayout.addRow("&Theta", self.tline)
+
+        formlayout.addRow(group_boxes[0])
+        formlayout.addRow(group_boxes[1])
         formlayout.addRow("&Time Out", self.time_out)
         formlayout.addRow("&Frame", self.frame_box)
 
@@ -72,62 +78,54 @@ class PreciseNavigateTool(tu.ToolBase):
         self.tf_listener.waitForTransform(frame, ROBOT_FRAME_NAME,  rospy.Time(), rospy.Duration(2.))
         p_base = tfu.transform(frame, ROBOT_FRAME_NAME, self.tf_listener) \
                     * tfu.tf_as_matrix(([0., 0., 0., 1.], tr.quaternion_from_euler(0,0,0)))
-        x, y, theta = se2_from_se3(p_base)
-        self.xline.setValue(x)
-        self.yline.setValue(y)
-        self.tline.setValue(math.degrees(theta))
+        p_base_tf = tfu.matrix_as_tf(p_base)
+
+        for value, vr in zip(p_base_tf[0], [self.xline, self.yline, self.zline]):
+            vr.setValue(value)
+        for value, vr in zip(tr.euler_from_quaternion(p_base_tf[1]), [self.phi_line, self.theta_line, self.psi_line]):
+            vr.setValue(np.degrees(value))
 
     def new_node(self, name=None):
-        x, y = (self.xline.value(), self.yline.value())
-        theta = math.radians(self.tline.value())
         if name == None:
             nname = self.name + str(self.counter)
         else:
             nname = name
-        state = PreciseNavigateState(nname, x, y, theta, 
+
+        pose_stamped = self.get_posestamped()
+        state = PreciseNavigateState(nname, pose_stamped, #x, y, theta, 
                 str(self.frame_box.currentText()), self.time_out.value())
         return state
 
     def set_node_properties(self, node):
-        self.xline.setValue(node.x)
-        self.yline.setValue(node.y)
-        self.tline.setValue(math.degrees(node.t))
-        self.frame_box.setCurrentIndex(self.frame_box.findText(node.frame))
+        self.set_posestamped(node.pose_stamped)
         self.time_out.setValue(node.time_out)
 
     def reset(self):
-        self.xline.setValue(0.)
-        self.yline.setValue(0.)
-        self.tline.setValue(0.)
+        for vr in [self.xline, self.yline, self.zline, self.phi_line, self.theta_line, self.psi_line]:
+            vr.setValue(0.0)
         self.frame_box.setCurrentIndex(self.frame_box.findText('/map'))
         self.time_out.setValue(30.)
 
 
 class PreciseNavigateState(tu.StateBase): 
 
-    def __init__(self, name, x, y, theta, frame, time_out):
+    def __init__(self, name, pose_stamped, time_out):
         tu.StateBase.__init__(self, name)
-        self.x = x
-        self.y = y
-        self.t = theta
-        self.frame = frame
+        self.pose_stamped = pose_stamped
         self.time_out = time_out
 
     def get_smach_state(self):
-        return PreciseNavigateSmach(self.x, self.y, self.t, self.frame, self.time_out)
+        return PreciseNavigateSmach(self.pose_stamped, self.time_out)
 
 
 class PreciseNavigateSmach(smach.State): 
 
-    def __init__(self, x, y, theta, frame, time_out):
+    def __init__(self, pose_stamped, frame, time_out):
         smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'timed_out'], input_keys = [], output_keys = [])
         self.go_angle_client = actionlib.SimpleActionClient('go_angle', smb.GoAngleAction)
         self.go_xy_client = actionlib.SimpleActionClient('go_xy', smb.GoXYAction)
 
-        self.x = x
-        self.y = y
-        self.t = theta
-        self.frame = frame
+        self.pose_stamped = pose_stamped
         self.time_out = time_out
         self.CONTROL_FRAME = '/base_footprint'
 
@@ -138,11 +136,18 @@ class PreciseNavigateSmach(smach.State):
     def execute(self, userdata):
         #Create goal and send it up here
         bl_T_frame = tfu.tf_as_matrix(self.tf_listener.lookupTransform(self.CONTROL_FRAME, self.frame, rospy.Time(0)))
-        print 'control_T_frame\n', bl_T_frame
-        h_frame = tfu.tf_as_matrix(([self.x, self.y, 0], tr.quaternion_from_euler(0, 0, self.t)))
-        print 'h_frame\n', h_frame
 
-        print 'bl_T_frame * h_frame\n', bl_T_frame * h_frame
+        #print 'control_T_frame\n', bl_T_frame
+        trans = np.array([self.pose_stamped.pose.position.x, self.pose_stamped.pose.position.y, self.pose_stamped.pose.position.z])
+        quat = [self.pose_stamped.pose.orientation.x, self.pose_stamped.pose.orientation.y, 
+                self.pose_stamped.pose.orientation.z, self.pose_stamped.pose.orientation.w]
+
+        h_frame = tfu.tf_as_matrix((trans, quat))
+                #([self.x, self.y, 0], tr.quaternion_from_euler(0, 0, self.t)))
+
+        #print 'h_frame\n', h_frame
+
+        #print 'bl_T_frame * h_frame\n', bl_T_frame * h_frame
         x, y, t = se2_from_se3(bl_T_frame * h_frame)
 
         print 'GOAL', x, y, np.degrees(t)
