@@ -12,6 +12,7 @@ import actionlib
 import smach
 from tf_broadcast_server.srv import GetTransforms
 import numpy as np
+import re
 
 def se2_from_se3(mat):
     #print 'mat\n', mat, mat.shape
@@ -34,8 +35,10 @@ class PreciseNavigateTool(tu.ToolBase):
         self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
         gravity_aligned_frames = ['/map', '/base_link']
         self.allowed_frames = []
+        fourfour = re.compile('^/4x4_\d+')
         for f in self.frames_service().frames:
-            if f in gravity_aligned_frames:
+            mobj = fourfour.match(f)
+            if f in gravity_aligned_frames or mobj != None:
                 self.allowed_frames.append(f)
 
 
