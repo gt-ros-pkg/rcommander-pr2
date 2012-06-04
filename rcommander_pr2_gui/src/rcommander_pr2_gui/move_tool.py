@@ -229,7 +229,7 @@ class JointSequenceStateSmach(smach.State):
     TIME_OUT_FACTOR = 3.
 
     def __init__(self, joint_waypoints):
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'timed_out'], 
+        smach.State.__init__(self, outcomes = ['aborted', 'succeeded', 'preempted', 'timed_out'], 
                              input_keys = [], output_keys = [])
         self.joint_waypoints = joint_waypoints
         self.l_arm_obj = None
@@ -276,6 +276,8 @@ class JointSequenceStateSmach(smach.State):
         # returns one of failed, preempted, timed_out, or succeeded
         result = tu.monitor_goals(self, clients, 'JointSequenceState', trajectory_time_out)
         self.controller_manager.switch(stopped, started)
+        if result == 'aborted':
+            return 'failed'
         return result
 
 
