@@ -180,7 +180,7 @@ class MoveHeadStateSmach(smach.State):
     TIME_OUT_FACTOR = 3.
 
     def __init__(self, joint_waypoints):
-        smach.State.__init__(self, outcomes=['preempted', 'done', 'None'], 
+        smach.State.__init__(self, outcomes=['preempted', 'done'], 
 			     input_keys=[], output_keys=[])
         self.joint_waypoints = joint_waypoints
 
@@ -212,7 +212,7 @@ class MoveHeadStateSmach(smach.State):
         while (rospy.get_time() - start_time) < trajectory_time_out:
             r.sleep()
             if self.preempt_requested():
-                self.services_preempt()
+                self.service_preempt()
                 return 'preempted'
         return 'done'
 
