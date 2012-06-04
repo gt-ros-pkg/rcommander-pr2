@@ -6,6 +6,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 import rospy
+import tf
 import geometry_msgs.msg as geo
 import tf.transformations as tr
 import smach
@@ -153,6 +154,12 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.list_manager.reset()
         self.list_manager.set_default_selection()
 
+def has_frame(tf_listener, source, target):
+    try:
+        tf_listener.lookupTransform(source, target, rospy.Time(0))
+        return True
+    except tf.LookupException, e:
+        return False
 
 class VelocityPriorityState(tu.StateBase):
 
@@ -193,6 +200,7 @@ class PlayTrajectory(threading.Thread):
             arm_tip_frame = VelocityPriorityMoveTool.LEFT_TIP
         else:
             arm_tip_frame = VelocityPriorityMoveTool.RIGHT_TIP
+        
         p_arm = tfu.tf_as_matrix(self.tf_listener.lookupTransform(frame_described_in, arm_tip_frame, rospy.Time(0)))
         trans, rotation = tr.translation_from_matrix(p_arm), tr.quaternion_from_matrix(p_arm)
         initial_pose = geo.PoseStamped()
@@ -272,7 +280,7 @@ class VelocityPriorityStateSmach(smach.State):
 
     #def __init__(self, frame, source_for_origin, poses_list, robot):
     def __init__(self, poses_list):
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], 
+        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'frame_invalid'], 
                              input_keys = [], output_keys = [])
         #self.frame = frame
         #self.source_for_origin = source_for_origin
@@ -282,7 +290,9 @@ class VelocityPriorityStateSmach(smach.State):
         self.robot = None
 
     def set_robot(self, robot_obj):
-        self.robot = robot_obj
+        if robot_obj != None:
+            self.controller_manager = robot_obj.controller_manager
+            self.robot = robot_obj
 
     def execute(self, userdata):
         #Sort into two lists
@@ -295,6 +305,29 @@ class VelocityPriorityStateSmach(smach.State):
                 lp.append(p)
             else:
                 rp.append(p)
+
+        if len(lp) > 0 and len(rp) > 0:
+            arm = 'both'
+        elif len(lp) > 0:
+            arm = 'left'
+        elif len(rp) > 0:
+            arm = 'right'
+        else:
+            raise RuntimeError('Don\'t know which arm to use!')
+
+        status, started, stopped = self.controller_manager.cart_mode(arm)
+
+
+        frames_valid = True
+
+        if len(lp) > 0:
+            frames_valid = frames_valid and has_frame(self.tf_listener, lp[0]['pose_stamped'].header.frame_id, VelocityPriorityMoveTool.LEFT_TIP)
+
+        if len(rp) > 0:
+            frames_valid = frames_valid and has_frame(self.tf_listener, rp[0]['pose_stamped'].header.frame_id, VelocityPriorityMoveTool.RIGHT_TIP)
+
+        if not frames_valid:
+            return 'frame_invalid'
 
         lpthread = PlayTrajectory(self.lcart, lp, VelocityPriorityMoveTool.LEFT_CONTROL_FRAME,
                                   VelocityPriorityMoveTool.LEFT_TIP, self.robot.tf_listener)
