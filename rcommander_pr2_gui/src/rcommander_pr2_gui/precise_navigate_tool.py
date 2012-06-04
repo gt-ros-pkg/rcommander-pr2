@@ -11,24 +11,26 @@ import math
 import actionlib
 import smach
 from tf_broadcast_server.srv import GetTransforms
+import numpy as np
 
 def se2_from_se3(mat):
+    #print 'mat\n', mat, mat.shape
     t, r = tfu.matrix_as_tf(mat)
     x = t[0]
     y = t[1]
     theta = tr.euler_from_quaternion(r)[2]
     return x,y,theta
 
+ROBOT_FRAME_NAME = '/base_link'
 #
 # controller and view
 # create and edits smach states
 class PreciseNavigateTool(tu.ToolBase):
 
     def __init__(self, rcommander):
-        tu.ToolBase.__init__(self, rcommander, 'navigate_refined', 'Navigate (precise)', PreciseNavigateTool)
+        tu.ToolBase.__init__(self, rcommander, 'navigate_refined', 'Navigate (precise)', PreciseNavigateState)
         self.tf_listener = rcommander.tf_listener
 
-        self.robot_frame_name = 'base_link'
         self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
         gravity_aligned_frames = ['/map', '/base_link']
         self.allowed_frames = []
@@ -64,8 +66,8 @@ class PreciseNavigateTool(tu.ToolBase):
 
     def get_current_pose(self):
         frame = str(self.frame_box.currentText())
-        self.tf_listener.waitForTransform(frame, self.robot_frame_name, rospy.Time(), rospy.Duration(2.))
-        p_base = tfu.transform(frame, self.robot_frame_name, self.tf_listener) \
+        self.tf_listener.waitForTransform(frame, ROBOT_FRAME_NAME,  rospy.Time(), rospy.Duration(2.))
+        p_base = tfu.transform(frame, ROBOT_FRAME_NAME, self.tf_listener) \
                     * tfu.tf_as_matrix(([0., 0., 0., 1.], tr.quaternion_from_euler(0,0,0)))
         x, y, theta = se2_from_se3(p_base)
         self.xline.setValue(x)
@@ -115,7 +117,7 @@ class PreciseNavigateState(tu.StateBase):
 class PreciseNavigateSmach(smach.State): 
 
     def __init__(self, x, y, theta, frame, time_out):
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], input_keys = [], output_keys = [])
+        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'timed_out'], input_keys = [], output_keys = [])
         self.go_angle_client = actionlib.SimpleActionClient('go_angle', smb.GoAngleAction)
         self.go_xy_client = actionlib.SimpleActionClient('go_xy', smb.GoXYAction)
 
@@ -124,15 +126,23 @@ class PreciseNavigateSmach(smach.State):
         self.t = theta
         self.frame = frame
         self.time_out = time_out
+        self.CONTROL_FRAME = '/base_footprint'
 
     def set_robot(self, pr2):
-        self.tf_listener = pr2.tf_listener
+        if pr2 != None:
+            self.tf_listener = pr2.tf_listener
 
     def execute(self, userdata):
         #Create goal and send it up here
-        bl_T_frame = tfu.tf_as_matrix(self.tf_listener.lookupTransform('base_link', self.frame, rospy.Time(0)))
+        bl_T_frame = tfu.tf_as_matrix(self.tf_listener.lookupTransform(self.CONTROL_FRAME, self.frame, rospy.Time(0)))
+        print 'control_T_frame\n', bl_T_frame
         h_frame = tfu.tf_as_matrix(([self.x, self.y, 0], tr.quaternion_from_euler(0, 0, self.t)))
-        x, y, t = se2_from_se3(tfu.matrix_as_tf(bl_T_frame * h_frame))
+        print 'h_frame\n', h_frame
+
+        print 'bl_T_frame * h_frame\n', bl_T_frame * h_frame
+        x, y, t = se2_from_se3(bl_T_frame * h_frame)
+
+        print 'GOAL', x, y, np.degrees(t)
 
         xy_goal = smb.GoXYGoal(x,y)
         self.go_xy_client.send_goal(xy_goal)
@@ -140,7 +150,7 @@ class PreciseNavigateSmach(smach.State):
         if result_xy != 'succeeded':
             return result_xy
 
-        ang_goal = smb.GoAngleGoal(self.t)
+        ang_goal = smb.GoAngleGoal(t)
         self.go_angle_client.send_goal(ang_goal)
         result_ang = tu.monitor_goals(self, [self.go_angle_client], 'PreciseNavigateSmach', self.time_out)
 
