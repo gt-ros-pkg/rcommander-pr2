@@ -92,8 +92,7 @@ class PreciseNavigateTool(tu.ToolBase, p2u.SE3Tool):
             nname = name
 
         pose_stamped = self.get_posestamped()
-        state = PreciseNavigateState(nname, pose_stamped, #x, y, theta, 
-                str(self.frame_box.currentText()), self.time_out.value())
+        state = PreciseNavigateState(nname, pose_stamped, self.time_out.value())
         return state
 
     def set_node_properties(self, node):
@@ -120,7 +119,7 @@ class PreciseNavigateState(tu.StateBase):
 
 class PreciseNavigateSmach(smach.State): 
 
-    def __init__(self, pose_stamped, frame, time_out):
+    def __init__(self, pose_stamped, time_out):
         smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'timed_out'], input_keys = [], output_keys = [])
         self.go_angle_client = actionlib.SimpleActionClient('go_angle', smb.GoAngleAction)
         self.go_xy_client = actionlib.SimpleActionClient('go_xy', smb.GoXYAction)
@@ -135,7 +134,7 @@ class PreciseNavigateSmach(smach.State):
 
     def execute(self, userdata):
         #Create goal and send it up here
-        bl_T_frame = tfu.tf_as_matrix(self.tf_listener.lookupTransform(self.CONTROL_FRAME, self.frame, rospy.Time(0)))
+        bl_T_frame = tfu.tf_as_matrix(self.tf_listener.lookupTransform(self.CONTROL_FRAME, self.pose_stamped.header.frame_id, rospy.Time(0)))
 
         #print 'control_T_frame\n', bl_T_frame
         trans = np.array([self.pose_stamped.pose.position.x, self.pose_stamped.pose.position.y, self.pose_stamped.pose.position.z])
