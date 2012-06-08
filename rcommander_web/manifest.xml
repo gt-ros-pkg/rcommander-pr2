@@ -1,0 +1,15 @@
+<package>
+  <description brief="rcommander_web">
+      Web interface for launching RCommander behaviors
+  </description>
+
+  <author>Hai Nguyen (haidai@gmail.com), Advisor: Charles C. Kemp, Lab:Healthcare Robotics Lab, Georgia Tech</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/rcommander_pr2</url>
+  <depend package="rospy"/>
+  <depend package="smach"/>
+  <depend package="actionlib"/>
+</package>
+
+
