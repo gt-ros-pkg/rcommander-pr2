@@ -1,14 +1,171 @@
-<!doctype html>
+<!DOCTYPE HTML>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <title>Demo</title>
-  </head>
-  <body>
-    <a href="http://jquery.com/">jQuery</a>
-    <script src="jquery.js"></script>
-    <script>
-      
-    </script>
-  </body>
+	<head>
+		<meta charset="utf-8">
+		<title>Demo</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="css/jquery.mobile-1.1.0.css" />
+		<script src="js/jquery-1.7.1.js"></script>
+		<script src="js/jquery.mobile-1.1.0.js"></script>
+		<script src="js/ros/ros.js"></script>
+		<script src="js/ros/common.js"></script>
+
+	</head>
+
+	<script>
+		var NODE_HANDLE = undefined;
+
+		function log(msg) {
+			$('#status').empty();
+			$('#status').append(msg.toString() + '<br>');
+		};
+
+		function tag(tag_type) {
+			return $(document.createElement(tag_type));
+		}
+
+		function refresh_behavior_list() {
+			$('#behavior_list').listview('refresh');
+		}
+
+		function list_cb(rsp) {
+			to_insert = [[rsp.folder_names, rsp.folder_paths, true], [rsp.action_names, rsp.action_paths, false]];
+
+			for (var i = 0; i < to_insert.length; i++) {
+				for (var j = 0; j < to_insert[i][0].length; j++) {
+					add_to_behavior_list(to_insert[i][0][j], to_insert[i][2]);
+				}
+
+			}
+			refresh_behavior_list()
+		}
+
+		function create_page(node_handle, rcommander_path, page_name) {
+			srv = node_handle.serviceClient("/list_rcommander_actions");
+			srv.call(ros.json([rcommander_path]), list_cb);
+
+			// title = tag('h1').append('RCommander Behaviors');
+			// behavior_list = tag('ul');
+			// behavior_list.attr({
+			// id : 'behavior_list',
+			// 'data-role' : 'listview',
+			// 'data-inset' : true,
+			// 'data-filter' : false
+			// })
+			// status_div = tag('div').attr('id', 'status');
+			// header_div = tag('div').attr('data-role', 'header').append(title);
+			// body_div = tag('div').attr('data-role', 'content');
+			// body_div.append([behavior_list, status_div]);
+
+			// page_div = tag('div');
+			// page_div.id = page_name;
+			// page_div.attr('data-role', 'page').append([header_div, body_div]);
+		}
+
+		function start() {
+			log("Connecting to rosbridge.");
+			NODE_HANDLE = new ros.NodeHandle("ws://monty1.hsi.gatech.edu:9092");
+			NODE_HANDLE.setOnClose(function(e) {
+				log("Disconnected or Can't Connect.");
+			});
+
+			NODE_HANDLE.setOnError(function(e) {
+				log("Unknown error!");
+			});
+
+			NODE_HANDLE.setOnOpen(function(e) {
+				log("Connected");
+				request_behavior_list_update('.');
+			});
+		}
+
+		function encode_path(p) {
+			return p.replace(/\//g, '&');
+		}
+
+		function decode_path(p) {
+			return p.replace(/&/g, '/');
+		}
+
+		function add_to_behavior_list(a_string, true_path, is_folder) {
+			//data-icon="false
+			var a = tag('a');
+			current_url = $(location).attr('href');
+			if (is_folder) {
+				a.attr('href', current_url + '#behaviors?rpath=' + encode_path(true_path));
+			} else {
+				a.attr('href', '#');
+			}
+			a.append(a_string);
+			var li = tag('li');
+			if (is_folder === false) {
+				li.attr('data-icon', String(false));
+			}
+			$("#behavior_list").append(li.append(a));
+		}
+
+		function update_behaviors_list_display(rsp, rcommander_path) {
+			to_insert = [[rsp.folder_names, rsp.folder_paths, true], [rsp.action_names, rsp.action_paths, false]];
+			$("#behavior_list").empty()
+			for (var i = 0; i < to_insert.length; i++) {
+				for (var j = 0; j < to_insert[i][0].length; j++) {
+					add_to_behavior_list(to_insert[i][0][j], to_insert[i][1][j], to_insert[i][2]);
+				}
+
+			}
+
+			$('#behaviors').page();
+			$('#behavior_list').listview('refresh');
+		}
+
+		function request_behavior_list_update(rcommander_path, after_func) {
+			srv = NODE_HANDLE.serviceClient("/list_rcommander_actions");
+			srv.call(ros.json([rcommander_path]), function(rsp) {
+				update_behaviors_list_display(rsp, rcommander_path);
+				if (after_func != undefined) {
+					after_func()
+				}
+			});
+		}
+
+		function show_behavior_link(url_obj, options) {
+			var path_name = decode_path(url_obj.hash.replace(/.*rpath=/, ""));
+			var page_id = url_obj.hash.replace(/\?.*$/, "");
+			if (path_name) {
+				var page = $(page_id);
+				request_behavior_list_update(path_name, function() {
+					options.dataUrl = url_obj.href;
+					$.mobile.changePage($('#behaviors'), options);
+				});
+			}
+		}
+
+
+		$(document).bind("pagebeforechange", function(e, data) {
+			if ( typeof data.toPage === "string") {
+				var u = $.mobile.path.parseUrl(data.toPage);
+				var re = /^#behaviors/;
+				if (u.hash.search(re) !== -1) {
+					show_behavior_link(u, data.options);
+					e.preventDefault();
+				}
+			}
+		});
+
+	</script>
+
+	<body onload="start()">
+		<div id='behaviors' data-role="page" >
+
+			<div data-role="header" data-add-back-btn="true">
+				<h1>RCommander Behaviors</h1>
+			</div><!-- /header -->
+
+			<div data-role="content">
+				<ul id="behavior_list" data-role="listview" data-inset="true" data-filter="false"></ul>
+				<div id='status'></div>
+			</div>
+
+		</div><!-- /page -->
+	</body>
 </html>
