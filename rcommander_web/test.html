@@ -62,6 +62,26 @@
 			// page_div.attr('data-role', 'page').append([header_div, body_div]);
 		}
 
+		function create_jquery_page(rpath) {
+			title = tag('h1').append('RCommander Behaviors');
+			behavior_list = tag('ul');
+			behavior_list.attr({
+				id : 'behavior_list', //add something here
+				'data-role' : 'listview',
+				'data-inset' : true,
+				'data-filter' : false
+			})
+
+			status_div = tag('div').attr('id', 'status');
+			header_div = tag('div').attr('data-role', 'header').append(title);
+			body_div = tag('div').attr('data-role', 'content');
+			body_div.append([behavior_list, status_div]);
+
+			page_div = tag('div');
+			page_div.id = encode(rpath);
+			page_div.attr('data-role', 'page').append([header_div, body_div]);
+		}
+
 		function start() {
 			log("Connecting to rosbridge.");
 			NODE_HANDLE = new ros.NodeHandle("ws://monty1.hsi.gatech.edu:9092");
@@ -156,13 +176,24 @@
 
 	<body onload="start()">
 		<div id='behaviors' data-role="page" >
-
 			<div data-role="header" data-add-back-btn="true">
 				<h1>RCommander Behaviors</h1>
 			</div><!-- /header -->
 
 			<div data-role="content">
-				<ul id="behavior_list" data-role="listview" data-inset="true" data-filter="false"></ul>
+				<ul class="behavior_list" data-role="listview" data-inset="true" data-filter="false"></ul>
+				<div id='status'></div>
+			</div>
+
+		</div><!-- /page -->
+
+		<div id='behaviors2' data-role="page" >
+			<div data-role="header" data-add-back-btn="true">
+				<h1>RCommander Behaviors</h1>
+			</div><!-- /header -->
+
+			<div data-role="content">
+				<ul class="behavior_list" data-role="listview" data-inset="true" data-filter="false"></ul>
 				<div id='status'></div>
 			</div>
 
