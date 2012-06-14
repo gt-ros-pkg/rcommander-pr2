@@ -34,12 +34,12 @@
 		}
 
 		function encode_path(p) {
-			pp = p.replace(new RegExp(ESC_STRING, 'g'), ESC_STRING + ESC_STRING);
+			var pp = p.replace(new RegExp(ESC_STRING, 'g'), ESC_STRING + ESC_STRING);
 			return pp.replace(/\//g, ESC_STRING);
 		}
 
 		function decode_path(p) {
-			pp = p.replace(new RegExp(ESC_STRING + ESC_STRING, 'g'), ESC_STRING);
+			var pp = p.replace(new RegExp(ESC_STRING + ESC_STRING, 'g'), ESC_STRING);
 			return pp.replace(new RegExp(ESC_STRING, 'g'), '/');
 		}
 
@@ -75,10 +75,10 @@
 		}
 
 		function create_jquery_page(rpath) {
-			splitted = remove_empty_strings(rpath.split('/'));
-			title_path = splitted[splitted.length - 1];
-			title = tag('h1').append(title_path);
-			behavior_list = tag('ul');
+			var splitted = remove_empty_strings(rpath.split('/'));
+			var title_path = splitted[splitted.length - 1];
+			var title = tag('h1').append(title_path);
+			var behavior_list = tag('ul');
 			behavior_list.attr({
 				'class' : 'behavior_list',
 				'data-role' : 'listview',
@@ -86,13 +86,13 @@
 				'data-filter' : false
 			});
 
-			status_div = tag('div').attr('id', 'status');
-			header_div = tag('div').attr('data-role', 'header').append(title);
-			body_div = tag('div').attr('data-role', 'content');
+			var status_div = tag('div').attr('id', 'status');
+			var header_div = tag('div').attr('data-role', 'header').append(title);
+			var body_div = tag('div').attr('data-role', 'content');
 			body_div.append(behavior_list);
 			body_div.append(status_div);
 
-			page_div = tag('div');
+			var page_div = tag('div');
 			page_div.attr('id', display_div_id(rpath));
 			page_div.attr('data-role', 'page');
 			page_div.attr('data-add-back-btn', 'true');
@@ -108,9 +108,13 @@
 		}
 
 		function start() {
-			// window.resizeTo(320, 480);
-			//changeScreenSize(320, 480);
 			log("Connecting to rosbridge.");
+			setup_connection(function(e) {
+				go_to_url($.mobile.path.parseUrl(document.URL).hrefNoHash);
+			});
+		}
+
+		function setup_connection(on_open) {
 			NODE_HANDLE = new ros.NodeHandle("ws://monty1.hsi.gatech.edu:9092");
 			NODE_HANDLE.setOnClose(function(e) {
 				log("Disconnected or Can't Connect.");
@@ -125,8 +129,16 @@
 				var action_spec = new ros.actionlib.ActionSpec('rcommander_web/RunScriptAction');
 				RUN_ACTION_CLIENT = new ros.actionlib.SimpleActionClient(NODE_HANDLE, '/run_rcommander_action', action_spec);
 				LIST_ACTIONS_SRV = NODE_HANDLE.serviceClient("/list_rcommander_actions");
-				display_rpath(document.URL, '');
+				on_open(e);
 			});
+		}
+
+		function is_connected() {
+			if (NODE_HANDLE == undefined || LIST_ACTIONS_SRV == undefined) {
+				return false;
+			} else {
+				return true;
+			}
 		}
 
 		function list_item(a_string, true_path, is_folder) {
@@ -146,7 +158,7 @@
 
 		function request_behavior_list_update(rcommander_path, after_func) {
 			LIST_ACTIONS_SRV.call(ros.json([rcommander_path]), function(rsp) {
-				to_insert = [[rsp.folder_names, rsp.folder_paths, true], [rsp.action_names, rsp.action_paths, false]];
+				var to_insert = [[rsp.folder_names, rsp.folder_paths, true], [rsp.action_names, rsp.action_paths, false]];
 				var items = new Array();
 				var k = 0;
 				for (var i = 0; i < to_insert.length; i++) {
@@ -168,16 +180,16 @@
 					rpath = 'test_behaviors';
 				}
 
-				page = create_jquery_page(rpath);
+				var page = create_jquery_page(rpath);
 				request_behavior_list_update(rpath, function(list_items) {
-					blist = page.find('.behavior_list');
+					var blist = page.find('.behavior_list');
 					for (var i = 0; i < list_items.length; i++) {
 						blist.append(list_items[i]);
 					}
 					blist.listview('refresh', true);
 				});
 
-				options = {
+				var options = {
 					dataUrl : base_url + rpath_to_jpath(rpath),
 					transition : 'slide'
 				};
@@ -186,7 +198,12 @@
 		}
 
 		function display_playback(base_url, behavior_path) {
+			if (CURRENT_BEHAVIOR != behavior_path) {
+				remove_all_statuses();
+			}
+
 			CURRENT_BEHAVIOR = behavior_path;
+			display_playback_status('Ready');
 			show_playback_screen(base_url);
 		}
 
@@ -197,31 +214,52 @@
 			} else {
 				url = base_url + '#' + SCREENS.playback
 			}
-			
+
 			var page = $('#' + SCREENS.playback);
 			var p = remove_empty_strings(CURRENT_BEHAVIOR.split('/'));
-			page.find('#behavior_name').html(p[p.length-1]);
+			page.find('#behavior_name').html(p[p.length - 1]);
 
 			var options = {
 				dataUrl : url,
 				transition : 'flip'
 			};
-			
+
 			$.mobile.changePage(page, options)
 		}
 
 		function display_connect(base_url) {
-			page = $('#' + SCREENS.connect);
-			options = {
+			var page = $('#' + SCREENS.connect);
+			var options = {
 				dataUrl : base_url + '#' + SCREENS.connect,
 				transition : 'flip'
 			};
 			$.mobile.chancePage(page, options)
 		}
 
-		function display_playback_status(pithy, full) {
-			$('#playback_screen .status').html(pithy + ':' + full);
+		function display_playback_status(pithy) {
+			var status = $('#playback_screen .status');
+			var past_statuses = status.find('h1');
+			var MAX_STAT = 3;
+			var begin_idx = idx = Math.max(0, past_statuses.length - MAX_STAT)
 
+			for (var i = 0; i < past_statuses.length; i++) {
+				if (i < begin_idx) {
+					past_statuses.eq(i).hide(100);
+					past_statuses.eq(i).remove();
+				} else {
+					past_statuses.eq(i).fadeTo(100, .5);
+				}
+			}
+
+			status.append('<h1 style="display:none;">' + pithy + '</h1>');
+			status.find('h1').slideDown(100);
+		}
+
+		function remove_all_statuses() {
+			var statuses = $('#playback_screen .status').find('h1');
+			for (var i = 0; i < statuses.length; i++) {
+				statuses.eq(i).remove();
+			}
 		}
 
 		function start_behavior(behavior_path) {
@@ -232,7 +270,7 @@
 				}
 
 				if (!e) {
-					display_playback_status('Error', "Couldn't find action server.");
+					display_playback_status('Server Not Found');
 					return;
 				}
 
@@ -246,11 +284,11 @@
 				var feedback_cb = function(goal_handle, feedback_msg) {
 					display_playback_status(feedback_msg.current_node, feedback_msg.node_type);
 				}
+				display_playback_status('Started');
 
 				RUN_ACTION_CLIENT.send_goal(goal, transition_cb, feedback_cb);
 				ACTION_STATUS = 'started'
 
-				display_playback_status('sent goal', 'goal');
 				// Waits for the server to finish performing the action.
 				RUN_ACTION_CLIENT.wait_for_result(60 * 30, function(e) {
 					if (!e) {
@@ -258,14 +296,16 @@
 					}
 					// Prints out the result of executing the action
 					var result = RUN_ACTION_CLIENT.get_result();
-					display_playback_status(result.result, 'stopped');
+					display_playback_status(result.result);
 					ACTION_STATUS = 'stopped';
 				});
 			});
 		}
 
 		function stop_behavior(behavior_path) {
-			RUN_ACTION_CLIENT.cancel_all_goals()
+			RUN_ACTION_CLIENT.cancel_all_goals();
+			ACTION_STATUS = 'stopped';
+			remove_all_statuses();
 		}
 
 		/*
@@ -277,25 +317,38 @@
 		 *        base.html#connect_screen
 		 *        base.html
 		 */
+		function go_to_url(url) {
+			var parsed_url = $.mobile.path.parseUrl(url);
+
+			// var splitted_hash = remove_empty_strings(u.hash.split('#'))
+			if (parsed_url.hash.length > 0) {
+				// var screen_name = parsed_url.hash.match(/^#.*#/)[0].replace(/#/g, '');
+				if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.display))) {
+					// screen_name == SCREENS.display) {
+					display_rpath(parsed_url.hrefNoHash, jpath_to_rpath(parsed_url.hash));
+
+				} else if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.playback))) {
+					// screen_name == SCREENS.playback) {
+					display_playback(parsed_url.hrefNoHash, decode_path(parsed_url.hash.replace(/^#.*\?/, '')));
+
+				} else if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.connect))) {
+					display_connect(parsed_url.hrefNoHash);
+				}
+			} else {
+				display_rpath(parsed_url.hrefNoHash, '');
+			}
+		}
+
 
 		$(document).bind("pagebeforechange", function(e, data) {
 			if ( typeof data.toPage === "string") {
-				var parsed_url = $.mobile.path.parseUrl(data.toPage);
+				if (! is_connected()) {
+					setup_connection(function(e) {
+						go_to_url($.mobile.path.parseUrl(data.toPage).hrefNoHash);
+					});
+				} else {
+					go_to_url(data.toPage);
 
-				// var splitted_hash = remove_empty_strings(u.hash.split('#'))
-				if (parsed_url.hash.length > 0) {
-					// var screen_name = parsed_url.hash.match(/^#.*#/)[0].replace(/#/g, '');
-					if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.display))) {
-						// screen_name == SCREENS.display) {
-						display_rpath(parsed_url.hrefNoHash, jpath_to_rpath(parsed_url.hash));
-
-					} else if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.playback))) {
-						// screen_name == SCREENS.playback) {
-						display_playback(parsed_url.hrefNoHash, decode_path(parsed_url.hash.replace(/^#.*\?/, '')));
-
-					} else if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.connect))) {
-						display_connect(parsed_url.hrefNoHash);
-					}
 				}
 				e.preventDefault();
 			}
@@ -313,14 +366,16 @@
 
 			</div>
 		</div>
-		
+
 		<div id="playback_screen" data-role="page" data-add-back-btn="true">
 			<div data-role="header">
 				<h1 id='behavior_name'>behavior_name</h1>
 			</div>
 
-			<div class="status" style="width: 100%; height:390px; background-color:#E0E0E0">
-				A Status
+			<div style="display:table;width: 100%; height:300px;">
+				<div style="display:table-cell; vertical-align:middle; width: 100%;">
+					<div class="status" style="width: 100%; text-align: center;"></div>
+				</div>
 			</div>
 
 			<div data-role="content">
@@ -338,8 +393,6 @@
 				</fieldset>
 			</div>
 		</div>
-
-
 
 	</body>
 </html>
