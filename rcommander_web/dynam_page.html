@@ -69,33 +69,31 @@
 		}
 
 		function start() {
-			page = create_jquery_page('test_behaviors');
-			$.mobile.changePage(page, {dataUrl: document.URL + '#test_behaviors'});
+			// page = create_jquery_page('test_behaviors');
+			// $.mobile.changePage(page, {
+				// dataUrl : document.URL + '#test_behaviors'
+			// });	
+			go_to_url({toPage:document.URL, options: {}});
+		}
+
+		function go_to_url(data) {
+			var u = $.mobile.path.parseUrl(data.toPage), re = /^#/;
+			rpath = decode_path(u.hash.replace(/#/, ''));
+			if ($.mobile.activePage == undefined || $.mobile.activePage.attr('id') == undefined || decode_path($.mobile.activePage.attr('id')) != rpath) {
+				if (rpath.length == 0) {
+					rpath = 'test_behaviors';
+				}
+				page = create_jquery_page(rpath);
+				data.options.dataUrl = u.href;
+				$.mobile.changePage(page, data.options);
+			}
 		}
 
 
 		$(document).bind("pagebeforechange", function(e, data) {
 			if ( typeof data.toPage === "string") {
-				var u = $.mobile.path.parseUrl(data.toPage), re = /^#/;
-				// if (u.hash.search(re) !== -1) {
-				//showCategory(u, data.options);
-				rpath = decode_path(u.hash.replace(/#/, ''));
-				if ($.mobile.activePage == undefined || $.mobile.activePage.attr('id') == undefined || decode_path($.mobile.activePage.attr('id')) != rpath) {
-					if (rpath.length == 0) {
-						rpath = 'test_behaviors';
-					}
-					page = create_jquery_page(rpath);
-					data.options.dataUrl = u.href;
-					$.mobile.changePage(page, data.options);
-				}
+				go_to_url(data)
 				e.preventDefault();
-				// }
-				// } else {
-				// page = create_jquery_page('test_behaviors');
-				// data.options.dataUrl = u.href;
-				// $.mobile.changePage(page, data.options);
-				// }
-				// e.preventDefault();
 			}
 		});
 
