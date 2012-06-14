@@ -306,6 +306,7 @@
 			RUN_ACTION_CLIENT.cancel_all_goals();
 			ACTION_STATUS = 'stopped';
 			remove_all_statuses();
+			display_playback_status('Stopped');
 		}
 
 		/*
@@ -320,15 +321,11 @@
 		function go_to_url(url) {
 			var parsed_url = $.mobile.path.parseUrl(url);
 
-			// var splitted_hash = remove_empty_strings(u.hash.split('#'))
 			if (parsed_url.hash.length > 0) {
-				// var screen_name = parsed_url.hash.match(/^#.*#/)[0].replace(/#/g, '');
 				if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.display))) {
-					// screen_name == SCREENS.display) {
 					display_rpath(parsed_url.hrefNoHash, jpath_to_rpath(parsed_url.hash));
 
 				} else if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.playback))) {
-					// screen_name == SCREENS.playback) {
 					display_playback(parsed_url.hrefNoHash, decode_path(parsed_url.hash.replace(/^#.*\?/, '')));
 
 				} else if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.connect))) {
@@ -348,7 +345,6 @@
 					});
 				} else {
 					go_to_url(data.toPage);
-
 				}
 				e.preventDefault();
 			}
