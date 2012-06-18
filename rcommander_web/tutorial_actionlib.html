@@ -1,0 +1,75 @@
+<!DOCTYPE html> 
+<html> 
+<head> 
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"> 
+<title>rosjs Actionlib Tutorial</title> 
+  
+<!-- REQUIRED scripts -->
+<script type="text/javascript" src="js/jquery/jquery-latest.js"></script>
+<script type="text/javascript" src="js/ros/ros.js"></script>
+<script type="text/javascript" src="js/ros/common.js"></script>
+
+<script> 
+function log(msg) {
+	$('#log').append(msg.toString() + '<br>');
+};
+    
+function start()
+{ 
+  log("Connecting to rosbridge.");
+  var node = new ros.NodeHandle("ws://monty1.hsi.gatech.edu:9091");
+  node.setOnClose(function(e) {
+    log("Disconnected or Can't Connect.");
+  });
+
+  node.setOnError(function(e) {
+    log("Unknown error!");
+  });
+
+  node.setOnOpen(function(e) {   
+    log("Connection to rosbridge established.");
+    // Creates the SimpleActionClient, passing the type of the action
+    // (FibonacciAction) to the constructor.
+    var action_spec = new ros.actionlib.ActionSpec('actionlib_tutorials/FibonacciAction');
+    var client = new ros.actionlib.SimpleActionClient(NODE_HANDLE,'/fibonacci', action_spec);
+
+    // Waits until the action server has started up and started
+    // listening for goals.
+    log("Waiting for fibonacci action server to come online.");
+    client.wait_for_server(10, function(e) {
+      if(!e) {
+        log("Couldn't find action server.");
+        return;
+      }
+      // Creates a goal to send to the action server.
+      var goal = {'order':10};
+
+      // Sends the goal to the action server.
+      log("Sending goal to action server.");
+      client.send_goal(goal);
+
+      // Waits for the server to finish performing the action.
+      log("Waiting for results from action server.");
+      client.wait_for_result(100,function(e) {
+        if(!e) {
+          log("Didn't receive results from action server.");
+          return;
+        }
+        // Prints out the result of executing the action
+        var result = client.get_result(); // A FibonacciResult
+        log("Result:"+", "+result.sequence);
+      });
+
+    });
+  });
+}
+</script> 
+</head> 
+
+<body onload="start()" style="margin:0;padding:0;background-color:white;overflow:hidden"> 
+<div style="font-family: fixed-width; font-size: small;" id="log"></div>
+</body> 
+ 
+</html> 
+
+

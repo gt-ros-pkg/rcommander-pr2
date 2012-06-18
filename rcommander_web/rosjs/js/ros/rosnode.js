@@ -1,1 +1,0 @@
-/opt/ros/electric/stacks/brown_remotelab/rosbridge/rosnode.js

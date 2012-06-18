@@ -1,0 +1,398 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Demo</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="css/jquery.mobile-1.1.0.css" />
+		<script src="js/jquery-1.7.1.js"></script>
+		<script src="js/jquery.mobile-1.1.0.js"></script>
+		<script src="js/ros/ros.js"></script>
+		<script src="js/ros/common.js"></script>
+	</head>
+
+	<script>
+		var NODE_HANDLE = undefined;
+		var ESC_STRING = '798987';
+		var LIST_ACTIONS_SRV = undefined;
+		var RUN_ACTION_CLIENT = undefined;
+		var ACTION_STATUS = 'stopped';
+		var SCREENS = {
+			display : 'display_screen',
+			playback : 'playback_screen',
+			connect : 'connect_screen'
+		};
+		var CURRENT_BEHAVIOR = undefined;
+
+		function log(msg) {
+			// $('#status').empty();
+			// $('#status').append(msg.toString() + '<br>');
+		};
+
+		function tag(tag_type) {
+			return $(document.createElement(tag_type));
+		}
+
+		function encode_path(p) {
+			var pp = p.replace(new RegExp(ESC_STRING, 'g'), ESC_STRING + ESC_STRING);
+			return pp.replace(/\//g, ESC_STRING);
+		}
+
+		function decode_path(p) {
+			var pp = p.replace(new RegExp(ESC_STRING + ESC_STRING, 'g'), ESC_STRING);
+			return pp.replace(new RegExp(ESC_STRING, 'g'), '/');
+		}
+
+		// function behavior_list_of(rpath) {
+		// return $('#' + rpath_to_jpath(rpath)).find('.behavior_list');
+		// }
+
+		/**
+		 * Create a page id given an rcommander path
+		 */
+		function rpath_to_jpath(rpath) {
+			return '#' + SCREENS.display + '#' + encode_path(rpath);
+		}
+
+		function jpath_to_rpath(page_id) {
+			return decode_path(page_id.replace(/^#.*#/, ''))
+		}
+
+		function display_div_id(rpath) {
+			return 'page_' + encode_path(rpath);
+		}
+
+		function remove_empty_strings(arr) {
+			var a = [];
+			var j = 0;
+			for (var i = 0; i < arr.length; i++) {
+				if (arr[i].length > 0) {
+					a[j] = arr[i];
+					j++;
+				}
+			}
+			return a
+		}
+
+		function create_jquery_page(rpath) {
+			var splitted = remove_empty_strings(rpath.split('/'));
+			var title_path = splitted[splitted.length - 1];
+			var title = tag('h1').append(title_path);
+			var behavior_list = tag('ul');
+			behavior_list.attr({
+				'class' : 'behavior_list',
+				'data-role' : 'listview',
+				'data-inset' : true,
+				'data-filter' : false
+			});
+
+			var status_div = tag('div').attr('id', 'status');
+			var header_div = tag('div').attr('data-role', 'header').append(title);
+			var body_div = tag('div').attr('data-role', 'content');
+			body_div.append(behavior_list);
+			body_div.append(status_div);
+
+			var page_div = tag('div');
+			page_div.attr('id', display_div_id(rpath));
+			page_div.attr('data-role', 'page');
+			page_div.attr('data-add-back-btn', 'true');
+			page_div.append(header_div);
+			page_div.append(body_div);
+
+			if (undefined != $('#' + page_div.attr('id'))) {
+				$('#' + page_div.attr('id')).remove();
+			}
+
+			$('body').append(page_div);
+			return $('#' + page_div.attr('id'));
+		}
+
+		function start() {
+			log("Connecting to rosbridge.");
+			setup_connection(function(e) {
+				go_to_url($.mobile.path.parseUrl(document.URL).hrefNoHash);
+			});
+		}
+
+		function setup_connection(on_open) {
+			NODE_HANDLE = new ros.NodeHandle("ws://monty1.hsi.gatech.edu:9092");
+			NODE_HANDLE.setOnClose(function(e) {
+				log("Disconnected or Can't Connect.");
+			});
+
+			NODE_HANDLE.setOnError(function(e) {
+				log("Unknown error!");
+			});
+
+			NODE_HANDLE.setOnOpen(function(e) {
+				log("Connected");
+				var action_spec = new ros.actionlib.ActionSpec('rcommander_web/RunScriptAction');
+				RUN_ACTION_CLIENT = new ros.actionlib.SimpleActionClient(NODE_HANDLE, '/run_rcommander_action', action_spec);
+				LIST_ACTIONS_SRV = NODE_HANDLE.serviceClient("/list_rcommander_actions");
+				on_open(e);
+			});
+		}
+
+		function is_connected() {
+			if (NODE_HANDLE == undefined || LIST_ACTIONS_SRV == undefined) {
+				return false;
+			} else {
+				return true;
+			}
+		}
+
+		function list_item(a_string, true_path, is_folder) {
+			var a = tag('a');
+			if (is_folder) {
+				a.attr('href', rpath_to_jpath(true_path));
+			} else {
+				a.attr('href', '#' + SCREENS.playback + '?' + encode_path(true_path));
+			}
+			a.append(a_string);
+			var li = tag('li');
+			if (is_folder === false) {
+				li.attr('data-icon', String(false));
+			}
+			return li.append(a);
+		}
+
+		function request_behavior_list_update(rcommander_path, after_func) {
+			LIST_ACTIONS_SRV.call(ros.json([rcommander_path]), function(rsp) {
+				var to_insert = [[rsp.folder_names, rsp.folder_paths, true], [rsp.action_names, rsp.action_paths, false]];
+				var items = new Array();
+				var k = 0;
+				for (var i = 0; i < to_insert.length; i++) {
+					for (var j = 0; j < to_insert[i][0].length; j++) {
+						items[k] = list_item(to_insert[i][0][j], to_insert[i][1][j], to_insert[i][2]);
+						k++;
+					}
+				}
+				after_func(items);
+			});
+		}
+
+		// function go_to_rpath_url(data) {
+		function display_rpath(base_url, rpath) {
+			// var u = $.mobile.path.parseUrl(data.toPage);
+			// rpath = decode_path(u.hash.replace(/#/, ''));
+			if ($.mobile.activePage == undefined || $.mobile.activePage.attr('id') == undefined || decode_path($.mobile.activePage.attr('id')) != rpath) {
+				if (rpath.length == 0) {
+					rpath = 'test_behaviors';
+				}
+
+				var page = create_jquery_page(rpath);
+				request_behavior_list_update(rpath, function(list_items) {
+					var blist = page.find('.behavior_list');
+					for (var i = 0; i < list_items.length; i++) {
+						blist.append(list_items[i]);
+					}
+					blist.listview('refresh', true);
+				});
+
+				var options = {
+					dataUrl : base_url + rpath_to_jpath(rpath),
+					transition : 'slide'
+				};
+				$.mobile.changePage(page, options);
+			}
+		}
+
+		function display_playback(base_url, behavior_path) {
+			if (CURRENT_BEHAVIOR != behavior_path) {
+				remove_all_statuses();
+			}
+
+			CURRENT_BEHAVIOR = behavior_path;
+			display_playback_status('Ready');
+			show_playback_screen(base_url);
+		}
+
+		function show_playback_screen(base_url) {
+			var url;
+			if (CURRENT_BEHAVIOR != undefined) {
+				url = base_url + '#' + SCREENS.playback + '?' + encode_path(CURRENT_BEHAVIOR)
+			} else {
+				url = base_url + '#' + SCREENS.playback
+			}
+
+			var page = $('#' + SCREENS.playback);
+			var p = remove_empty_strings(CURRENT_BEHAVIOR.split('/'));
+			page.find('#behavior_name').html(p[p.length - 1]);
+
+			var options = {
+				dataUrl : url,
+				transition : 'flip'
+			};
+
+			$.mobile.changePage(page, options)
+		}
+
+		function display_connect(base_url) {
+			var page = $('#' + SCREENS.connect);
+			var options = {
+				dataUrl : base_url + '#' + SCREENS.connect,
+				transition : 'flip'
+			};
+			$.mobile.chancePage(page, options)
+		}
+
+		function display_playback_status(pithy) {
+			var status = $('#playback_screen .status');
+			var past_statuses = status.find('h1');
+			var MAX_STAT = 3;
+			var begin_idx = idx = Math.max(0, past_statuses.length - MAX_STAT)
+
+			for (var i = 0; i < past_statuses.length; i++) {
+				if (i < begin_idx) {
+					past_statuses.eq(i).hide(100);
+					past_statuses.eq(i).remove();
+				} else {
+					past_statuses.eq(i).fadeTo(100, .5);
+				}
+			}
+
+			status.append('<h1 style="display:none;">' + pithy + '</h1>');
+			status.find('h1').slideDown(100);
+		}
+
+		function remove_all_statuses() {
+			var statuses = $('#playback_screen .status').find('h1');
+			for (var i = 0; i < statuses.length; i++) {
+				statuses.eq(i).remove();
+			}
+		}
+
+		function start_behavior(behavior_path) {
+			RUN_ACTION_CLIENT.wait_for_server(10, function(e) {
+				//Don't start a new action if there is already one running.
+				if (ACTION_STATUS == 'started') {
+					return;
+				}
+
+				if (!e) {
+					display_playback_status('Server Not Found');
+					return;
+				}
+
+				var goal = {
+					'action_path' : behavior_path
+				};
+
+				var transition_cb = function(goal_handle) {
+
+				}
+				var feedback_cb = function(goal_handle, feedback_msg) {
+					display_playback_status(feedback_msg.current_node, feedback_msg.node_type);
+				}
+				display_playback_status('Started');
+
+				RUN_ACTION_CLIENT.send_goal(goal, transition_cb, feedback_cb);
+				ACTION_STATUS = 'started'
+
+				// Waits for the server to finish performing the action.
+				RUN_ACTION_CLIENT.wait_for_result(60 * 30, function(e) {
+					if (!e) {
+						return;
+					}
+					// Prints out the result of executing the action
+					var result = RUN_ACTION_CLIENT.get_result();
+					display_playback_status(result.result);
+					ACTION_STATUS = 'stopped';
+				});
+			});
+		}
+
+		function stop_behavior(behavior_path) {
+			RUN_ACTION_CLIENT.cancel_all_goals();
+			ACTION_STATUS = 'stopped';
+			remove_all_statuses();
+		}
+
+		/*
+		 * create an object to manage behavior playback functions
+		 * stored in a global/class variable
+		 *
+		 * URL is base.html#display_screen#folder_name
+		 * 		  base.html#playback_screen?behavior_path
+		 *        base.html#connect_screen
+		 *        base.html
+		 */
+		function go_to_url(url) {
+			var parsed_url = $.mobile.path.parseUrl(url);
+
+			// var splitted_hash = remove_empty_strings(u.hash.split('#'))
+			if (parsed_url.hash.length > 0) {
+				// var screen_name = parsed_url.hash.match(/^#.*#/)[0].replace(/#/g, '');
+				if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.display))) {
+					// screen_name == SCREENS.display) {
+					display_rpath(parsed_url.hrefNoHash, jpath_to_rpath(parsed_url.hash));
+
+				} else if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.playback))) {
+					// screen_name == SCREENS.playback) {
+					display_playback(parsed_url.hrefNoHash, decode_path(parsed_url.hash.replace(/^#.*\?/, '')));
+
+				} else if (0 == parsed_url.hash.search(new RegExp('^#' + SCREENS.connect))) {
+					display_connect(parsed_url.hrefNoHash);
+				}
+			} else {
+				display_rpath(parsed_url.hrefNoHash, '');
+			}
+		}
+
+
+		$(document).bind("pagebeforechange", function(e, data) {
+			if ( typeof data.toPage === "string") {
+				if (! is_connected()) {
+					setup_connection(function(e) {
+						go_to_url($.mobile.path.parseUrl(data.toPage).hrefNoHash);
+					});
+				} else {
+					go_to_url(data.toPage);
+
+				}
+				e.preventDefault();
+			}
+		});
+
+		$(document).ready(start);
+	</script>
+
+	<body>
+		<div id="connect_screen" data-role="page">
+			<div data-role="header">
+				<h1>RCommander Remote</h1>
+			</div>
+			<div data-role="content">
+
+			</div>
+		</div>
+
+		<div id="playback_screen" data-role="page" data-add-back-btn="true">
+			<div data-role="header">
+				<h1 id='behavior_name'>behavior_name</h1>
+			</div>
+
+			<div style="display:table;width: 100%; height:300px;">
+				<div style="display:table-cell; vertical-align:middle; width: 100%;">
+					<div class="status" style="width: 100%; text-align: center;"></div>
+				</div>
+			</div>
+
+			<div data-role="content">
+				<fieldset class="ui-grid-a">
+					<div class="ui-block-a">
+						<button type="button" data-theme="d" onclick='start_behavior(CURRENT_BEHAVIOR)'>
+							Start
+						</button>
+					</div>
+					<div class="ui-block-b">
+						<button type="button" data-theme="a" onclick='stop_behavior()'>
+							Stop
+						</button>
+					</div>
+				</fieldset>
+			</div>
+		</div>
+
+	</body>
+</html>
