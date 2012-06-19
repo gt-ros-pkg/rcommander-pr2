@@ -8,6 +8,8 @@ import rcommander_ar_pose.utils as rap
 import rcommander_pr2_gui.tf_utils as tfu
 import tf
 
+import cPickle as pk
+import os.path as pt
 import re
 import copy
 
@@ -95,7 +97,7 @@ class TagDatabase:
 
     def __init__(self):
         self.database = {}
-        self.insert('placeholder')
+        #self.insert('placeholder')
 
     ##
     # @param tagid
@@ -200,14 +202,24 @@ class MarkerDisplay:
 
 class ARTour:
 
-    def __init__(self):
+    def __init__(self, tag_database_name='ar_tag_database.pkl'):
         self.SERVER_NAME = 'ar_tour'
+        self.tag_database_name = tag_database_name
         rospy.init_node(self.SERVER_NAME)
 
         self.broadcaster = tf.TransformBroadcaster()
         self.tf_listener = tf.TransformListener()
 
-        self.tag_database = TagDatabase()
+        #if pt.exists(self.tag_database_name):
+        try:
+            pickle_file = open(self.tag_database_name, 'r')
+            self.tag_database = pk.load(pickle_file)
+            pickle_file.close()
+            rospy.loginfo('Loaded %s.' % self.tag_database_name)
+        except Exception, e:
+            self.tag_database = TagDatabase()
+            rospy.loginfo('Error loading %s. Creating new database.' % self.tag_database_name)
+
         self.server = ims.InteractiveMarkerServer(self.SERVER_NAME)
 
         self.markers = {}
@@ -271,7 +283,11 @@ class ARTour:
 
 
     def _save_database(self):
-        pass
+        print '< Saving',
+        pickle_file = open(self.tag_database_name, 'w')
+        pk.dump(self.tag_database, pickle_file)
+        pickle_file.close()
+        print 'done! >'
 
     def run(self):
         r = rospy.Rate(2)
@@ -287,7 +303,8 @@ class ARTour:
 
 
 if __name__=="__main__":
-    a = ARTour()
+    import sys
+    a = ARTour(sys.argv[1])
     a.run()
 
 ################
