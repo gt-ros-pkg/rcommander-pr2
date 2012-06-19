@@ -6,12 +6,17 @@ import interactive_markers.menu_handler as mh
 import ar_pose.msg as ar_msg
 import rcommander_ar_pose.utils as rap
 import rcommander_pr2_gui.tf_utils as tfu
+import rcommander_web.rcommander_auto_server as ras
 import tf
 
+import os
+import functools as ft
 import cPickle as pk
 import os.path as pt
 import re
 import copy
+from threading import RLock
+import signal
 
 DEFAULT_LOC = [[0.,0.,0.], [0.,0.,0.,1.]]
 
@@ -134,6 +139,7 @@ class MarkerDisplay:
         self.make_ar_marker('ar_' + self.tagid, self.tag_database.get(self.tagid)['ar_location'])
         self.has_point = False
         self.tf_listener = tf_listener
+        self.menu = None
 
     def make_ar_marker(self, name, pose, scale=.2):
         int_marker = interactive_marker(name, pose, scale)
@@ -144,22 +150,25 @@ class MarkerDisplay:
         self.server.insert(int_marker, self.process_feedback)
         self.ar_marker = int_marker
 
-    def create_menu(self, name, server, int_marker, marker):
+    def set_menu(self, menu_handler):
+        self.menu = menu_handler
+        if not self.has_point:
+            return
+        self._make_menu()
+
+    def _make_menu(self):
         menu_control = ims.InteractiveMarkerControl()
         menu_control.interaction_mode = ims.InteractiveMarkerControl.MENU
         menu_control.description=""
-        menu_control.name = name + '_menu'
-        menu_control.markers.append(copy.deepcopy(marker))
+        menu_control.name = self.tagid + '_menu'
+        menu_control.markers.append(copy.deepcopy(self.target_marker.controls[0].markers[0]))
         menu_control.always_visible = True
-        int_marker.controls.append(copy.deepcopy(menu_control))
+        self.target_marker.controls.append(copy.deepcopy(menu_control))
 
-        menu_handler = mh.MenuHandler()
-        menu_handler.insert("First Entry", callback=self.process_feedback)
-        menu_handler.insert("Second Entry", callback=self.process_feedback)
-        sub_menu_handle = menu_handler.insert("Submenu")
-        menu_handler.insert("First Entry", parent=sub_menu_handle, callback=self.process_feedback)
-        menu_handler.insert("Second Entry", parent=sub_menu_handle, callback=self.process_feedback)
-        menu_handler.apply(server, int_marker.name)
+        self.server.erase(self.target_marker.name)
+        self.server.insert(self.target_marker, self.process_feedback)
+        self.menu.apply(self.server, self.target_marker.name)
+
 
     def make_target_marker(self, name, pose, scale=.2):
         int_marker = interactive_marker(name, (pose[0], (0,0,0,1)), scale)
@@ -170,8 +179,9 @@ class MarkerDisplay:
         int_marker.controls += make_orientation_controls(name)
 
         self.server.insert(int_marker, self.process_feedback)
-        self.create_menu(name, self.server, int_marker, int_marker.controls[0].markers[0])
         self.target_marker = int_marker
+        if self.menu != None:
+            self._make_menu()
 
     def toggle_point(self):
         if self.has_point:
@@ -200,17 +210,40 @@ class MarkerDisplay:
             p_ar = tfu.matrix_as_tf(ar_T_map * m_ar)
             self.tag_database.update_target_location(self.tagid, p_ar)
 
+
+##
+# @param callback is a function: f(menu_item, full_action_path)
+def menu_handler_from_action_tree(action_tree, callback):
+    handler = mh.MenuHandler()
+    menu_handler_from_action_tree_helper(handler, action_tree, callback)
+    return handler
+
+# {'path':   full path
+#  'actions': [{another folder}, {another folder2}, rcom_file}
+def menu_handler_from_action_tree_helper(handler, action_tree, callback, parent=None):
+    base_path = action_tree['path']
+    for action in action_tree['actions']:
+        if isinstance(action, dict):
+            submenu = handler.insert(action['path'], parent=parent)
+            menu_handler_from_action_tree_helper(handler, action, callback, parent=submenu)
+        else:
+            action_name = os.path.split(action)[1]
+            handler.insert(action_name, parent=parent, callback=ft.partial(callback, action_name, action))
+
 class ARTour:
 
-    def __init__(self, tag_database_name='ar_tag_database.pkl'):
+    def __init__(self, rcommander_files_dir, tag_database_name='ar_tag_database.pkl'):
         self.SERVER_NAME = 'ar_tour'
         self.tag_database_name = tag_database_name
-        rospy.init_node(self.SERVER_NAME)
+        self.rcommander_files_dir = rcommander_files_dir
+        self.ar_lock = RLock()
 
+        #Ros init stuff
+        rospy.init_node(self.SERVER_NAME)
         self.broadcaster = tf.TransformBroadcaster()
         self.tf_listener = tf.TransformListener()
 
-        #if pt.exists(self.tag_database_name):
+        #Load the database
         try:
             pickle_file = open(self.tag_database_name, 'r')
             self.tag_database = pk.load(pickle_file)
@@ -219,16 +252,24 @@ class ARTour:
         except Exception, e:
             self.tag_database = TagDatabase()
             rospy.loginfo('Error loading %s. Creating new database.' % self.tag_database_name)
-
         self.server = ims.InteractiveMarkerServer(self.SERVER_NAME)
-
+        
+        #make the default markers
         self.markers = {}
         for tagid in self.tag_database.tag_ids():
             self.make_marker(tagid)
         self.server.applyChanges()
+
+        #Watch files to generate menus
+        self.actions_tree = {}
+        self.file_watcher = ras.WatchDirectory(self.rcommander_files_dir, self.main_directory_changed)
+        self.main_directory_changed(self.rcommander_files_dir)
+    
+        #Subscribe to AR Pose
         self.ar_pose_sub = rospy.Subscriber("ar_pose_marker", ar_msg.ARMarkers, self.ar_marker_cb)
         self.marker_visibility = {}
         print 'Ready!'
+
 
     def make_marker(self, tagid):
         if not self.markers.has_key(tagid):
@@ -281,7 +322,6 @@ class ARTour:
             self.server.applyChanges()
         print '>>>>>>>>>>>>>>>'
 
-
     def _save_database(self):
         print '< Saving',
         pickle_file = open(self.tag_database_name, 'w')
@@ -289,23 +329,59 @@ class ARTour:
         pickle_file.close()
         print 'done! >'
 
+    def menu_callback(self, marker_name, menu_item, full_action_path, int_feedback):
+        self.ar_lock.acquire()
+        print 'menu called back on', marker_name, menu_item, full_action_path, int_feedback
+        self.ar_lock.release()
+
+    def main_directory_changed(self, main_path_name):
+        self.ar_lock.acquire()
+        rospy.loginfo('main_directory_changed: rescanning ' + self.rcommander_files_dir)
+        self.actions_tree = ras.find_all_actions(self.rcommander_files_dir)
+        rospy.loginfo('All actions found\n %s \n' % str(self.actions_tree))
+        for marker_name in self.markers.keys():
+            menu_handler = menu_handler_from_action_tree(self.actions_tree, ft.partial(self.menu_callback, marker_name))
+            self.markers[marker_name].set_menu(menu_handler)
+        self.server.applyChanges()
+        self.ar_lock.release()
+
+    def step(self, timer_obj):
+        self.ar_lock.acquire()
+        self._keep_frames_updated()
+        if (self.i % (5*5) == 0):
+            self._save_database()
+        self.i += 1
+        self.ar_lock.release()
+
     def run(self):
-        r = rospy.Rate(2)
-        i = 0
-        #print 'Ready.'
-        while not rospy.is_shutdown():
-            self._keep_frames_updated()
-            r.sleep()
-            if (i % (5*5) == 0):
-                self._save_database()
-            i += 1
-        rospy.spin()
+        self.i = 0
+        rospy.Timer(rospy.Duration(2.), self.step)
 
 
 if __name__=="__main__":
     import sys
-    a = ARTour(sys.argv[1])
-    a.run()
+    from PyQt4 import QtCore#, QtGui
+
+    def sigint_handler(*args):
+        QtCore.QCoreApplication.quit()
+
+    #signal.signal(signal.SIGINT, signal.SIG_DFL)
+    signal.signal(signal.SIGINT, sigint_handler)
+    app = QtCore.QCoreApplication(sys.argv)
+    timer = QtCore.QTimer()
+    timer.start(500)
+    timer.timeout.connect(lambda: None)
+    artour = ARTour(sys.argv[1], sys.argv[2])
+    artour.run()
+    rospy.loginfo('RCommander AR Tour Server up!')
+    app.exec_()
+
+
+
+
+
+############################
+# Next imitate rcommander_web's loading of behaviors in a directory!
 
 ################
 # A main interactive marker for the TAG itself
@@ -323,15 +399,44 @@ if __name__=="__main__":
 #   A menu marker class monitors the state of a directory
 
 
+
+
+
+
+
+
+    ##self.create_menu(name, self.server, int_marker, int_marker.controls[0].markers[0])
+    #def create_menu(self, name, server, int_marker, marker):
+    #    menu_control = ims.InteractiveMarkerControl()
+    #    menu_control.interaction_mode = ims.InteractiveMarkerControl.MENU
+    #    menu_control.description=""
+    #    menu_control.name = name + '_menu'
+    #    menu_control.markers.append(copy.deepcopy(marker))
+    #    menu_control.always_visible = True
+    #    int_marker.controls.append(copy.deepcopy(menu_control))
+
+    #    #menu_handler = mh.MenuHandler()
+    #    #menu_handler.insert("First Entry", callback=self.process_feedback)
+    #    #menu_handler.insert("Second Entry", callback=self.process_feedback)
+    #    #sub_menu_handle = menu_handler.insert("Submenu")
+    #    #menu_handler.insert("First Entry", parent=sub_menu_handle, callback=self.process_feedback)
+    #    #menu_handler.insert("Second Entry", parent=sub_menu_handle, callback=self.process_feedback)
+    #    menu_handler.apply(server, int_marker.name)
+
+
+
+
+        #r = rospy.Rate(2)
+        #print 'Ready.'
+        #while not rospy.is_shutdown():
+        #r.sleep()
+        #rospy.spin()
+
+
+
+
 #
 #   A 
- 
- 
- 
- 
- 
- 
- 
  
 
 #class BehaviorMenu:
