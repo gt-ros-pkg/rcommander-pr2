@@ -45,6 +45,27 @@ def has_graph_files(p):
     npath = os.path.join(p, 'nodes.graph')
     return os.path.isfile(epath) and os.path.isfile(npath)
 
+
+##
+# {'path':   full path
+#  'actions': [{another folder}, {another folder2}, rcom_file}
+
+def find_all_actions(path):
+    path = os.path.normpath(path)
+    actions = []
+    for d in os.listdir(path):
+        print d
+        candidate_dir = os.path.join(path, d)
+        if os.path.isdir(candidate_dir) and has_graph_files(candidate_dir):
+            actions.append(candidate_dir)
+        elif os.path.isdir(candidate_dir):
+            sub_dir_candidates = find_all_actions(candidate_dir)
+            if len(sub_dir_candidates['actions']) > 0:
+                actions.append(sub_dir_candidates)
+
+    return {'path': os.path.split(path)[1], 'actions': actions}
+
+
 class RCommanderAutoServer:
 
     def __init__(self, robot, path_to_rcommander_files):
@@ -63,19 +84,19 @@ class RCommanderAutoServer:
         rospy.loginfo('Executing: ' + goal.action_path)
         self.action_dict[goal.action_path]['server'].execute(self.actserv)
 
-    def _find_all_actions(self, path):
-        path = os.path.normpath(path)
-        actions = []
-        for d in os.listdir(path):
-            candidate_dir = os.path.join(path, d)
-            if os.path.isdir(candidate_dir) and has_graph_files(candidate_dir):
-                actions.append(candidate_dir)
-            elif os.path.isdir(candidate_dir):
-                sub_dir_candidates = self._find_all_actions(candidate_dir)
-                if len(sub_dir_candidates['actions']) > 0:
-                    actions.append(sub_dir_candidates)
+    #def _find_all_actions(self, path):
+    #    path = os.path.normpath(path)
+    #    actions = []
+    #    for d in os.listdir(path):
+    #        candidate_dir = os.path.join(path, d)
+    #        if os.path.isdir(candidate_dir) and has_graph_files(candidate_dir):
+    #            actions.append(candidate_dir)
+    #        elif os.path.isdir(candidate_dir):
+    #            sub_dir_candidates = self._find_all_actions(candidate_dir)
+    #            if len(sub_dir_candidates['actions']) > 0:
+    #                actions.append(sub_dir_candidates)
 
-        return {'path': os.path.split(path)[1], 'actions': actions}
+    #    return {'path': os.path.split(path)[1], 'actions': actions}
 
     def _load(self, action):
         rospy.loginfo('Loading ' + action)
@@ -125,11 +146,9 @@ class RCommanderAutoServer:
 
     def main_directory_changed(self, main_path_name):
         rospy.loginfo('main_directory_changed: rescanning ' + main_path_name)
-        actions = self._find_all_actions(self.path_to_rcommander_files)
+        actions = find_all_actions(self.path_to_rcommander_files)
         self.action_dict, self.actions_tree = self._create_action_dict(actions)
         rospy.loginfo('All actions found\n %s \n' % str(self.action_dict.keys()))
-        #print 'loaded actions', self.action_dict.keys()
-        #print 'new actions_tree', self.actions_tree
 
     def get_actions(self, path, actions_tree):
         path = os.path.normpath(path)
