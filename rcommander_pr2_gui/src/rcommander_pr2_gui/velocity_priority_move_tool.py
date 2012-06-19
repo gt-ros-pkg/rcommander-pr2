@@ -156,11 +156,15 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 
 def has_frame(tf_listener, source, target):
     try:
+        rospy.loginfo('waiting for transform between %s and %s' % (source, target))
+        tf_listener.waitForTransform(source, target, rospy.Time(0), rospy.Duration(3.))
         tf_listener.lookupTransform(source, target, rospy.Time(0))
         return True
     except tf.LookupException, e:
+        print 'LookupException', e
         return False
     except tf.ExtrapolationException, e:
+        print 'ExtrapolationException', e
         return False
 
 class VelocityPriorityState(tu.StateBase):
