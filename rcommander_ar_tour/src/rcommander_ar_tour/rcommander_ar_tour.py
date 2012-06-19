@@ -121,6 +121,9 @@ class TagDatabase:
     def update_target_location(self, tagid, location):
         self.database[tagid]['target_location'] = location
 
+    def update_behavior(self, tagid, behavior):
+        self.database[tagid]['behavior'] = behavior
+
     def tag_ids(self):
         return self.database.keys()
 
@@ -136,25 +139,38 @@ class MarkerDisplay:
         self.server = server
         self.tag_database = tag_database
 
-        self.make_ar_marker('ar_' + self.tagid, self.tag_database.get(self.tagid)['ar_location'])
+        self.make_ar_marker()
         self.has_point = False
         self.tf_listener = tf_listener
         self.menu = None
 
-    def make_ar_marker(self, name, pose, scale=.2):
-        int_marker = interactive_marker(name, pose, scale)
+    def get_id_numb(self):
         idnumb = self.tagid.split('_')
-        int_marker.description = 'Tag #%s' % idnumb[-1]
+        return int(idnumb[-1])
+
+    def make_ar_marker(self, scale=.2):
+        name = 'ar_' + self.tagid
+        pose = self.tag_database.get(self.tagid)['ar_location']
+
+        int_marker = interactive_marker(name, pose, scale)
+        int_marker.description = 'Tag #%d' % self.get_id_numb() 
         int_marker.controls += [make_sphere_control(name, int_marker.scale)]
         int_marker.controls[0].markers[0].color = stdm.ColorRGBA(0,1,0,.5)
         self.server.insert(int_marker, self.process_feedback)
         self.ar_marker = int_marker
 
+    def update_ar_marker(self, behavior_name):
+        self.server.erase(self.ar_marker.name)
+        self.ar_marker.description = ('%s (tag #%d)' % (behavior_name, self.get_id_numb()))
+        self.server.insert(self.ar_marker)
+
     def set_menu(self, menu_handler):
         self.menu = menu_handler
         if not self.has_point:
             return
-        self._make_menu()
+        else:
+            self.server.erase(self.target_marker.name)
+            self._make_menu()
 
     def _make_menu(self):
         menu_control = ims.InteractiveMarkerControl()
@@ -165,10 +181,8 @@ class MarkerDisplay:
         menu_control.always_visible = True
         self.target_marker.controls.append(copy.deepcopy(menu_control))
 
-        self.server.erase(self.target_marker.name)
         self.server.insert(self.target_marker, self.process_feedback)
         self.menu.apply(self.server, self.target_marker.name)
-
 
     def make_target_marker(self, name, pose, scale=.2):
         int_marker = interactive_marker(name, (pose[0], (0,0,0,1)), scale)
@@ -332,6 +346,12 @@ class ARTour:
     def menu_callback(self, marker_name, menu_item, full_action_path, int_feedback):
         self.ar_lock.acquire()
         print 'menu called back on', marker_name, menu_item, full_action_path, int_feedback
+        marker_disp = self.markers[marker_name]
+        #Record this in DB
+        self.tag_database.update_behavior(marker_disp.tagid, full_action_path)
+        #Reset the AR marker
+        marker_disp.update_ar_marker(menu_item)
+        self.server.applyChanges()
         self.ar_lock.release()
 
     def main_directory_changed(self, main_path_name):
