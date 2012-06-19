@@ -13,6 +13,7 @@
   <depend package="smach"/>
   <depend package="actionlib"/>
 
+  <depend package="rcommander_web"/>
   <depend package="rcommander"/>
   <depend package="tts_server"/>
 
