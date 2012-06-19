@@ -77,7 +77,7 @@ class RCommanderAutoServer:
         self.main_directory_changed(self.path_to_rcommander_files)
 
         rospy.Service('list_rcommander_actions', ActionInfo, self.list_action_cb)
-        self.actserv = actionlib.SimpleActionServer('run_rcommander_action', RunScriptAction, execute_cb=self.execute_cb, auto_start=False)
+        self.actserv = actionlib.SimpleActionServer('run_rcommander_action_web', RunScriptAction, execute_cb=self.execute_cb, auto_start=False)
         self.actserv.start()
 
     def execute_cb(self, goal):

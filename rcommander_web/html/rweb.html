@@ -115,7 +115,7 @@
 		}
 
 		function setup_connection(on_open) {
-			NODE_HANDLE = new ros.NodeHandle("ws://monty1.hsi.gatech.edu:9092");
+			NODE_HANDLE = new ros.NodeHandle("ws://monty1.hsi.gatech.edu:9091");
 			NODE_HANDLE.setOnClose(function(e) {
 				log("Disconnected or Can't Connect.");
 			});
@@ -127,7 +127,7 @@
 			NODE_HANDLE.setOnOpen(function(e) {
 				log("Connected");
 				var action_spec = new ros.actionlib.ActionSpec('rcommander_web/RunScriptAction');
-				RUN_ACTION_CLIENT = new ros.actionlib.SimpleActionClient(NODE_HANDLE, '/run_rcommander_action', action_spec);
+				RUN_ACTION_CLIENT = new ros.actionlib.SimpleActionClient(NODE_HANDLE, '/run_rcommander_action_web', action_spec);
 				LIST_ACTIONS_SRV = NODE_HANDLE.serviceClient("/list_rcommander_actions");
 				on_open(e);
 			});
@@ -177,7 +177,7 @@
 			// rpath = decode_path(u.hash.replace(/#/, ''));
 			if ($.mobile.activePage == undefined || $.mobile.activePage.attr('id') == undefined || decode_path($.mobile.activePage.attr('id')) != rpath) {
 				if (rpath.length == 0) {
-					rpath = 'test_behaviors';
+					rpath = 'robot_behaviors';
 				}
 
 				var page = create_jquery_page(rpath);

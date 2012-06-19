@@ -159,8 +159,10 @@ def has_frame(tf_listener, source, target):
         tf_listener.lookupTransform(source, target, rospy.Time(0))
         return True
     except tf.LookupException, e:
+        print e
         return False
     except tf.ExtrapolationException, e:
+        print e
         return False
 
 class VelocityPriorityState(tu.StateBase):
