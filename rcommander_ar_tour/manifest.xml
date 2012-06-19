@@ -9,6 +9,15 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/rcommander_ar_tour</url>
 
+  <depend package="rospy"/>
+  <depend package="interactive_markers"/>
+  <depend package="rcommander_ar_pose"/>
+  <depend package="rcommander_pr2_gui"/>
+  <depend package="std_msgs"/>
+  <depend package="tf"/>
+
+
+  
 </package>
 
 
