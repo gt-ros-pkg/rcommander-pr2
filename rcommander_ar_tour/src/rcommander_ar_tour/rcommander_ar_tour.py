@@ -300,10 +300,10 @@ class ARTour:
         #print 'cb', len(msg.markers)
 
     def _keep_frames_updated(self):
-        print '<<<<<<<<<<<<<<<'
+        #print '<<<<<<<<<<<<<<<'
         #ar_frames = rap.find_ar_frames(self.tf_listener)
         visible = self.marker_visibility.keys()
-        print 'visible', visible
+        #print 'visible', visible
         
         #Publish frames that are not visible
         for tagid in self.tag_database.tag_ids():
@@ -334,7 +334,7 @@ class ARTour:
 
         if markers_changed:
             self.server.applyChanges()
-        print '>>>>>>>>>>>>>>>'
+        #print '>>>>>>>>>>>>>>>'
 
     def _save_database(self):
         print '< Saving',
@@ -395,6 +395,44 @@ if __name__=="__main__":
     artour.run()
     rospy.loginfo('RCommander AR Tour Server up!')
     app.exec_()
+
+
+#####
+# How to play back behaviors?
+# rviz
+#
+# browser
+#
+# rcommander_web
+#
+# rcommander_auto_server
+#
+# rcommander_ar_tour
+
+#
+# browser => auto_server (don't have 3D point)
+#
+# browser => rcommander_ar_tour (don't have the ability to execute yet)
+#
+# special brower => special rcommander_ar_tour (has 3D and execution)
+#
+# How would rcommander web integrate with auto server?
+#
+# Rcommander auto server
+#
+# 1) complete separation of web and ar_tour
+#       web for list of behaviors
+#       tour for ar toolkit type things
+#       problem of two behaviors trying to execute at the same time.  bad!
+#
+# 2) ar tour sets the parameters
+#       web activates/replay everything
+#       
+#       Web has to call auto server vs ar_tour accordingly
+#       auto_server/ar_tour appears as menus in web interface?
+#
+#       construct a new auto_server/ar_tour mashup
+#
 
 
 
