@@ -219,9 +219,9 @@ class SE3Tool:
         self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
 
     def make_se3_boxes(self, pbox):
-        self.xline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
-        self.yline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
-        self.zline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
+        self.xline = tu.double_spin_box(pbox, -200., 200.,.01) #QLineEdit(pbox)
+        self.yline = tu.double_spin_box(pbox, -200., 200.,.01) #QLineEdit(pbox)
+        self.zline = tu.double_spin_box(pbox, -200., 200.,.01) #QLineEdit(pbox)
         self.phi_line   = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
         self.theta_line = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
         self.psi_line   = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
