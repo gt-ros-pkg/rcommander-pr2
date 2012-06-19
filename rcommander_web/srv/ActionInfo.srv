@@ -1,0 +1,6 @@
+string path
+---
+string[] folder_names
+string[] folder_paths
+string[] action_names
+string[] action_paths

@@ -160,6 +160,8 @@ def has_frame(tf_listener, source, target):
         return True
     except tf.LookupException, e:
         return False
+    except tf.ExtrapolationException, e:
+        return False
 
 class VelocityPriorityState(tu.StateBase):
 
