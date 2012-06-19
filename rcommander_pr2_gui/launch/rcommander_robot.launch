@@ -21,7 +21,7 @@
             <node name="map_server" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/hsi_full_4_24.yaml" machine="c2"/>
         </group>
 
-        <node pkg="simple_move_base" type="move_base_server.py" name="move_base_server"/>
+        <node pkg="simple_move_base" type="move_base_server.py" name="move_base_server" output="screen"/>
     </group>
 
     <include unless="$(arg interactive_manipulation)" file="$(find pr2_interactive_manipulation)/launch/pr2_interactive_manipulation_robot.launch">
