@@ -129,14 +129,14 @@ class MarkerDisplay:
         self.server = server
         self.tag_database = tag_database
 
-        #self.make_target_marker('target_' + self.tagid, self.tag_database.get(self.tagid)['target_location'], .5)
-        self.make_ar_marker('ar_' + self.tagid, self.tag_database.get(self.tagid)['ar_location'], .5)
+        self.make_ar_marker('ar_' + self.tagid, self.tag_database.get(self.tagid)['ar_location'])
         self.has_point = False
         self.tf_listener = tf_listener
-        #self.behavior_menu = BehaviorMenu('menu_' + self.tag_id, self.server)
 
-    def make_ar_marker(self, name, pose, scale):
+    def make_ar_marker(self, name, pose, scale=.2):
         int_marker = interactive_marker(name, pose, scale)
+        idnumb = self.tagid.split('_')
+        int_marker.description = 'Tag #%s' % idnumb[-1]
         int_marker.controls += [make_sphere_control(name, int_marker.scale)]
         int_marker.controls[0].markers[0].color = stdm.ColorRGBA(0,1,0,.5)
         self.server.insert(int_marker, self.process_feedback)
@@ -159,8 +159,8 @@ class MarkerDisplay:
         menu_handler.insert("Second Entry", parent=sub_menu_handle, callback=self.process_feedback)
         menu_handler.apply(server, int_marker.name)
 
-    def make_target_marker(self, name, pose, scale):
-        int_marker = interactive_marker(name, pose, scale)
+    def make_target_marker(self, name, pose, scale=.2):
+        int_marker = interactive_marker(name, (pose[0], (0,0,0,1)), scale)
         int_marker.header.frame_id = 'map' #self.tagid
         int_marker.description = ''
         int_marker.controls.append(make_sphere_control(name, scale/2.))
@@ -179,7 +179,7 @@ class MarkerDisplay:
             m_ar = tfu.tf_as_matrix(p_ar)
             map_T_ar = tfu.transform('map', self.tagid, self.tf_listener, t=0)
             p_map = tfu.matrix_as_tf(map_T_ar * m_ar)
-            self.make_target_marker('target_' + self.tagid, p_map, .5)
+            self.make_target_marker('target_' + self.tagid, p_map)
             
         self.server.applyChanges()
         self.has_point = not self.has_point
@@ -193,7 +193,10 @@ class MarkerDisplay:
             self.toggle_point()
 
         if target_match != None and feedback.event_type == ims.InteractiveMarkerFeedback.POSE_UPDATE:
-            self.tag_database.update_target_location(self.tagid, pose_to_tup(feedback.pose))
+            m_ar = tfu.tf_as_matrix(pose_to_tup(feedback.pose))
+            ar_T_map = tfu.transform(self.tagid, 'map', self.tf_listener, t=0)
+            p_ar = tfu.matrix_as_tf(ar_T_map * m_ar)
+            self.tag_database.update_target_location(self.tagid, p_ar)
 
 class ARTour:
 
