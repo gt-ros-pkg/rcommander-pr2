@@ -152,7 +152,7 @@ class MarkerDisplay:
         name = 'ar_' + self.tagid
         pose = self.tag_database.get(self.tagid)['ar_location']
 
-        int_marker = interactive_marker(name, pose, scale)
+        int_marker = interactive_marker(name, (pose[0], (0,0,0,1)), scale)
         int_marker.description = 'Tag #%d' % self.get_id_numb() 
         int_marker.controls += [make_sphere_control(name, int_marker.scale)]
         int_marker.controls[0].markers[0].color = stdm.ColorRGBA(0,1,0,.5)
