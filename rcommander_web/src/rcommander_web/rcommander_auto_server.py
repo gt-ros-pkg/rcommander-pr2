@@ -49,7 +49,7 @@ def has_graph_files(p):
 
 ##
 # Find folders with graph files in a directory tree return a recursive dict of the form:
-# {'path':   full path
+# {'path':   just folder name, not full path
 #  'actions': [{another folder's dict}, {another folder's dict 2}, string_of_action_file_name}
 def find_all_actions(path):
     path = os.path.normpath(path)
