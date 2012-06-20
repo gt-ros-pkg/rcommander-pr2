@@ -62,7 +62,7 @@ def make_control_marker():
     control.interaction_mode = ims.InteractiveMarkerControl.MOVE_AXIS
     return control
 
-def make_orientation_controls(name):
+def make_directional_controls(name):
     x_control = make_control_marker()
     x_control.orientation.x = 1
     x_control.name = name + "_move_x"
@@ -190,7 +190,7 @@ class MarkerDisplay:
         int_marker.description = ''
         int_marker.controls.append(make_sphere_control(name, scale/2.))
         int_marker.controls[0].markers[0].color = stdm.ColorRGBA(1,0,0,.5)
-        int_marker.controls += make_orientation_controls(name)
+        int_marker.controls += make_directional_controls(name)
 
         self.server.insert(int_marker, self.process_feedback)
         self.target_marker = int_marker
@@ -223,7 +223,6 @@ class MarkerDisplay:
             ar_T_map = tfu.transform(self.tagid, 'map', self.tf_listener, t=0)
             p_ar = tfu.matrix_as_tf(ar_T_map * m_ar)
             self.tag_database.update_target_location(self.tagid, p_ar)
-
 
 ##
 # @param callback is a function: f(menu_item, full_action_path)
