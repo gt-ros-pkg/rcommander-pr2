@@ -21,6 +21,8 @@ from PyQt4 import QtCore#, QtGui
 import os
 import os.path as pt
 import numpy as np
+import inspect as insp
+#from inspect import isfunction
 
 
 import rcommander_web.rcommander_auto_server as ras
@@ -329,6 +331,7 @@ class ARServer:
         self.path_to_rcommander_files = path_to_rcommander_files
         self.robot = robot
         self.ar_lock = RLock()
+        self.tf_broadcast_lock = RLock()
         self.broadcaster = tf.TransformBroadcaster()
         if tf_listener == None:
             self.tf_listener = tf.TransformListener()
@@ -414,7 +417,17 @@ class ARServer:
 
     def execute_cb(self, goal):
         rospy.loginfo('Executing: ' + goal.action_path)
-        self.loaded_actions[goal.action_path]['marker_server'].execute(self.actserv)
+        if hasattr(self.loaded_actions[goal.action_path], '__call__'):
+            self.loaded_actions[goal.action_path]()
+        else:
+            self.loaded_actions[goal.action_path]['marker_server'].execute(self.actserv)
+
+    def _execute_database_action_cb(self, tagid):
+        self.set_task_frame(tagid)
+        self.publish_task_frame_transform()
+        rospy.loginfo('Published task frame using info in %s', tagid)
+        self.loaded_actions[self.tag_database.get(tagid)['behavior']].execute(self.actserv)
+        self.set_task_frame(None) #This will stop the publishing process
 
     def ar_marker_cb(self, msg):
         self.marker_visibility = {}
@@ -506,7 +519,8 @@ class ARServer:
             entry = self.tag_database.get(tagid)
             if entry['behavior'] != None:
                 action_path = pt.join('Locations', entry['behavior'])
-                self.loaded_actions[action_path] = self.loaded_actions[entry['behavior']]
+                self.loaded_actions[action_path] = ft.partial(self._execute_database_action_cb, tagid)
+                #self.loaded_actions[action_path] = self.loaded_actions[entry['behavior']]
                 locations_tree['actions'] += [action_path]
 
 
@@ -550,7 +564,9 @@ class ARServer:
             # either way we want to publish only a task frame -- ar frame
             entry = self.tag_database.get(self.current_task_frame)
             target_location, _ = entry['target_location']
+            self.tf_broadcast_lock.acquire()
             self.broadcaster.sendTransform(target_location, [0,0,0,1], rospy.Time.now(), 'task_frame', self.current_task_frame)
+            self.tf_broadcast_lock.release()
 
     #####################################################################
     # Functions for maintaining action directories
@@ -580,7 +596,9 @@ class ARServer:
                     self.remove_marker_for_tag(tagid)
                 else:
                     position, orientation = self.tag_database.get(tagid)['ar_location']
+                    self.tf_broadcast_lock.acquire()
                     self.broadcaster.sendTransform(position, orientation, rospy.Time.now(), tagid, '/map')
+                    self.tf_broadcast_lock.release()
                     #print tagid, ' is not visible. creating transforms.'
         
         #make sure all visible frames are in database
