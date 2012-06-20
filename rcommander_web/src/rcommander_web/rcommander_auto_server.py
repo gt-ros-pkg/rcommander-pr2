@@ -46,15 +46,15 @@ def has_graph_files(p):
     return os.path.isfile(epath) and os.path.isfile(npath)
 
 
-##
-# {'path':   full path
-#  'actions': [{another folder}, {another folder2}, rcom_file}
 
+##
+# Find folders with graph files in a directory tree return a recursive dict of the form:
+# {'path':   full path
+#  'actions': [{another folder's dict}, {another folder's dict 2}, string_of_action_file_name}
 def find_all_actions(path):
     path = os.path.normpath(path)
     actions = []
     for d in os.listdir(path):
-        print d
         candidate_dir = os.path.join(path, d)
         if os.path.isdir(candidate_dir) and has_graph_files(candidate_dir):
             actions.append(candidate_dir)
