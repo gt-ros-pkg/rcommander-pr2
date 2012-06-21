@@ -324,19 +324,23 @@ class MarkerDisplay:
             return
 
         if is_current_task_frame != self.is_current_task_frame:
-            #print 'c'
             self.is_current_task_frame = is_current_task_frame
+            #print 'c'
             self.server_lock.acquire()
             self.marker_server.erase(self.target_marker.name)
             self.make_target_marker()
             self.server_lock.release()
+
 
     def marker_cb(self, feedback):
         name = feedback.marker_name
         ar_match = re.search('^ar_', name)
         target_match = re.search('^target_', name)
 
-        print 'called', target_match, feedback_to_string(feedback.event_type)
+        #if feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
+        #    print name, feedback
+
+        #print 'called', feedback_to_string(feedback.event_type)
         if ar_match != None and feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
             #print 'lock acq'
             self.toggle_point()
@@ -348,7 +352,8 @@ class MarkerDisplay:
             p_ar = tfu.matrix_as_tf(ar_T_map * m_ar)
             self.tag_database.update_target_location(self.tagid, p_ar)
 
-        if target_match != None and feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
+        sphere_match = re.search('_sphere$', feedback.control_name)
+        if sphere_match != None and target_match != None and feedback.event_type == ims.InteractiveMarkerFeedback.BUTTON_CLICK:
             self.frame_selected_cb(self.tagid)
 
 
@@ -605,17 +610,17 @@ class ARServer:
     # Task frame management
     #####################################################################
     def frame_selected_cb(self, tagid):
-        print 'framed_selected_cb', tagid
+        #print 'framed_selected_cb', tagid
         self.set_task_frame(tagid)
         self.publish_task_frame_transform()
         for disp_id in self.ar_markers.keys():
             if disp_id == tagid:
-                if self.ar_markers[tagid].is_current_task_frame:
-                    self.ar_markers[tagid].set_task_frame(False)
+                if self.ar_markers[disp_id].is_current_task_frame:
+                    self.ar_markers[disp_id].set_task_frame(False)
                 else:
                     self.ar_markers[tagid].set_task_frame(True)
             else:
-                self.ar_markers[tagid].set_task_frame(False)
+                self.ar_markers[disp_id].set_task_frame(False)
 
         self.ar_lock.acquire()
         self.marker_server.applyChanges()
@@ -708,6 +713,10 @@ class ARServer:
     def start(self):
         self.i = 0
         rospy.Timer(rospy.Duration(.1), self.step)
+        #r = rospy.Rate(10)
+        #while not rospy.is_shutdown():
+        #    self.step(10)
+        #    r.sleep()
 
 
 def run(robot, tf_listener, path_to_rcommander_files, tag_database_name='ar_tag_database.pkl'):
@@ -730,5 +739,6 @@ def run(robot, tf_listener, path_to_rcommander_files, tag_database_name='ar_tag_
     arserver.start()
 
     rospy.loginfo('RCommander AR Tour Server up!')
+    #rospy.spin()
     app.exec_()
 
