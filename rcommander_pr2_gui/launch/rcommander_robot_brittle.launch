@@ -1,0 +1,4 @@
+<launch>
+    <node pkg="rcommander_pr2_gui" type="rcommander_tuckarm_node.py" output="screen" name="rc_tuck_arms_node"/>
+    <node pkg="simple_move_base" type="move_base_server.py" name="move_base_server" output="screen"/>
+</launch>

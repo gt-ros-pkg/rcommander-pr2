@@ -21,6 +21,8 @@ from PyQt4 import QtCore#, QtGui
 import os
 import os.path as pt
 import numpy as np
+import inspect as insp
+#from inspect import isfunction
 
 
 import rcommander_web.rcommander_auto_server as ras
@@ -113,16 +115,16 @@ def pose_to_tup(p):
 
 ##
 # @param callback is a function: f(menu_item, full_action_path)
-def menu_handler_from_action_tree(action_tree, callback):
+def menu_handler_from_action_tree(actions_tree, callback):
     handler = mh.MenuHandler()
-    menu_handler_from_action_tree_helper(handler, action_tree, callback)
+    menu_handler_from_action_tree_helper(handler, actions_tree, callback)
     return handler
 
 # {'path':   full path
 #  'actions': [{another folder}, {another folder2}, rcom_file}
-def menu_handler_from_action_tree_helper(handler, action_tree, callback, parent=None):
-    base_path = action_tree['path']
-    for action in action_tree['actions']:
+def menu_handler_from_action_tree_helper(handler, actions_tree, callback, parent=None):
+    base_path = actions_tree['path']
+    for action in actions_tree['actions']:
         if isinstance(action, dict):
             submenu = handler.insert(action['path'], parent=parent)
             menu_handler_from_action_tree_helper(handler, action, callback, parent=submenu)
@@ -188,34 +190,43 @@ class TagDatabase:
             pickle_file.close()
             rospy.loginfo('Saved tag database to %s.'% name)
 
+def get_id_numb(tagid):
+    idnumb = tagid.split('_')
+    return int(idnumb[-1])
+
+def tag_name(tagid, behavior_name):
+    return '%s (tag #%d)' % (behavior_name, get_id_numb(tagid))
+
 class MarkerDisplay:
 
-    def __init__(self, tagid, server, tag_database, tf_listener, server_lock):
+    def __init__(self, tagid, marker_server, tag_database, tf_listener, server_lock, frame_selected_cb):
         self.tagid = tagid
 
+        self.frame_selected_cb = frame_selected_cb
         self.server_lock = server_lock
-        self.server = server
+        self.marker_server = marker_server
         self.tag_database = tag_database
         self.target_marker = None
         self.ar_marker = None
 
         self.make_ar_marker()
-        self.has_point = False
+        self.displaying_3d_frame = False
+        self.is_current_task_frame = False
         self.tf_listener = tf_listener
         self.menu = None
 
     def remove_all_markers(self):
         self.server_lock.acquire()
         if self.ar_marker != None:
-            self.server.erase(self.ar_marker.name)
+            self.marker_server.erase(self.ar_marker.name)
 
         if self.target_marker != None:
-            self.server.erase(self.target_marker.name)
+            self.marker_server.erase(self.target_marker.name)
         self.server_lock.release()
 
-    def get_id_numb(self):
-        idnumb = self.tagid.split('_')
-        return int(idnumb[-1])
+    #def get_id_numb(self):
+    #    idnumb = self.tagid.split('_')
+    #    return int(idnumb[-1])
 
     def make_ar_marker(self, scale=.2):
         name = 'ar_' + self.tagid
@@ -225,31 +236,31 @@ class MarkerDisplay:
         int_marker = interactive_marker(name, (pose[0], (0,0,0,1)), scale)
         if entry['behavior'] != None:
             behavior_name = pt.split(entry['behavior'])[1]
-            int_marker.description = ('%s (tag #%d)' % (behavior_name, self.get_id_numb()))
+            int_marker.description = tag_name(self.tagid, behavior_name) 
         else:
-            int_marker.description = 'Tag #%d' % self.get_id_numb() 
+            int_marker.description = 'Tag #%d' % get_id_numb(self.tagid) 
         int_marker.controls += [make_sphere_control(name, int_marker.scale)]
         int_marker.controls[0].markers[0].color = stdm.ColorRGBA(0,1,0,.5)
         self.server_lock.acquire()
-        self.server.insert(int_marker, self.marker_cb)
+        self.marker_server.insert(int_marker, self.marker_cb)
         self.server_lock.release()
         self.ar_marker = int_marker
 
     def update_ar_marker(self, behavior_name):
 
         self.server_lock.acquire()
-        self.server.erase(self.ar_marker.name)
-        self.ar_marker.description = ('%s (tag #%d)' % (behavior_name, self.get_id_numb()))
-        self.server.insert(self.ar_marker)
+        self.marker_server.erase(self.ar_marker.name)
+        self.ar_marker.description = ('%s (tag #%d)' % (behavior_name, get_id_numb(self.tagid)))
+        self.marker_server.insert(self.ar_marker)
         self.server_lock.release()
 
     def set_menu(self, menu_handler):
         self.menu = menu_handler
-        if not self.has_point:
+        if not self.displaying_3d_frame:
             return
         else:
             self.server_lock.acquire()
-            self.server.erase(self.target_marker.name)
+            self.marker_server.erase(self.target_marker.name)
             self.server_lock.release()
             self._make_menu()
 
@@ -263,20 +274,34 @@ class MarkerDisplay:
         self.target_marker.controls.append(copy.deepcopy(menu_control))
 
         self.server_lock.acquire()
-        self.server.insert(self.target_marker, self.marker_cb)
-        self.menu.apply(self.server, self.target_marker.name)
+        self.marker_server.insert(self.target_marker, self.marker_cb)
+        self.menu.apply(self.marker_server, self.target_marker.name)
         self.server_lock.release()
 
-    def make_target_marker(self, name, pose, scale=.2):
+    def make_target_marker(self): #, scale=.2, color=stdm.ColorRGBA(.5,.5,.5,.5)):
+        if self.is_current_task_frame:
+            scale = .3
+            color = stdm.ColorRGBA(1,0,0,.5)
+        else:
+            scale = .2
+            color = stdm.ColorRGBA(.5,.5,.5,.5)
+
+        name = 'target_' + self.tagid
+        p_ar = self.tag_database.get(self.tagid)['target_location']
+        m_ar = tfu.tf_as_matrix(p_ar)
+        map_T_ar = tfu.transform('map', self.tagid, self.tf_listener, t=0)
+        p_map = tfu.matrix_as_tf(map_T_ar * m_ar)
+        pose = p_map
+
         int_marker = interactive_marker(name, (pose[0], (0,0,0,1)), scale)
         int_marker.header.frame_id = 'map' #self.tagid
         int_marker.description = ''
         int_marker.controls.append(make_sphere_control(name, scale/2.))
-        int_marker.controls[0].markers[0].color = stdm.ColorRGBA(1,0,0,.5)
+        int_marker.controls[0].markers[0].color = color
         int_marker.controls += make_directional_controls(name)
 
         self.server_lock.acquire()
-        self.server.insert(int_marker, self.marker_cb)
+        self.marker_server.insert(int_marker, self.marker_cb)
         self.server_lock.release()
         self.target_marker = int_marker
         if self.menu != None:
@@ -284,39 +309,53 @@ class MarkerDisplay:
 
     def toggle_point(self):
         self.server_lock.acquire()
-        if self.has_point:
-            print 'erasing'
-            self.server.erase(self.target_marker.name)
+        if self.displaying_3d_frame:
+            self.marker_server.erase(self.target_marker.name)
         else:
-            print 'making target marker'
-            p_ar = self.tag_database.get(self.tagid)['target_location']
-            m_ar = tfu.tf_as_matrix(p_ar)
-            map_T_ar = tfu.transform('map', self.tagid, self.tf_listener, t=0)
-            p_map = tfu.matrix_as_tf(map_T_ar * m_ar)
-            self.make_target_marker('target_' + self.tagid, p_map)
+            self.make_target_marker()
 
-        print 'applying changes'
-        self.server.applyChanges()
-        self.has_point = not self.has_point
+        self.marker_server.applyChanges()
         self.server_lock.release()
+        self.displaying_3d_frame = not self.displaying_3d_frame
+
+    def set_task_frame(self, is_current_task_frame):
+        if not self.displaying_3d_frame:
+            self.is_current_task_frame = is_current_task_frame
+            return
+
+        if is_current_task_frame != self.is_current_task_frame:
+            self.is_current_task_frame = is_current_task_frame
+            #print 'c'
+            self.server_lock.acquire()
+            self.marker_server.erase(self.target_marker.name)
+            self.make_target_marker()
+            self.server_lock.release()
+
 
     def marker_cb(self, feedback):
         name = feedback.marker_name
         ar_match = re.search('^ar_', name)
         target_match = re.search('^target_', name)
 
-        print 'called'
-        if ar_match != None and feedback.event_type == ims.InteractiveMarkerFeedback.BUTTON_CLICK:
-            print 'lock acq'
+        #if feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
+        #    print name, feedback
+
+        print 'called', feedback_to_string(feedback.event_type), feedback.marker_name, feedback.control_name
+        if ar_match != None and feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
+            #print 'lock acq'
             self.toggle_point()
-            print 'toggle!'
+            #print 'toggle!'
 
         if target_match != None and feedback.event_type == ims.InteractiveMarkerFeedback.POSE_UPDATE:
             m_ar = tfu.tf_as_matrix(pose_to_tup(feedback.pose))
             ar_T_map = tfu.transform(self.tagid, 'map', self.tf_listener, t=0)
             p_ar = tfu.matrix_as_tf(ar_T_map * m_ar)
             self.tag_database.update_target_location(self.tagid, p_ar)
-        print 'exited'
+
+        sphere_match = re.search('_sphere$', feedback.control_name)
+        menu_match = re.search('_menu$', feedback.control_name)
+        if ((sphere_match != None) or (menu_match != None)) and target_match != None and feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
+            self.frame_selected_cb(self.tagid)
 
 
 class ARServer:
@@ -329,6 +368,7 @@ class ARServer:
         self.path_to_rcommander_files = path_to_rcommander_files
         self.robot = robot
         self.ar_lock = RLock()
+        self.tf_broadcast_lock = RLock()
         self.broadcaster = tf.TransformBroadcaster()
         if tf_listener == None:
             self.tf_listener = tf.TransformListener()
@@ -414,7 +454,17 @@ class ARServer:
 
     def execute_cb(self, goal):
         rospy.loginfo('Executing: ' + goal.action_path)
-        self.loaded_actions[goal.action_path]['marker_server'].execute(self.actserv)
+        if hasattr(self.loaded_actions[goal.action_path], '__call__'):
+            self.loaded_actions[goal.action_path]()
+        else:
+            self.loaded_actions[goal.action_path]['marker_server'].execute(self.actserv)
+
+    def _execute_database_action_cb(self, tagid):
+        self.set_task_frame(tagid)
+        self.publish_task_frame_transform()
+        rospy.loginfo('Published task frame using info in %s', tagid)
+        self.loaded_actions[self.tag_database.get(tagid)['behavior']]['marker_server'].execute(self.actserv)
+        self.set_task_frame(None) #This will stop the publishing process
 
     def ar_marker_cb(self, msg):
         self.marker_visibility = {}
@@ -422,14 +472,16 @@ class ARServer:
             self.marker_visibility['4x4_' + str(marker.id)] = True
 
     def ar_menu_callback(self, marker_name, menu_item, full_action_path, int_feedback):
-        self.ar_lock.acquire()
         print 'menu called back on', marker_name, menu_item, full_action_path#, int_feedback
+        self.ar_lock.acquire()
+
         marker_disp = self.ar_markers[marker_name]
-        #Record this in DB
         self.tag_database.update_behavior(marker_disp.tagid, full_action_path)
-        #Reset the AR marker
+
+        self._insert_database_action(marker_disp.tagid)
         marker_disp.update_ar_marker(menu_item)
         self.marker_server.applyChanges()
+
         self.ar_lock.release()
 
     #####################################################################
@@ -487,14 +539,14 @@ class ARServer:
 
     def insert_locations_folder(self):
         has_locations_folder = False
-        for action in self.action_tree['actions']:
+        for action in self.actions_tree['actions']:
             if isinstance(action, dict) and action['path'] == 'Locations':
                 has_locations_folder = True
         if not has_locations_folder:
-            self.action_tree['actions'].append({'path':'Locations', 'actions':[]})
+            self.actions_tree['actions'].append({'path':'Locations', 'actions':[]})
 
     def get_locations_tree(self):
-        for action in self.action_tree['actions']:
+        for action in self.actions_tree['actions']:
             if isinstance(action, dict) and action['path'] == 'Locations':
                 return action
 
@@ -503,12 +555,31 @@ class ARServer:
         locations_tree = self.get_locations_tree()
         #insert individual action from db
         for tagid in self.tag_database.tag_ids():
-            entry = self.tag_database.get(tagid)
-            if entry['behavior'] != None:
-                action_path = pt.join('Locations', entry['behavior'])
-                self.loaded_actions[action_path] = self.loaded_actions[entry['behavior']]
-                locations_tree['actions'] += [action_path]
+            self._insert_database_action(tagid, locations_tree)
 
+    def _behavior_path_to_location_path(self, behavior_path, tagid):
+        relative_path = behavior_path.replace(self.path_to_rcommander_files, '')
+        root_path = ''
+        decomposed_name = relative_path.split(pt.sep)
+        behavior_name = decomposed_name[-1]
+        for p in decomposed_name[1:-1]:
+            root_path = pt.join(root_path, p)
+        root_path = pt.join(root_path, tag_name(tagid, behavior_name))
+        return pt.join(self.path_to_rcommander_files, pt.join('Locations', root_path))
+
+    def _insert_database_action(self, tagid, locations_tree=None):
+        if locations_tree == None:
+            locations_tree = self.get_locations_tree()
+        entry = self.tag_database.get(tagid)
+        if entry['behavior'] != None:
+            #action_path = pt.join('Locations', entry['behavior'])
+            action_path = self._behavior_path_to_location_path(entry['behavior'], tagid)
+            print 'entry behavior', entry['behavior']
+            print 'path_to_rcommander_files', self.path_to_rcommander_files
+            rospy.loginfo('Inserted %s into loaded_actions.' % action_path)
+            self.loaded_actions[action_path] = ft.partial(self._execute_database_action_cb, tagid)
+            locations_tree['actions'] += [action_path]
+            #self.loaded_actions[action_path] = self.loaded_actions[entry['behavior']]
 
     ##
     # Creates a directory listing by descending the actions tree 
@@ -539,6 +610,23 @@ class ARServer:
     #####################################################################
     # Task frame management
     #####################################################################
+    def frame_selected_cb(self, tagid):
+        #print 'framed_selected_cb', tagid
+        self.set_task_frame(tagid)
+        self.publish_task_frame_transform()
+        for disp_id in self.ar_markers.keys():
+            if disp_id == tagid:
+                if self.ar_markers[disp_id].is_current_task_frame:
+                    self.ar_markers[disp_id].set_task_frame(False)
+                else:
+                    self.ar_markers[tagid].set_task_frame(True)
+            else:
+                self.ar_markers[disp_id].set_task_frame(False)
+
+        self.ar_lock.acquire()
+        self.marker_server.applyChanges()
+        self.ar_lock.release()
+
     def set_task_frame(self, tagid):
         self.current_task_frame = tagid
 
@@ -550,7 +638,9 @@ class ARServer:
             # either way we want to publish only a task frame -- ar frame
             entry = self.tag_database.get(self.current_task_frame)
             target_location, _ = entry['target_location']
+            self.tf_broadcast_lock.acquire()
             self.broadcaster.sendTransform(target_location, [0,0,0,1], rospy.Time.now(), 'task_frame', self.current_task_frame)
+            self.tf_broadcast_lock.release()
 
     #####################################################################
     # Functions for maintaining action directories
@@ -561,7 +651,7 @@ class ARServer:
 
     def create_marker_for_tag(self, tagid):
         if not self.ar_markers.has_key(tagid):
-            display = MarkerDisplay(tagid, self.marker_server, self.tag_database, self.tf_listener, self.ar_lock)
+            display = MarkerDisplay(tagid, self.marker_server, self.tag_database, self.tf_listener, self.ar_lock, self.frame_selected_cb)
             self.ar_markers[tagid] = display
             menu_handler = menu_handler_from_action_tree(self.actions_tree, ft.partial(self.ar_menu_callback, tagid))
             self.ar_markers[tagid].set_menu(menu_handler)
@@ -580,7 +670,9 @@ class ARServer:
                     self.remove_marker_for_tag(tagid)
                 else:
                     position, orientation = self.tag_database.get(tagid)['ar_location']
+                    self.tf_broadcast_lock.acquire()
                     self.broadcaster.sendTransform(position, orientation, rospy.Time.now(), tagid, '/map')
+                    self.tf_broadcast_lock.release()
                     #print tagid, ' is not visible. creating transforms.'
         
         #make sure all visible frames are in database
@@ -609,7 +701,7 @@ class ARServer:
         self.tag_database.save(self.tag_database_name)
 
     def step(self, timer_obj):
-        print 'step',
+        #print 'step',
         self.ar_lock.acquire()
         self._keep_frames_updated()
         self.publish_task_frame_transform()
@@ -617,11 +709,15 @@ class ARServer:
             self._save_database()
         self.i += 1
         self.ar_lock.release()
-        print 'ped'
+        #print 'ped'
 
     def start(self):
         self.i = 0
         rospy.Timer(rospy.Duration(.1), self.step)
+        #r = rospy.Rate(10)
+        #while not rospy.is_shutdown():
+        #    self.step(10)
+        #    r.sleep()
 
 
 def run(robot, tf_listener, path_to_rcommander_files, tag_database_name='ar_tag_database.pkl'):
@@ -639,6 +735,7 @@ def run(robot, tf_listener, path_to_rcommander_files, tag_database_name='ar_tag_
     #timer.start(500)
     #timer.timeout.connect(lambda: None)
     #signal.signal(signal.SIGINT, sigint_handler)
+    #rospy.spin()
 
     arserver = ARServer(robot, tf_listener, path_to_rcommander_files, tag_database_name)
     arserver.start()
