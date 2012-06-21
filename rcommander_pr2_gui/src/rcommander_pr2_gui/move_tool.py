@@ -276,8 +276,8 @@ class JointSequenceStateSmach(smach.State):
         # returns one of failed, preempted, timed_out, or succeeded
         result = tu.monitor_goals(self, clients, 'JointSequenceState', trajectory_time_out)
         self.controller_manager.switch(stopped, started)
-        if result == 'aborted':
-            return 'failed'
+        if result == 'failed':
+            return 'aborted'
         return result
 
 
