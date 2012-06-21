@@ -34,8 +34,8 @@ class PreciseNavigateTool(tu.ToolBase, p2u.SE3Tool):
         p2u.SE3Tool.__init__(self)
         self.tf_listener = rcommander.tf_listener
 
-        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
-        gravity_aligned_frames = ['/map', '/base_link']
+        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=False)
+        gravity_aligned_frames = ['/map', '/base_link', '/task_frame']
         self.allowed_frames = []
         fourfour = re.compile('^/4x4_\d+')
         for f in self.frames_service().frames:
@@ -149,7 +149,7 @@ class PreciseNavigateSmach(smach.State):
         #print 'bl_T_frame * h_frame\n', bl_T_frame * h_frame
         x, y, t = se2_from_se3(bl_T_frame * h_frame)
 
-        print 'GOAL', x, y, np.degrees(t)
+        #print 'GOAL', x, y, np.degrees(t)
 
         xy_goal = smb.GoXYGoal(x,y)
         self.go_xy_client.send_goal(xy_goal)
