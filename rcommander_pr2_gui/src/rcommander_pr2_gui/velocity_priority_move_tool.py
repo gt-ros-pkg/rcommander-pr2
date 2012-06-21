@@ -350,8 +350,8 @@ class VelocityPriorityStateSmach(smach.State):
             if self.preempt_requested():
                 rospy.loginfo('VelocityPriorityStateSmach: preempt requested')
                 #self.action_client.cancel_goal()
-                lpthread.stop()
-                rpthread.stop()
+                lpthread.set_stop()
+                rpthread.set_stop()
                 self.service_preempt()
                 preempted = True
                 break
