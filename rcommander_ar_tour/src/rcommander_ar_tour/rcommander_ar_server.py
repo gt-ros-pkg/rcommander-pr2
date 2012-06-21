@@ -340,7 +340,7 @@ class MarkerDisplay:
         #if feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
         #    print name, feedback
 
-        #print 'called', feedback_to_string(feedback.event_type)
+        print 'called', feedback_to_string(feedback.event_type), feedback.marker_name, feedback.control_name
         if ar_match != None and feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
             #print 'lock acq'
             self.toggle_point()
@@ -353,7 +353,8 @@ class MarkerDisplay:
             self.tag_database.update_target_location(self.tagid, p_ar)
 
         sphere_match = re.search('_sphere$', feedback.control_name)
-        if sphere_match != None and target_match != None and feedback.event_type == ims.InteractiveMarkerFeedback.BUTTON_CLICK:
+        menu_match = re.search('_menu$', feedback.control_name)
+        if ((sphere_match != None) or (menu_match != None)) and target_match != None and feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
             self.frame_selected_cb(self.tagid)
 
 
@@ -734,11 +735,11 @@ def run(robot, tf_listener, path_to_rcommander_files, tag_database_name='ar_tag_
     #timer.start(500)
     #timer.timeout.connect(lambda: None)
     #signal.signal(signal.SIGINT, sigint_handler)
+    #rospy.spin()
 
     arserver = ARServer(robot, tf_listener, path_to_rcommander_files, tag_database_name)
     arserver.start()
 
     rospy.loginfo('RCommander AR Tour Server up!')
-    #rospy.spin()
     app.exec_()
 
