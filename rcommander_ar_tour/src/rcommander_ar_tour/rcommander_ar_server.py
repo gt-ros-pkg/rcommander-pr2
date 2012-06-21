@@ -662,9 +662,12 @@ class ARServer:
         visible = self.marker_visibility.keys()
         #Publish frames that are not visible
         for tagid in self.tag_database.tag_ids():
+            #If not visible
             if not (tagid in visible):
                 db_entry = self.tag_database.get(tagid)
-                if db_entry['behavior'] == None:
+
+                #if has no behavior associated, most likely false positive, remove it! 
+                if db_entry['behavior'] == None and self.current_task_frame != tagid:
                     #rospy.loginfo('Removing %s from db because no one defined a behavior for it.' % tagid)
                     self.tag_database.remove(tagid)
                     self.remove_marker_for_tag(tagid)
