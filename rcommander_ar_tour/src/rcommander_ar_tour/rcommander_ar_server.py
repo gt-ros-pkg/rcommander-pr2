@@ -671,6 +671,8 @@ class ARServer:
                     #rospy.loginfo('Removing %s from db because no one defined a behavior for it.' % tagid)
                     self.tag_database.remove(tagid)
                     self.remove_marker_for_tag(tagid)
+
+                # if has a behavior publish a tf from tagid to map
                 else:
                     position, orientation = self.tag_database.get(tagid)['ar_location']
                     self.tf_broadcast_lock.acquire()

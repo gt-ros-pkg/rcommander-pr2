@@ -115,7 +115,7 @@
 		}
 
 		function setup_connection(on_open) {
-			NODE_HANDLE = new ros.NodeHandle("ws://monty1.hsi.gatech.edu:9091");
+			NODE_HANDLE = new ros.NodeHandle("ws://monty1.hsi.gatech.edu:9092");
 			NODE_HANDLE.setOnClose(function(e) {
 				log("Disconnected or Can't Connect.");
 			});
