@@ -8,6 +8,7 @@ import interactive_markers.interactive_marker_server as ims
 import interactive_markers.menu_handler as mh
 import ar_pose.msg as ar_msg
 from rcommander_web.srv import ActionInfo, ActionInfoResponse
+import geometry_msgs.msg as gmsg
 
 import rcommander_web.msg as rmsg
 #from rcommander_web.msg import *
@@ -241,6 +242,7 @@ class MarkerDisplay:
             int_marker.description = 'Tag #%d' % get_id_numb(self.tagid) 
         int_marker.controls += [make_sphere_control(name, int_marker.scale)]
         int_marker.controls[0].markers[0].color = stdm.ColorRGBA(0,1,0,.5)
+
         self.server_lock.acquire()
         self.marker_server.insert(int_marker, self.marker_cb)
         self.server_lock.release()
@@ -253,6 +255,26 @@ class MarkerDisplay:
         self.ar_marker.description = ('%s (tag #%d)' % (behavior_name, get_id_numb(self.tagid)))
         self.marker_server.insert(self.ar_marker)
         self.server_lock.release()
+
+    def update_ar_marker_pose(self):
+        loc = self.tag_database.get(self.tagid)['ar_location']
+        #name = 'ar_' + self.tagid
+
+        pose = gmsg.Pose()
+        #pose.header.frame_id = '/map'
+        pose.position.x = loc[0][0]
+        pose.position.y = loc[0][1]
+        pose.position.z = loc[0][2]
+        pose.orientation.x = 0
+        pose.orientation.y = 0
+        pose.orientation.z = 0
+        pose.orientation.w = 1.
+
+        self.server_lock.acquire()
+        #print 'setting', self.ar_marker.name, loc[0]
+        self.marker_server.setPose(self.ar_marker.name, pose)
+        self.server_lock.release()
+
 
     def set_menu(self, menu_handler):
         self.menu = menu_handler
@@ -365,7 +387,7 @@ class ARServer:
 
         self.current_task_frame = None
         self.tag_database_name = tag_database_name
-        self.path_to_rcommander_files = path_to_rcommander_files
+        self.path_to_rcommander_files = pt.realpath(path_to_rcommander_files)
         self.robot = robot
         self.ar_lock = RLock()
         self.tf_broadcast_lock = RLock()
@@ -450,19 +472,24 @@ class ARServer:
         apaths = np.array(apaths)[aorder].tolist()
 
         rospy.loginfo('responded to %s' % path)
+        #print anames
+        #print apaths
         return ActionInfoResponse(fnames, fpaths, anames, apaths)
 
     def execute_cb(self, goal):
         rospy.loginfo('Executing: ' + goal.action_path)
         if hasattr(self.loaded_actions[goal.action_path], '__call__'):
+            #print self.loaded_actions[goal.action_path]
             self.loaded_actions[goal.action_path]()
         else:
+            #print self.loaded_actions[goal.action_path]['marker_server']#.execute(self.actserv)
             self.loaded_actions[goal.action_path]['marker_server'].execute(self.actserv)
 
     def _execute_database_action_cb(self, tagid):
         self.set_task_frame(tagid)
         self.publish_task_frame_transform()
         rospy.loginfo('Published task frame using info in %s', tagid)
+        print self.loaded_actions.keys()
         self.loaded_actions[self.tag_database.get(tagid)['behavior']]['marker_server'].execute(self.actserv)
         self.set_task_frame(None) #This will stop the publishing process
 
@@ -684,14 +711,17 @@ class ARServer:
         markers_changed = False
         for tagid in visible:
             try:
-                ar_location = self.tf_listener.lookupTransform('map', tagid, rospy.Time(0))
+                ar_location = self.tf_listener.lookupTransform('map', tagid, rospy.Time(0)) #ar is a tup
                 if not self.tag_database.has_id(tagid):
                     #rospy.loginfo('Inserted %s into database.' % tagid)
                     self.tag_database.insert(tagid, ar_location)
                     self.create_marker_for_tag(tagid)
                     markers_changed = True
                 else:
+                    #print tagid, ar_location
                     self.tag_database.get(tagid)['ar_location'] = ar_location
+                    self.ar_markers[tagid].update_ar_marker_pose()
+                    markers_changed = True
             except tf.ExtrapolationException, e:
                 print 'exception', e
             except tf.ConnectivityException, e:
@@ -700,7 +730,9 @@ class ARServer:
                 print 'exception', e.__class__
 
         if markers_changed:
+            #print 'markers_changed'
             self.marker_server.applyChanges()
+    ## server.setPose(
 
     def _save_database(self):
         self.tag_database.save(self.tag_database_name)
