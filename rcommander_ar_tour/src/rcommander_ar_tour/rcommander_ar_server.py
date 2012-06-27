@@ -34,6 +34,7 @@ import functools as ft
 import re
 import copy
 from threading import RLock
+import pdb
 
 DEFAULT_LOC = [[0.,0.,0.], [0.,0.,0.,1.]]
 
@@ -442,12 +443,15 @@ class ARServer:
     #AR Version
     def main_directory_watch_cb(self, main_path_name):
         rospy.loginfo('main_directory_watch_cb: rescanning ' + self.path_to_rcommander_files)
+        #return
         actions = ras.find_all_actions(self.path_to_rcommander_files)
         self.loaded_actions, self.actions_tree = self.load_action_from_found_paths(actions)
         self.insert_locations_folder()
         self.insert_database_actions()
 
-        rospy.loginfo('All actions found\n %s \n' % str(self.loaded_actions.keys()))
+        rospy.loginfo('All actions found\n')# % str(self.loaded_actions.keys()))
+        for k in self.loaded_actions.keys():
+            rospy.loginfo('ACTION %s' % k)
 
         #Refresh the menu objects on each AR marker
         self.ar_lock.acquire()
@@ -530,6 +534,8 @@ class ARServer:
                 rospy.sleep(3)
 
     def sub_directory_changed_cb(self, action_path_name):
+        rospy.loginfo("SUBDIRECTORY CHANGED CB", action_path_name)
+        return
         action_path_name = str(action_path_name)
         action_name = pt.split(action_path_name)[1]
         rospy.loginfo('action_name ' + action_name)
