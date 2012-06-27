@@ -264,7 +264,7 @@
 
 		function start_behavior(behavior_path) {
 			RUN_ACTION_CLIENT.wait_for_server(10, function(e) {
-				//Don't start a new action if there is already one running.
+				//Dont start a new action if there is already one running.
 				if (ACTION_STATUS == 'started') {
 					return;
 				}
@@ -278,15 +278,15 @@
 					'action_path' : behavior_path
 				};
 
-				var transition_cb = function(goal_handle) {
-
-				}
-				var feedback_cb = function(goal_handle, feedback_msg) {
+				//var active_cb = function(goal_handle) {
+                //
+				//}
+				var feedback_cb = function(feedback_msg) {
 					display_playback_status(feedback_msg.current_node, feedback_msg.node_type);
 				}
 				display_playback_status('Started');
 
-				RUN_ACTION_CLIENT.send_goal(goal, transition_cb, feedback_cb);
+				RUN_ACTION_CLIENT.send_goal(goal, undefined, undefined, feedback_cb);
 				ACTION_STATUS = 'started'
 
 				// Waits for the server to finish performing the action.
