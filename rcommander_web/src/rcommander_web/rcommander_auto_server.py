@@ -210,13 +210,20 @@ class ScriptedActionServer:
         self.path_to_action = path_to_action
         self.robot = robot
         self.graph_model = gm.GraphModel.load(self.path_to_action)
+        self.last_msg = ''
+        self.message = ''
+
+    def _status_cb(self, active_states):
+        self.message = active_states[0]
 
     #def _state_machine_status_cb(self):
-
     def execute(self, actserver):
+        self.last_msg = ''
         r = rospy.Rate(30)
         #self.graph_model.register_status_cb(self._state_machine_status_cb)
         state_machine = self.graph_model.create_state_machine(self.robot)
+        self.graph_model.register_start_cb(self._status_cb)
+        self.graph_model.register_transition_cb(self._status_cb)
         self.graph_model.run(self.action_name, state_machine=state_machine)
         state_machine_output = None
 
@@ -237,6 +244,12 @@ class ScriptedActionServer:
                 else:
                     success = False
                 break
+
+            if self.message != self.last_msg:
+                feedback = RunScriptFeedback('node', self.message)
+                self.last_msg = self.message
+                actserver.publish_feedback(feedback)
+                #print "ASDFE TESTING. PUBLISHING FEEDBACK", self.message
 
             r.sleep()
 
