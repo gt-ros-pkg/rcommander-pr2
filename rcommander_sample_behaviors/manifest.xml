@@ -1,0 +1,14 @@
+<package>
+  <description brief="rcommander_sample_behaviors">
+
+     rcommander_sample_behaviors
+
+  </description>
+  <author>haidai</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/rcommander_sample_behaviors</url>
+
+</package>
+
+
