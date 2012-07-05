@@ -226,7 +226,7 @@ class PlayTrajectory(threading.Thread):
 
         #interpolate
         for msg_a, msg_b, idx_a in zip(current_self_messages[:-1], current_self_messages[1:], range(len(current_self_messages[:-1]))):
-            n_steps = np.floor(msg_b['time'] / self.step_resolution)
+            n_steps = int(np.floor(msg_b['time'] / self.step_resolution))
             if n_steps == 0:
                 messages.append(msg_a)
             else:
