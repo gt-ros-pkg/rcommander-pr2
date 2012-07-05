@@ -310,6 +310,9 @@ class MarkerDisplay:
             color = stdm.ColorRGBA(.5,.5,.5,.5)
 
         name = 'target_' + self.tagid
+        if not self.tag_database.has_id(self.tagid):
+            return
+
         p_ar = self.tag_database.get(self.tagid)['target_location']
         m_ar = tfu.tf_as_matrix(p_ar)
         map_T_ar = tfu.transform('map', self.tagid, self.tf_listener, t=0)
@@ -534,7 +537,7 @@ class ARServer:
                 rospy.sleep(3)
 
     def sub_directory_changed_cb(self, action_path_name):
-        rospy.loginfo("SUBDIRECTORY CHANGED CB", action_path_name)
+        rospy.loginfo("SUBDIRECTORY CHANGED CB %s" % action_path_name)
         return
         action_path_name = str(action_path_name)
         action_name = pt.split(action_path_name)[1]
@@ -645,6 +648,11 @@ class ARServer:
     #####################################################################
     def frame_selected_cb(self, tagid):
         #print 'framed_selected_cb', tagid
+        if not self.tag_database.has_id(tagid):
+            if self.ar_markers.has_key(tagid):
+                self.ar_markers.pop(tagid).remove_all_markers()
+            return
+
         self.set_task_frame(tagid)
         self.publish_task_frame_transform()
         for disp_id in self.ar_markers.keys():
@@ -702,8 +710,8 @@ class ARServer:
                 #if has no behavior associated, most likely false positive, remove it! 
                 if db_entry['behavior'] == None and self.current_task_frame != tagid:
                     #rospy.loginfo('Removing %s from db because no one defined a behavior for it.' % tagid)
-                    self.tag_database.remove(tagid)
                     self.remove_marker_for_tag(tagid)
+                    self.tag_database.remove(tagid)
 
                 # if has a behavior publish a tf from tagid to map
                 else:
