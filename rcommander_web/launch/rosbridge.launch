@@ -1,4 +1,4 @@
 <launch>
   <param name="/brown/rosbridge/port" value="9092"/>
-  <node name="rosbridge" pkg="rosbridge" type="rosbridge.py" respawn="false" output="screen"/>
+  <node name="rosbridge_rcommander" pkg="rosbridge" type="rosbridge.py" respawn="false" output="screen"/>
 </launch>
