@@ -911,8 +911,8 @@ class PR2Torso(Joint):
     def __init__(self, joint_provider):
         Joint.__init__(self, 'torso_controller', joint_provider)
         self.torso = actionlib.SimpleActionClient('torso_controller/position_joint_action', pm.SingleJointPositionAction)
-        rospy.loginfo('waiting for torso_controller')
-        self.torso.wait_for_server()
+        rospy.loginfo('waiting for torso_controller/position_joint_action')
+        #self.torso.wait_for_server()
 
     def set_pose(self, p, block=True):
         self.torso.send_goal(pm.SingleJointPositionGoal(position = p))
