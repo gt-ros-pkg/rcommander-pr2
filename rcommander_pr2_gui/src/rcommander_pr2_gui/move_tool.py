@@ -76,6 +76,8 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
             for idx, d in enumerate(ang_list):
                 if d == jang_list[sidx]:
                     ang_list_idx = idx
+            if ang_list_idx == None:
+                return
             pidx = ang_list_idx - 1
             if pidx < 0:
                 return 
