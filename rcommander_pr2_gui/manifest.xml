@@ -13,8 +13,10 @@
   <depend package="smach"/>
   <depend package="actionlib"/>
 
+  <depend package="rcommander_ar_tour"/>
   <depend package="rcommander_web"/>
   <depend package="rcommander"/>
+  <depend package="pypr2"/>
   <depend package="tts_server"/>
 
   <depend package="geometry_msgs"/>
@@ -39,7 +41,6 @@
 
   <depend package="simple_move_base"/>
   <depend package="rosbridge"/>
-  <depend package="rcommander_ar_tour"/>
 
   <export>
       <rcommander plugin="rcommander_pr2_gui.tuck_tool"                     robot="pr2" tab="Manipulation"/> 
