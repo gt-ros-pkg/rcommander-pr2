@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import roslib; roslib.load_manifest('rcommander_pr2_gui')
 #import roslib; roslib.load_manifest("rcommander_ar_tour")
-import pr2_utils as pu
+import pypr2.pr2_utils as pu
 import rcommander_ar_tour.rcommander_ar_server2 as rcs
 import sys
 import tf 

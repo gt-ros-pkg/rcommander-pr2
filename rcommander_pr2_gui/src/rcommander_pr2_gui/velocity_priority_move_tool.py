@@ -1,6 +1,6 @@
 import rcommander.tool_utils as tu
-import tf_utils as tfu
-import pr2_utils as p2u
+import pypr2.tf_utils as tfu
+import pypr2.pr2_utils as p2u
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *

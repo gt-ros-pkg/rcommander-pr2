@@ -9,7 +9,7 @@ import actionlib_msgs.msg as am
 import numpy as np
 import smach
 import functools as ft
-import pr2_utils as p2u
+import pypr2.pr2_utils as p2u
 
 
 class SafeMoveArmTool(tu.ToolBase, p2u.JointTool):

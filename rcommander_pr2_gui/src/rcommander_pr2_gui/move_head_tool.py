@@ -7,7 +7,7 @@ import numpy as np
 import smach
 import roslib
 import os.path as pt
-import pr2_utils as p2u
+import pypr2.pr2_utils as p2u
 
 
 
