@@ -2,6 +2,8 @@ import roslib; roslib.load_manifest('pycontroller_manager')
 import rospy
 import pr2_mechanism_msgs.srv as pmm
 
+POSSIBLE_CTRLS_PARAMETER = "/pr2_controller_manager/%s_arm_possible_ctrls" # KelseyH
+
 class ControllerManager:
 
     def __init__(self):
@@ -22,7 +24,34 @@ class ControllerManager:
             self.joint_controllers[arm] = arm + '_arm_controller'
             self.cart_controllers[arm] = cart_controller_name = arm + '_cart'
 
+    ##
+    # Given the list of starting controllers, look for the possible arm controllers which
+    # conflict with those which are currently running.
+    # KelseyH
+    def get_possible_running_ctrls(self, start_con):
+        # find the sides the start controllers are on
+        arms_starting = []
+        for con in start_con:
+            for arm in ['l', 'r']:
+                if con == self.joint_controllers[arm] or con == self.cart_controllers[arm]:
+                    arms_starting.append(arm)
+
+        # find the possible controllers running corresponding to those sides
+        possible_ctrls = []
+        for arm in ['l', 'r']:
+            if arm in arms_starting:
+                possible_ctrls.append(rosparam.get_param(POSSIBLE_CTRLS_PARAMETER % arm))
+
+        # check to see if the possible controllers are indeed running
+        stop_con = []
+        con_states = self.list_controllers()
+        for i, controller in enumerate(con_states.controllers):
+            if controller in possible_ctrls and con_states.state[i] == 'running':
+                stop_con.append(controller)
+        return stop_con
+
     def switch(self, start_con, stop_con):
+        stop_con.extend(self.get_possible_running_ctrls(start_con)) # KelseyH
         con = self.list_controllers()
         valid_start = []
         valid_stop = []
