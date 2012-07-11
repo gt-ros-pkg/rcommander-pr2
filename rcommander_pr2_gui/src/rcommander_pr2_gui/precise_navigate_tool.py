@@ -4,14 +4,14 @@ import rcommander.tool_utils as tu
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import rospy
-import tf_utils as tfu
+import pypr2.tf_utils as tfu
 import tf.transformations as tr
 import simple_move_base.msg as smb
 import math
 import actionlib
 import smach
 from tf_broadcast_server.srv import GetTransforms
-import pr2_utils as p2u
+import pypr2.pr2_utils as p2u
 import numpy as np
 import re
 

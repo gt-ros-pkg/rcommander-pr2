@@ -7,12 +7,12 @@ import numpy as np
 import actionlib_msgs.msg as am
 import smach
 import functools as ft
-import pr2_utils as pu
+import pypr2.pr2_utils as pu
 from rcommander_pr2_gui.srv import MinTime
 import trajectory_msgs.msg as tm
 import os.path as pt
 import roslib
-import pr2_utils as p2u
+import pypr2.pr2_utils as p2u
 
 def split_joints_list(jlist):
     left = []

@@ -1,7 +1,7 @@
 <launch>
-    <arg name="use_relay" default="true"/>
+    <arg name="use_throttled_tf" default="true"/>
     <remap from="joint_states" to="joint_states_throttle"/>
 
-    <remap if="$(arg use_relay)" from="tf" to="relay_tf"/>
+    <remap if="$(arg use_throttled_tf)" from="tf" to="tf_throttled"/>
     <node pkg="rcommander_pr2_gui" type="rcommander_pr2.py" output="screen" name="rcommander_pr2_gui"/>
 </launch>
