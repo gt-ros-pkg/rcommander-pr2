@@ -5,7 +5,7 @@ import interactive_markers.interactive_marker_server as ims
 import interactive_markers.menu_handler as mh
 import ar_pose.msg as ar_msg
 import rcommander_ar_pose.utils as rap
-import rcommander_pr2_gui.tf_utils as tfu
+import pypr2.tf_utils as tfu
 import rcommander_web.rcommander_auto_server as ras
 import tf
 

@@ -13,7 +13,7 @@ import geometry_msgs.msg as gmsg
 import rcommander_web.msg as rmsg
 #from rcommander_web.msg import *
 #import rcommander_ar_pose.utils as rap
-import rcommander_pr2_gui.tf_utils as tfu
+import pypr2.tf_utils as tfu
 #import rcommander.graph_model as gm
 
 from PyQt4 import QtCore#, QtGui
