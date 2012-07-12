@@ -165,6 +165,14 @@ def lookup_transform(listener, aframe, bframe):
         rospy.logdebug( 'exception %s' % str(e.__class__))
         return None
 
+#def tfu_transform(aframe, bframe, listener):
+#    map_T_ar = tfu.transform(aframe, bframe, self.tf_listener, t=0)
+
+def find_folder(actions_tree, folder_name):
+    for action in actions_tree['actions']:
+        if isinstance(action, dict) and action['path'] == folder_name:
+            return action
+    return None
 
 class Database:
 
@@ -173,7 +181,7 @@ class Database:
        self.database = {}
 
     def get(self, an_id):
-        return self.database[an_id].copy()
+        return copy.deepcopy(self.database[an_id])
 
     def has_id(self, an_id):
         return an_id in self.database.keys()
@@ -187,7 +195,7 @@ class Database:
             pickle_file = open(name, 'w')
             pk.dump(self.database, pickle_file)
             pickle_file.close()
-            rospy.loginfo('Saved actions database to %s.'% name)
+            #rospy.loginfo('Saved actions database to %s.'% name)
 
     def remove(self, an_id):
         self.database.pop(an_id)
@@ -199,10 +207,11 @@ class ActionDatabase(Database):
    def __init__(self):
         Database.__init__(self)
 
-   def insert(self, name, frame, action_pose=DEFAULT_LOC, behavior_path=None):
+   def insert(self, name, frame, tagid, action_pose=DEFAULT_LOC, behavior_path=None):
        action_id = name + str(rospy.get_rostime().to_time())
        self.database[action_id] = {'name': name, 'frame': frame, 
-                                   'loc': action_pose, 'behavior_path': behavior_path}
+                                   'loc': action_pose, 'behavior_path': behavior_path,
+                                   'tagid': tagid}
        self.modified = True
        return action_id
 
@@ -211,22 +220,26 @@ class ActionDatabase(Database):
        self.modified = True
 
    def update_behavior(self, action_id, behavior):
-       self.database[action_id]['behavior'] = behavior
+       self.database[action_id]['behavior_path'] = behavior
        self.modified = True
 
    def update_loc(self, action_id, loc):
        self.database[action_id]['loc'] = loc
+       self.modified = True
 
 class ActionMarker:
 
     ##
     # the marker represents itself in the /map frame internally but presents
     # an interface in its defined frame
-    def __init__(self, manager, actionid, location, frame, marker_server, server_lock ,tf_listener, menu_handler=None):
+    def __init__(self, manager, actionid, location_in_frame, frame, tagid, behavior_name, 
+            marker_server, server_lock, tf_listener, menu_handler=None):
         self.manager = manager
         self.actionid = actionid
         self.frame = frame
-        self.location = location
+        self.tagid = tagid
+        self.behavior_name = behavior_name
+        self.location_in_frame = location_in_frame
         self.marker_server = marker_server
         self.server_lock = server_lock
         self.tf_listener = tf_listener
@@ -234,12 +247,24 @@ class ActionMarker:
         self.marker_obj = None
         self.marker_name = None
         self.menu_handler = menu_handler
+        if menu_handler != None:
+            self._add_delete_option(menu_handler)
+        else:
+            self._make_empty_menu()
         self.is_current_task_frame = False
         self._make_marker()
 
+    def _add_delete_option(self, menu_handler):
+        menu_handler.insert('-----------------', parent=None, callback=None)
+        menu_handler.insert('Delete', parent=None, callback=self.delete_action_cb)
+
+    def delete_action_cb(self, feedback):
+        self.manager.delete_marker_cb(self.actionid)
+
     def set_selected(self, b):
+        old_status = self.is_current_task_frame
         self.is_current_task_frame = b
-        if b == self.is_current_task_frame:
+        if b == old_status:
             return
 
         if self.marker_obj != None:
@@ -256,18 +281,15 @@ class ActionMarker:
             self.marker_name = None
 
     def update(self, pose_in_defined_frame):
-        pose = gmsg.Pose()
-        pose.position.x = pose_in_defined_frame[0][0]
-        pose.position.y = pose_in_defined_frame[0][1]
-        pose.position.z = pose_in_defined_frame[0][2]
-        pose.orientation.x = pose_in_defined_frame[1][0]
-        pose.orientation.y = pose_in_defined_frame[1][1]
-        pose.orientation.z = pose_in_defined_frame[1][2]
-        pose.orientation.w = pose_in_defined_frame[1][3]
+        self.marker_obj.pose = pose_in_defined_frame
+        self.location_in_frame = pose_to_tup(pose_in_defined_frame)
 
-        self.server_lock.acquire()
-        self.marker_server.setPose(self.marker_name, pose)
-        self.server_lock.release()
+    def _to_map_frame(self, p_ar):
+        m_ar = tfu.tf_as_matrix(p_ar)
+        self.tf_listener.waitForTransform('map', self.frame, rospy.Time.now(), rospy.Duration(10))
+        map_T_ar = tfu.transform('map', self.frame, self.tf_listener, t=0)
+        p_map = tfu.matrix_as_tf(map_T_ar * m_ar)
+        return p_map
 
     def _make_marker(self): #, scale=.2, color=stdm.ColorRGBA(.5,.5,.5,.5)):
         if self.is_current_task_frame:
@@ -278,22 +300,14 @@ class ActionMarker:
             color = stdm.ColorRGBA(.5,.5,.5,.4)
 
         self.marker_name = 'action_' + self.actionid
-        p_ar = self.location #self.tag_database.get(self.tagid)['target_location']
-        m_ar = tfu.tf_as_matrix(p_ar)
-        map_T_ar = tfu.transform('map', self.frame, self.tf_listener, t=0)
-        p_map = tfu.matrix_as_tf(map_T_ar * m_ar)
-        pose = p_map
+        pose = self.location_in_frame
 
         int_marker = interactive_marker(self.marker_name, (pose[0], (0,0,0,1)), scale)
-        int_marker.header.frame_id = 'map' #self.tagid
-        int_marker.description = ''
-
-        int_marker.controls.append(make_sphere_control(self.marker_name, scale/8.))
-        #int_marker.controls[0].markers[0].color = color
-
-        int_marker.controls.append(make_sphere_control(self.marker_name, scale))
+        int_marker.header.frame_id = self.frame #self.tagid
+        int_marker.description = self._make_description()
+        int_marker.controls.append(make_sphere_control(self.marker_name + '_1', scale/8.))
+        int_marker.controls.append(make_sphere_control(self.marker_name + '_2', scale))
         int_marker.controls[1].markers[0].color = color
-
         int_marker.controls += make_directional_controls(self.marker_name)
 
         self.server_lock.acquire()
@@ -302,12 +316,19 @@ class ActionMarker:
         self.marker_obj = int_marker
         if self.menu_handler != None:
             self._make_menu()
+        else:
+            self._make_empty_menu()
+
+    def _make_empty_menu(self):
+        self.menu_handler = mh.MenuHandler()
+        self._add_delete_option(self.menu_handler)
+        self._make_menu()
 
     def _make_menu(self):
         menu_control = ims.InteractiveMarkerControl()
         menu_control.interaction_mode = ims.InteractiveMarkerControl.MENU
         menu_control.description=""
-        menu_control.name = self.actionid + '_menu'
+        menu_control.name = 'menu_' + self.actionid
         menu_control.markers.append(copy.deepcopy(self.marker_obj.controls[0].markers[0]))
         menu_control.always_visible = True
         self.marker_obj.controls.append(copy.deepcopy(menu_control))
@@ -318,6 +339,7 @@ class ActionMarker:
         self.server_lock.release()
 
     def set_menu(self, menu_handler):
+        self._add_delete_option(menu_handler)
         self.menu_handler = menu_handler
 
         #erase current marker
@@ -328,19 +350,41 @@ class ActionMarker:
         #insert it with a menu_handler
         self._make_menu()
 
+    def _make_description(self):
+        if self.behavior_name != None:
+            return '%s (Tag %d)' % (self.behavior_name, self.tagid)
+        else:
+            return ''
+
+    def update_name(self, behavior_name):
+        self.behavior_name = behavior_name
+        self.server_lock.acquire()
+        self.marker_server.erase(self.marker_name)
+        
+        self.marker_obj.description = self._make_description()
+        self.marker_server.insert(self.marker_obj, self.marker_cb)
+        self.marker_server.applyChanges()
+        self.server_lock.release()
+
     def marker_cb(self, feedback):
-        print 'called', feedback_to_string(feedback.event_type), feedback.marker_name, feedback.control_name
+        #print 'called', feedback_to_string(feedback.event_type), feedback.marker_name, feedback.control_name
         if feedback.event_type == ims.InteractiveMarkerFeedback.POSE_UPDATE:
-            p_map = tfu.tf_as_matrix(pose_to_tup(feedback.pose))
-            ar_T_map = tfu.transform(self.frame, 'map', self.tf_listener, t=0)
-            p_ar = tfu.matrix_as_tf(ar_T_map * p_map)
+            #p_ar = tfu.tf_as_matrix(pose_to_tup(feedback.pose))
+            p_ar = pose_to_tup(feedback.pose)
+            #self.tf_listener.waitForTransform(self.frame, 'map', 
+            #        rospy.Time.now(), rospy.Duration(10))
+            #ar_T_map = tfu.transform(self.frame, 'map', self.tf_listener, t=0)
+            #p_ar = tfu.matrix_as_tf(ar_T_map * p_map)
             self.manager.update_loc(self.actionid, p_ar)
+            self.update(feedback.pose)
 
         sphere_match = re.search('_sphere$', feedback.control_name)
-        menu_match = re.search('_menu$', feedback.control_name)
-        if ((sphere_match != None) or (menu_match != None)) \
+        if (sphere_match != None) \
                 and feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
             self.manager.selected_cb(self.actionid)
+            self.server_lock.acquire()
+            self.marker_server.applyChanges()
+            self.server_lock.release()
             #self.frame_selected_cb(self.actionid)
 
 
@@ -348,36 +392,67 @@ class ActionMarkersManager:
 
     def __init__(self, action_marker_database_name, server_lock, behavior_server, marker_server, tf_listener):
         self.server_lock = server_lock
-        self.marker_db = Database_load(action_marker_database_name, ActionDatabase)
         self.behavior_server = behavior_server
         self.marker_server = marker_server
         self.tf_listener = tf_listener
 
+        #Database and marker list has to be in sync!
+        self.marker_db = Database_load(action_marker_database_name, ActionDatabase)
         self.markers = {}
+
         self.server_lock.acquire()
         for action_id in self.marker_db.ids():
-            rec = self.marker_db.get(action_id)
-            self._create_marker(action_id, rec['loc'], rec['frame'])
+            self._create_marker(action_id)
         self.marker_server.applyChanges()
         self.server_lock.release()
 
-    def create_action(self, frame):
-        actionid = self.marker_db.insert('action', frame)
+    def get_current_task_frame(self):
+        for actionid in self.markers.keys():
+            marker = self.markers[actionid]
+            if marker.is_current_task_frame:
+                return marker.frame, marker.location_in_frame
+        return None
+
+    def _get_behavior_name(self, rec):
+        if rec['behavior_path'] != None:
+            return pt.split(rec['behavior_path'])[1]
+        else:
+            return None
+
+    def create_action(self, frame, tagid):
+        actionid = self.marker_db.insert('action', frame, tagid)
         rec = self.marker_db.get(actionid)
-        self._create_marker(actionid, rec['loc'], rec['frame'])
+        self._create_marker(actionid)
         self.server_lock.acquire()
         self.marker_server.applyChanges()
         self.server_lock.release()
     
     # create the interactive marker obj
-    def _create_marker(self, actionid, location, frame):
-        self.markers[actionid] = ActionMarker(self, actionid, location, frame, 
-                self.marker_server, self.server_lock, self.tf_listener,
-                self._create_menu_handler(actionid))
+    def _create_marker(self, actionid):#, location_in_frame, frame, behavior_name, tagid):
+        rec = self.marker_db.get(actionid)
+        self.markers[actionid] = ActionMarker(self, actionid, rec['loc'], 
+                rec['frame'], rec['tagid'], self._get_behavior_name(rec), self.marker_server, 
+                self.server_lock, self.tf_listener, self._create_menu_handler(actionid))
 
     def _create_menu_handler(self, actionid):
-        return menu_handler_from_action_tree(self.behavior_server.get_actions_tree(), 
-                    ft.partial(self._action_selection_menu_cb, actionid))
+        tree = self.behavior_server.get_actions_tree()
+        behavior_folder = find_folder(tree, 'Behaviors')
+        if behavior_folder != None:
+            ar_folder = copy.deepcopy(find_folder(behavior_folder, 'AR'))
+            if ar_folder != None:
+                ar_folder['path'] = 'Behaviors'
+                tree = {'path':'root', 'actions':[ar_folder]}
+
+        return menu_handler_from_action_tree(tree, 
+                ft.partial(self._action_selection_menu_cb, actionid))
+
+    def delete_marker_cb(self, actionid):
+        self.markers[actionid].remove()
+        self.markers.pop(actionid)
+        self.marker_db.remove(actionid)
+        self.server_lock.acquire()
+        self.marker_server.applyChanges()
+        self.server_lock.release()
 
     # callback from ARTagMarker to perform selection
     def selected_cb(self, actionid):
@@ -396,29 +471,10 @@ class ActionMarkersManager:
         self.marker_server.applyChanges()
         self.server_lock.release()
 
-    def _action_selection_menu_cb(self, actionid, menu_item, full_path, int_feedback):
-        print 'menu called back on', actionid, menu_item, full_path #, int_feedback
-        #self.server_lock.acquire()
-        #print 'got ar lock'
-
-        #marker_disp = self.marker_displays_dict[actionid]
-        #self.tag_database.update_behavior(marker_disp.action_id, full_action_path)
-        #self._insert_database_action_into_actions_tree(marker_disp.action_id)
-        #marker_disp.update_ar_marker(menu_item)
-        #self.marker_server.applyChanges()
-
-        #self.server_lock.release()
-        #print 'ar lock released'
-
-
-    #def create_menu_for_all_markers(self, actions_tree):
-    #    #Create the menu object on all markers
-    #    self.server_lock.acquire()
-    #    for marker_name in self.marker_displays_dict.keys():
-    #        menu_handler = menu_handler_from_action_tree(actions_tree, ft.partial(self.action_selection_menu_cb, marker_name))
-    #        self.marker_displays_dict[marker_name].set_menu(menu_handler)
-    #    self.marker_server.applyChanges()
-    #    self.server_lock.release()
+    def _action_selection_menu_cb(self, actionid, menu_item, full_action_path, int_feedback):
+        print 'menu called back on', actionid, menu_item, full_action_path #, int_feedback
+        self.marker_db.update_behavior(actionid, full_action_path)
+        self.markers[actionid].update_name(menu_item)
 
 
 class ARTagDatabase(Database):
@@ -469,7 +525,8 @@ class ARTagMarker:
 
     def create_new_action_cb(self, feedback):
         #print 'create_new_action_cb', feedback
-        self.action_marker_manager.create_action(ar_frame_name(self.tagid))
+        rospy.loginfo('New action created! Tag id %d.' % self.tagid)
+        self.action_marker_manager.create_action(ar_frame_name(self.tagid), self.tagid)
 
     def marker_cb(self, feedback):
         print 'ARTagMarker: clicked on', feedback.marker_name
@@ -509,7 +566,6 @@ class ARMarkersManager:
         self.broadcaster = tf_broadcaster
 
         self.markers = {}
-        self.white_list = []
 
         self.server_lock.acquire()
         for mid in self.marker_db.ids():
@@ -517,21 +573,15 @@ class ARMarkersManager:
         self.marker_server.applyChanges()
         self.server_lock.release()
 
-    ##
-    # set ids of tags that should not be deleted when they are no longer visible
-    def set_white_list_ids(self, white_list):
-        self.white_list = white_list
-        
-
     def create_marker(self, tagid, location):
         self.markers[tagid] = ARTagMarker(tagid, location, self.action_marker_manager, self.server_lock, self.marker_server)
 
-    def update(self, visible_markers):
-        #visible_markers = {}
-        #for marker in msg.markers:
-        #    visible_markers['4x4_' + str(marker.id)] = marker.id
-        #self.visible_markers = visible_markers
+    def remove_marker(self, tagid):
+        self.markers[tagid].remove()
+        self.markers.pop(tagid)
+        self.marker_db.remove(tagid)
 
+    def update(self, visible_markers):
         visible_ids = [m.id for m in visible_markers]
         markers_changed = False
         for mid in visible_ids:
@@ -542,20 +592,18 @@ class ARMarkersManager:
                     self.create_marker(mid, ar_location)
                     self.markers[mid].update(ar_location)
                     markers_changed = True
+                else:
+                    self.markers[mid].update(ar_location)
+                    markers_changed = True
                 self.marker_db.set_location(mid, ar_location)
 
         for mid in self.markers.keys():
             if mid in visible_ids:
                 continue
-            if mid in self.white_list:
-                position, orientation = self.marker_db.get(mid)['ar_location']
-                self.broadcaster.sendTransform(position, orientation, rospy.Time.now(), 
-                            ar_frame_name(mid), '/map')
-            else:
-                self.marker_db.remove(mid)
-                self.markers[mid].remove()
-                self.markers.pop(mid)
-                markers_changed = True
+            position, orientation = self.marker_db.get(mid)
+            self.broadcaster.sendTransform(position, orientation, rospy.Time.now(), 
+                        ar_frame_name(mid), '/map')
+
         return markers_changed
 
 
@@ -668,14 +716,48 @@ class BehaviorServer:
         for k in self.loaded_actions.keys():
             rospy.loginfo('ACTION %s' % k)
 
+    def remove_unused_ar_markers(self):
+        markers_changed = False
+        #Find unused markers
+        visible_ids = [m.id for m in self.visible_markers]
+
+        action_db = self.action_marker_manager.marker_db
+        referenced_tagids = set([action_db.get(actionid)['tagid'] for actionid in action_db.ids()])
+
+        ar_db = self.ar_marker_manager.marker_db
+        #for every tag in db, if it is unused and not visible, delete
+        for tid in ar_db.ids():
+            if not (tid in visible_ids) and not (tid in referenced_tagids):
+                self.ar_marker_manager.remove_marker(tid)
+                markers_changed = True
+
+        return markers_changed
+
+    def publish_task_frame_transform(self):
+        mdb = self.action_marker_manager.marker_db
+        task_frame_info = self.action_marker_manager.get_current_task_frame()
+        if task_frame_info == None:
+            return
+        frame, loc = task_frame_info
+        self.broadcaster.sendTransform(loc[0], loc[1], rospy.Time.now(), 'task_frame', frame)
+
     def step(self, timer_obj):
         markers_changed = self.ar_marker_manager.update(self.visible_markers)
+        markers_changed = markers_changed or self.remove_unused_ar_markers()
+        self.publish_task_frame_transform()
+
+        if (self.i % (5*5) == 0):
+            self.action_marker_manager.marker_db.save(self.action_tag_database_name)
+            self.ar_marker_manager.marker_db.save(self.ar_tag_database_name)
+        self.i += 1
+
         if markers_changed:
             self.marker_server_lock.acquire()
             self.marker_server.applyChanges()
             self.marker_server_lock.release()
 
     def start(self):
+        self.i = 0
         rospy.Timer(rospy.Duration(.1), self.step)
 
 
