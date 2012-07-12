@@ -37,6 +37,9 @@ import pdb
 
 DEFAULT_LOC = [[0.,0.,0.], [0.,0.,0.,1.]]
 
+def tag_name(tagid, behavior_name):
+    return '%s (Tag #%d)' % (behavior_name, tagid)
+
 def feedback_to_string(ftype):
     names = ['keep_alive', 'pose_update', 
              'menu_select', 'button_click',
@@ -208,23 +211,23 @@ class ActionDatabase(Database):
         Database.__init__(self)
 
    def insert(self, name, frame, tagid, action_pose=DEFAULT_LOC, behavior_path=None):
-       action_id = name + str(rospy.get_rostime().to_time())
-       self.database[action_id] = {'name': name, 'frame': frame, 
+       actionid = name + str(rospy.get_rostime().to_time())
+       self.database[actionid] = {'name': name, 'frame': frame, 
                                    'loc': action_pose, 'behavior_path': behavior_path,
                                    'tagid': tagid}
        self.modified = True
-       return action_id
+       return actionid
 
-   def update_frame(self, action_id, frame):
-       self.database[action_id]['frame'] = frame
+   def update_frame(self, actionid, frame):
+       self.database[actionid]['frame'] = frame
        self.modified = True
 
-   def update_behavior(self, action_id, behavior):
-       self.database[action_id]['behavior_path'] = behavior
+   def update_behavior(self, actionid, behavior):
+       self.database[actionid]['behavior_path'] = behavior
        self.modified = True
 
-   def update_loc(self, action_id, loc):
-       self.database[action_id]['loc'] = loc
+   def update_loc(self, actionid, loc):
+       self.database[actionid]['loc'] = loc
        self.modified = True
 
 class ActionMarker:
@@ -263,6 +266,9 @@ class ActionMarker:
 
     def set_selected(self, b):
         old_status = self.is_current_task_frame
+        if old_status == True and b == True:
+            b = False
+
         self.is_current_task_frame = b
         if b == old_status:
             return
@@ -352,7 +358,8 @@ class ActionMarker:
 
     def _make_description(self):
         if self.behavior_name != None:
-            return '%s (Tag %d)' % (self.behavior_name, self.tagid)
+            return tag_name(self.tagid, self.behavior_name)
+            #return '%s (Tag %d)' % (self.behavior_name, self.tagid)
         else:
             return ''
 
@@ -381,7 +388,7 @@ class ActionMarker:
         sphere_match = re.search('_sphere$', feedback.control_name)
         if (sphere_match != None) \
                 and feedback.event_type == ims.InteractiveMarkerFeedback.MOUSE_DOWN:
-            self.manager.selected_cb(self.actionid)
+            self.manager.set_task_frame(self.actionid)
             self.server_lock.acquire()
             self.marker_server.applyChanges()
             self.server_lock.release()
@@ -420,6 +427,7 @@ class ActionMarkersManager:
             return None
 
     def create_action(self, frame, tagid):
+        #print 'create_action: tagid class', tagid.__class__
         actionid = self.marker_db.insert('action', frame, tagid)
         rec = self.marker_db.get(actionid)
         self._create_marker(actionid)
@@ -455,7 +463,7 @@ class ActionMarkersManager:
         self.server_lock.release()
 
     # callback from ARTagMarker to perform selection
-    def selected_cb(self, actionid):
+    def set_task_frame(self, actionid):
         for k in self.markers.keys():
             self.markers[k].set_selected(k == actionid)
 
@@ -529,7 +537,8 @@ class ARTagMarker:
         self.action_marker_manager.create_action(ar_frame_name(self.tagid), self.tagid)
 
     def marker_cb(self, feedback):
-        print 'ARTagMarker: clicked on', feedback.marker_name
+        pass
+        #print 'ARTagMarker: clicked on', feedback.marker_name
 
     def update(self, pose_in_map_frame):
         pose = gmsg.Pose()
@@ -589,6 +598,7 @@ class ARMarkersManager:
             ar_location = lookup_transform(self.tf_listener, 'map', fn)
             if ar_location != None:
                 if not self.markers.has_key(mid):
+                    #print 'UPDATE', mid.__class__
                     self.create_marker(mid, ar_location)
                     self.markers[mid].update(ar_location)
                     markers_changed = True
@@ -632,10 +642,13 @@ class BehaviorServer:
         self.action_marker_manager = None
         self.ar_pose_sub = None
         self.visible_markers = {}
-        self.actions_tree = None
+        self.actions_tree = {'path': self.path_to_rcommander_files, 'actions':[]}
+        self.actserv = None
 
-        self.create_actions_tree()
         self.start_marker_server()
+        self.create_actions_tree()
+        self.start_list_service()
+        self.start_execution_action_server()
 
     def get_actions_tree(self):
         return self.actions_tree
@@ -654,17 +667,118 @@ class BehaviorServer:
         self.ar_pose_sub = rospy.Subscriber("ar_pose_marker", ar_msg.ARMarkers, self.ar_marker_cb)
         rospy.loginfo('Ready!')
 
+    #For listing / serving actions
+    def start_list_service(self):
+        #self.main_dir_watcher = ras.WatchDirectory(self.path_to_rcommander_files, self.main_directory_watch_cb)
+        rospy.Service('list_rcommander_actions', ActionInfo, self.list_action_cb)
+
+    def start_execution_action_server(self):
+        self.actserv = actionlib.SimpleActionServer('run_rcommander_action_web', rmsg.RunScriptAction, 
+                            execute_cb=self.execute_cb, auto_start=False)
+        self.actserv.start()
+
+    def list_action_cb(self, req):
+        path = req.path
+        if path == '.':
+            path = self.path_to_rcommander_files
+        fnames, fpaths, anames, apaths = self.list_actions_and_folders_at_path(path, self.actions_tree)
+        forder = np.argsort(fnames)
+        fnames = np.array(fnames)[forder].tolist()
+        fpaths = np.array(fpaths)[forder].tolist()
+        
+        aorder = np.argsort(anames)
+        anames = np.array(anames)[aorder].tolist()
+        apaths = np.array(apaths)[aorder].tolist()
+
+        rospy.loginfo('responded to %s' % path)
+        return ActionInfoResponse(fnames, fpaths, anames, apaths)
+
+    def list_actions_and_folders_at_path(self, path, actions_tree):
+        path = os.path.normpath(path)
+        fnames, fpaths = [], []
+        anames, apaths = [], []
+
+        splitted = path.split(os.path.sep)
+        if actions_tree['path'] == splitted[0]:
+            if len(splitted) == 1:
+                for a in actions_tree['actions']:
+                    if isinstance(a, dict):
+                        fnames.append(a['path'])
+                        fpaths.append(os.path.join(path, a['path']))
+                    else:
+                        anames.append(os.path.split(a)[1])
+                        apaths.append(a)
+                return fnames, fpaths, anames, apaths
+            else:
+                for a in actions_tree['actions']:
+                    if isinstance(a, dict) and a['path'] == splitted[1]:
+                        fnames, fpaths, anames, apaths = self.list_actions_and_folders_at_path(os.path.join(*splitted[1:]), a)
+                        fpaths = [os.path.join(splitted[0], fn) for fn in fpaths]
+                        return fnames, fpaths, anames, apaths 
+
+        return fnames, fpaths, anames, apaths
+
+    def insert_locations_folder(self):
+        loc_folder = find_folder(self.actions_tree, 'Locations')
+        if loc_folder == None:
+            self.actions_tree['actions'].append({'path':'Locations', 'actions':[]})
+
+    def insert_database_actions(self):
+        #loaded actions is keyed with the full behavior path
+        locations_tree = find_folder(self.actions_tree, 'Locations')
+        #insert individual action from db
+        action_db = self.action_marker_manager.marker_db
+        for actionid in action_db.ids():
+            self._insert_database_action(actionid, locations_tree)
+
+    def _insert_database_action(self, actionid, locations_tree=None):
+        if locations_tree == None:
+            locations_tree = find_folder(self.actions_tree, 'Locations')
+
+        entry = self.action_marker_manager.marker_db.get(actionid)
+        if entry['behavior_path'] != None:
+            action_path = self._behavior_path_to_location_path(entry['behavior_path'], entry['tagid'])
+            rospy.loginfo('Inserted %s into loaded_actions.' % action_path)
+            self.loaded_actions[action_path] = ft.partial(self._execute_database_action_cb, actionid)
+            locations_tree['actions'] += [action_path]
+
+    def _behavior_path_to_location_path(self, behavior_path, tagid):
+        relative_path = behavior_path.replace(self.path_to_rcommander_files, '')
+        root_path = ''
+        decomposed_name = relative_path.split(pt.sep)
+        behavior_name = decomposed_name[-1]
+        for p in decomposed_name[1:-1]:
+            root_path = pt.join(root_path, p)
+        root_path = pt.join(root_path, tag_name(tagid, behavior_name))
+        return pt.join(self.path_to_rcommander_files, pt.join('Locations', root_path))
+
+    def execute_cb(self, goal):
+        rospy.loginfo('Executing: ' + goal.action_path)
+        if hasattr(self.loaded_actions[goal.action_path], '__call__'):
+            self.loaded_actions[goal.action_path]()
+        else:
+            self.loaded_actions[goal.action_path]['scripted_action_server'].execute(self.actserv)
+
+    def _execute_database_action_cb(self, actionid):
+        entry = self.action_marker_manager.marker_db.get(actionid)
+        self.action_marker_manager.set_task_frame(actionid)
+        self.publish_task_frame_transform()
+        self.loaded_actions[entry['behavior_path']]['scripted_action_server'].execute(self.actserv)
+        self.action_marker_manager.set_task_frame(None) #This will stop the publishing process
+
     def ar_marker_cb(self, msg):
         self.visible_markers = msg.markers
 
     def _load_action_at_path(self, action):
         rospy.loginfo('Loading ' + action)
-        #action_path = os.path.join(self.path_to_rcommander_files, action)
         action_path = action
         for i in range(4):
             try:
-                load_dict = {'marker_server':  ras.ScriptedActionServer(action, action_path, self.robot),
-                             'watcher': ras.WatchDirectory(action_path, self.sub_directory_changed_cb)}
+                load_dict = {'scripted_action_server':  ras.ScriptedActionServer(action, 
+                                                                action_path, self.robot),
+                             #'watcher': ras.WatchDirectory(action_path, 
+                             #    self.sub_directory_changed_cb)
+                             }
                 rospy.loginfo('Successfully loaded ' + action)
                 return load_dict
             except IOError, e:
@@ -704,13 +818,12 @@ class BehaviorServer:
 
         return loaded_actions, pruned_tree
 
-
     def create_actions_tree(self):
         rospy.loginfo('create_actions_tree: rescanning ' + self.path_to_rcommander_files)
         actions = ras.find_all_actions(self.path_to_rcommander_files)
         self.loaded_actions, self.actions_tree = self.load_action_from_found_paths(actions)
-        #self.insert_locations_folder()
-        #self.insert_database_actions()
+        self.insert_locations_folder()
+        self.insert_database_actions()
 
         rospy.loginfo('All actions found\n')
         for k in self.loaded_actions.keys():
