@@ -24,7 +24,7 @@ import numpy as np
 import inspect as insp
 #from inspect import isfunction
 
-
+import detect_robot_move as drm
 import rcommander_web.rcommander_auto_server as ras
 import tf
 import cPickle as pk
@@ -80,7 +80,6 @@ def make_rviz_marker(scale):
     marker.scale.z = scale * 0.45
     marker.color = stdm.ColorRGBA(.5,.5,.5,1)
     return marker
-
 
 def make_sphere_control(name, scale):
     control =  ims.InteractiveMarkerControl()
@@ -567,6 +566,8 @@ class ARMarkersManager:
 
     def __init__(self, ar_tag_database_name, action_marker_manager, server_lock, marker_server, 
                 tf_listener, tf_broadcaster):
+
+        self.robot_movement_detector = drm.DetectRobotMove()
         self.marker_db = Database_load(ar_tag_database_name, ARTagDatabase)
         self.action_marker_manager = action_marker_manager
         self.server_lock = server_lock
@@ -593,19 +594,23 @@ class ARMarkersManager:
     def update(self, visible_markers):
         visible_ids = [m.id for m in visible_markers]
         markers_changed = False
-        for mid in visible_ids:
-            fn = ar_frame_name(mid)
-            ar_location = lookup_transform(self.tf_listener, 'map', fn)
-            if ar_location != None:
-                if not self.markers.has_key(mid):
-                    #print 'UPDATE', mid.__class__
-                    self.create_marker(mid, ar_location)
-                    self.markers[mid].update(ar_location)
-                    markers_changed = True
-                else:
-                    self.markers[mid].update(ar_location)
-                    markers_changed = True
-                self.marker_db.set_location(mid, ar_location)
+
+        if not self.robot_movement_detector.is_moving():
+            for mid in visible_ids:
+                fn = ar_frame_name(mid)
+                ar_location = lookup_transform(self.tf_listener, 'map', fn)
+                if ar_location != None:
+                    if not self.markers.has_key(mid):
+                        #print 'UPDATE', mid.__class__
+                        self.create_marker(mid, ar_location)
+                        self.markers[mid].update(ar_location)
+                        markers_changed = True
+                    else:
+                        self.markers[mid].update(ar_location)
+                        markers_changed = True
+                    self.marker_db.set_location(mid, ar_location)
+        else:
+            rospy.loginfo('skipped updating ARMarkers because we are moving')
 
         for mid in self.markers.keys():
             if mid in visible_ids:
