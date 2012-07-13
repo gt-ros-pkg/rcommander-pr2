@@ -609,8 +609,8 @@ class ARMarkersManager:
                         self.markers[mid].update(ar_location)
                         markers_changed = True
                     self.marker_db.set_location(mid, ar_location)
-        else:
-            rospy.loginfo('skipped updating ARMarkers because we are moving')
+        #else:
+        #    rospy.loginfo('skipped updating ARMarkers because we are moving')
 
         for mid in self.markers.keys():
             if mid in visible_ids:
