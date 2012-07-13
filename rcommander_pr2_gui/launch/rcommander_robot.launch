@@ -1,14 +1,15 @@
 <launch>
     <arg name="sim" default="false"/>
     <arg name="interactive_manipulation" default="true"/>
-    <arg name="nav" default="true"/>
+    <arg name="maps" default="true"/>
+    <arg name="rosbridge" default="true"/>
 
     <arg name="wg" default="false"/>
     <arg name="aware_home" default="false"/>
     <arg name="hrl" default="true"/>
     <arg name="henry" default="false"/>
 
-    <group if="$(arg nav)">
+    <group if="$(arg maps)">
         <group if="$(arg aware_home)">
             <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/aware_home_025.yaml"/>
         </group>
@@ -25,39 +26,36 @@
         <group if="$(arg hrl)">
             <node name="map_server" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/hsi_full_4_24.yaml" machine="c2"/>
         </group>
-
-        <!--<node pkg="simple_move_base" type="move_base_server.py" name="move_base_server" output="screen"/>-->
     </group>
 
     <include if="$(arg interactive_manipulation)" file="$(find pr2_interactive_manipulation)/launch/pr2_interactive_manipulation_robot.launch">
-        <arg name="nav" value="$(arg nav)"/>
+        <arg name="nav" value="true"/>
     </include>
 
     <include unless="$(arg sim)" file="$(find tts_server)/tts_server.launch"/>
+
     <include unless="$(arg sim)" file="$(find rcommander_pr2_gui)/launch/pr2_gripper_sensor_actions.launch"/>
 
     <include file="$(find face_detector)/launch/face_detector_action.wide.launch"/>
 
     <include file="$(find rcommander_pr2_gui)/launch/ptp_arm_action.launch"/>
+
     <node pkg="rcommander_pr2_gui" type="min_time_node" output="screen" name="min_time_to_move_node"/>
+
     <node pkg="topic_tools" type="throttle" output="screen" name="joint_states_throttler" args="messages joint_states 20."/>
+
     <node pkg="tf_broadcast_server" type="tf_broadcast_server.py" output="screen" name="rcommander_tf_broadcast"/>
+
     <include file="$(find rcommander_ar_pose)/launch/ar_pose.launch">
          <arg name="kinect" value="true"/>
     </include>
-    <include file="$(find rcommander_web)/launch/rosbridge.launch"/>
+
+    <include if="$(arg rosbridge)" file="$(find rcommander_web)/launch/rosbridge.launch"/>
+
     <include file="$(find rcommander_pr2_gui)/launch/rcommander_robot_brittle.launch"/>
 
-    <!--<node pkg="rcommander_pr2_gui" type="rcommander_tuckarm_node.py" output="screen" name="rc_tuck_arms_node"/>-->
-    <!--
-    <param name="/brown/rosbridge/port" value="9091"/>
-    <node name="rosbridge" pkg="rosbridge" type="rosbridge.py" respawn="false" output="screen"/>
-    -->
-    <!--
-    <node pkg="rcommander_pr2_gui" type="rcommander_pr2_server.py" 
-        output="screen" name="rcommander_actions_server"
-        args="$(env HOME)/robot_behaviors">
+    <node pkg="rcommander_pr2_gui" type="rcommander_pr2_ar_server.py" 
+        output="screen" name="rcommander_pr2_ar_server"
+        args="$(env HOME)/action_database.pkl $(env HOME)/tag_database.pkl  $(env HOME)/robot_behaviors">
     </node>
-    -->
-
 </launch>

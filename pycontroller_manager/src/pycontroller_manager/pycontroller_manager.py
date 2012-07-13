@@ -2,7 +2,10 @@ import roslib; roslib.load_manifest('pycontroller_manager')
 import rospy
 import pr2_mechanism_msgs.srv as pmm
 
-POSSIBLE_CTRLS_PARAMETER = "/pr2_controller_manager/%s_arm_possible_ctrls" # KelseyH
+LOADED_CTRLS_PARAMS = {
+    'r' : "/controller_manager/loaded_ctrls/right_arm",
+    'l' : "/controller_manager/loaded_ctrls/left_arm",
+}
 
 class ControllerManager:
 
@@ -41,7 +44,7 @@ class ControllerManager:
         for arm in ['l', 'r']:
             if arm in arms_starting:
                 try:
-                    possible_ctrls.append(rospy.get_param(POSSIBLE_CTRLS_PARAMETER % arm))
+                    possible_ctrls.append(rospy.get_param(LOADED_CTRLS_PARAMS[arm]))
                 except KeyError, e:
                     pass
 
