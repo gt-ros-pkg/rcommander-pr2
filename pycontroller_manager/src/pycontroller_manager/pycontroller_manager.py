@@ -40,7 +40,10 @@ class ControllerManager:
         possible_ctrls = []
         for arm in ['l', 'r']:
             if arm in arms_starting:
-                possible_ctrls.append(rosparam.get_param(POSSIBLE_CTRLS_PARAMETER % arm))
+                try:
+                    possible_ctrls.append(rospy.get_param(POSSIBLE_CTRLS_PARAMETER % arm))
+                except KeyError, e:
+                    pass
 
         # check to see if the possible controllers are indeed running
         stop_con = []
@@ -52,6 +55,7 @@ class ControllerManager:
 
     def switch(self, start_con, stop_con):
         stop_con.extend(self.get_possible_running_ctrls(start_con)) # KelseyH
+
         con = self.list_controllers()
         valid_start = []
         valid_stop = []
