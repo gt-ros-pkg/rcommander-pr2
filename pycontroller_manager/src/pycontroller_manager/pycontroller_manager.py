@@ -44,7 +44,7 @@ class ControllerManager:
         for arm in ['l', 'r']:
             if arm in arms_starting:
                 try:
-                    possible_ctrls.append(rospy.get_param(LOADED_CTRLS_PARAMS[arm]))
+                    possible_ctrls.extend(rospy.get_param(LOADED_CTRLS_PARAMS[arm]))
                 except KeyError, e:
                     pass
 
@@ -54,7 +54,11 @@ class ControllerManager:
         for i, controller in enumerate(con_states.controllers):
             if controller in possible_ctrls and con_states.state[i] == 'running':
                 stop_con.append(controller)
-        return stop_con
+        stop_con_no_start = []
+        for con in stop_con:
+            if not con in start_con:
+                stop_con_no_start.append(con)
+        return stop_con_no_start
 
     def switch(self, start_con, stop_con):
         stop_con.extend(self.get_possible_running_ctrls(start_con)) # KelseyH
