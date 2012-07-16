@@ -171,9 +171,12 @@ def lookup_transform(listener, aframe, bframe):
 #    map_T_ar = tfu.transform(aframe, bframe, self.tf_listener, t=0)
 
 def find_folder(actions_tree, folder_name):
-    for action in actions_tree['actions']:
+    return find_folder_idx(actions_tree, folder_name)[0]
+
+def find_folder_idx(actions_tree, folder_name):
+    for idx, action in enumerate(actions_tree['actions']):
         if isinstance(action, dict) and action['path'] == folder_name:
-            return action
+            return action, idx
     return None
 
 class Database:
@@ -396,10 +399,12 @@ class ActionMarker:
 
 class ActionMarkersManager:
 
-    def __init__(self, action_marker_database_name, server_lock, behavior_server, marker_server, tf_listener):
+    def __init__(self, action_marker_database_name, server_lock, behavior_server, 
+                 marker_server, actions_db_changed_cb, tf_listener):
         self.server_lock = server_lock
         self.behavior_server = behavior_server
         self.marker_server = marker_server
+        self.actions_db_changed_cb = actions_db_changed_cb
         self.tf_listener = tf_listener
 
         #Database and marker list has to be in sync!
@@ -460,6 +465,7 @@ class ActionMarkersManager:
         self.server_lock.acquire()
         self.marker_server.applyChanges()
         self.server_lock.release()
+        self.actions_db_changed_cb()
 
     # callback from ARTagMarker to perform selection
     def set_task_frame(self, actionid):
@@ -482,6 +488,7 @@ class ActionMarkersManager:
         print 'menu called back on', actionid, menu_item, full_action_path #, int_feedback
         self.marker_db.update_behavior(actionid, full_action_path)
         self.markers[actionid].update_name(menu_item)
+        self.actions_db_changed_cb()
 
 
 class ARTagDatabase(Database):
@@ -652,6 +659,7 @@ class BehaviorServer:
 
         self.start_marker_server()
         self.create_actions_tree()
+        self.action_marker_manager.update_behavior_menus()
         self.start_list_service()
         self.start_execution_action_server()
 
@@ -662,8 +670,7 @@ class BehaviorServer:
         self.marker_server = ims.InteractiveMarkerServer(self.SERVER_NAME)
 
         self.action_marker_manager = ActionMarkersManager(self.action_tag_database_name, self.marker_server_lock, 
-                self, self.marker_server, self.tf_listener)
-        self.action_marker_manager.update_behavior_menus()
+                self, self.marker_server, self.actions_db_changed_cb, self.tf_listener)
 
         self.ar_marker_manager = ARMarkersManager(self.ar_tag_database_name, self.action_marker_manager, self.marker_server_lock, 
                 self.marker_server, self.tf_listener, self.broadcaster)
@@ -722,6 +729,12 @@ class BehaviorServer:
                         return fnames, fpaths, anames, apaths 
 
         return fnames, fpaths, anames, apaths
+
+    def actions_db_changed_cb(self):
+        loc_folder, loc_idx = find_folder_idx(self.actions_tree, 'Locations')
+        self.actions_tree['actions'].pop(loc_idx)
+        self.insert_locations_folder()
+        self.insert_database_actions()
 
     def insert_locations_folder(self):
         loc_folder = find_folder(self.actions_tree, 'Locations')
