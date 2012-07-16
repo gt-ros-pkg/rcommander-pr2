@@ -32,6 +32,7 @@ class ControllerManager:
     # conflict with those which are currently running.
     # KelseyH
     def get_possible_running_ctrls(self, start_con):
+        rospy.loginfo("get_possible... in")
         # find the sides the start controllers are on
         arms_starting = []
         for con in start_con:
@@ -44,7 +45,7 @@ class ControllerManager:
         for arm in ['l', 'r']:
             if arm in arms_starting:
                 try:
-                    possible_ctrls.append(rospy.get_param(LOADED_CTRLS_PARAMS[arm]))
+                    possible_ctrls.extend(rospy.get_param(LOADED_CTRLS_PARAMS[arm]))
                 except KeyError, e:
                     pass
 
@@ -54,7 +55,13 @@ class ControllerManager:
         for i, controller in enumerate(con_states.controllers):
             if controller in possible_ctrls and con_states.state[i] == 'running':
                 stop_con.append(controller)
-        return stop_con
+        stop_con_no_start = []
+        for con in stop_con:
+            if not con in start_con:
+                stop_con_no_start.append(con)
+        rospy.loginfo("get_possible... out")
+        rospy.loginfo(str(arms_starting) + str(start_con) + str(possible_ctrls) + str(stop_con_no_start))
+        return stop_con_no_start
 
     def switch(self, start_con, stop_con):
         stop_con.extend(self.get_possible_running_ctrls(start_con)) # KelseyH
