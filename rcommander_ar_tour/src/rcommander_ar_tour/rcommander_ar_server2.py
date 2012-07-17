@@ -667,6 +667,27 @@ class BehaviorServer:
         self.start_marker_server()
         self.start_list_service()
         self.start_execution_action_server()
+        self.create_refresh_interactive_marker()
+
+    def create_refresh_interactive_marker(self):
+        int_marker = interactive_marker('behavior_server_refresh', ([0,0,1.], [0,0,0,1]), .2)
+        int_marker.header.frame_id = 'torso_lift_link'
+        int_marker.description = ''
+        int_marker.controls.append(make_sphere_control(int_marker.name, .2))
+
+        menu_handler = mh.MenuHandler()
+        menu_handler.insert('Rescan Behaviors', parent=None, callback=self.refresh_actions_tree)
+        menu_control = ims.InteractiveMarkerControl()
+        menu_control.interaction_mode = ims.InteractiveMarkerControl.MENU
+        menu_control.name = 'menu_rescan'
+        menu_control.markers.append(copy.deepcopy(int_marker.controls[0].markers[0]))
+        menu_control.always_visible.True
+        int_marker.controls.append(menu_control)
+
+        self.marker_server_lock.acquire()
+        self.marker_server.insert(int_marker, None)
+        menu_handler.apply(self.marker_server, int_marker.name)
+        self.marker_server_lock.release()
 
     def get_actions_tree(self):
         return self.actions_tree
@@ -842,6 +863,10 @@ class BehaviorServer:
                         rospy.loginfo('Failed to load ' + action)
 
         return loaded_actions, pruned_tree
+
+    def refresh_actions_tree(self):
+        self.create_actions_tree()
+        self.action_marker_manager.update_behavior_menus()
 
     def create_actions_tree(self):
         rospy.loginfo('create_actions_tree: rescanning ' + self.path_to_rcommander_files)
