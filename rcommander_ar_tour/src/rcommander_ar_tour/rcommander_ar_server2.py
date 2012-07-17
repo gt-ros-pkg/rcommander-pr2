@@ -177,7 +177,7 @@ def find_folder_idx(actions_tree, folder_name):
     for idx, action in enumerate(actions_tree['actions']):
         if isinstance(action, dict) and action['path'] == folder_name:
             return action, idx
-    return None
+    return None, None
 
 class Database:
 
@@ -448,6 +448,9 @@ class ActionMarkersManager:
 
     def _create_menu_handler(self, actionid):
         tree = self.behavior_server.get_actions_tree()
+        if tree == None:
+            return None
+
         behavior_folder = find_folder(tree, 'Behaviors')
         if behavior_folder != None:
             ar_folder = copy.deepcopy(find_folder(behavior_folder, 'AR'))
@@ -455,10 +458,13 @@ class ActionMarkersManager:
                 ar_folder['path'] = 'Behaviors'
                 tree = {'path':'root', 'actions':[ar_folder]}
 
-        return menu_handler_from_action_tree(tree, 
-                ft.partial(self._action_selection_menu_cb, actionid))
+            return menu_handler_from_action_tree(tree, 
+                    ft.partial(self._action_selection_menu_cb, actionid))
+        else:
+            return None
 
     def delete_marker_cb(self, actionid):
+        print 'delete called on', actionid
         self.markers[actionid].remove()
         self.markers.pop(actionid)
         self.marker_db.remove(actionid)
@@ -616,8 +622,8 @@ class ARMarkersManager:
                         self.markers[mid].update(ar_location)
                         markers_changed = True
                     self.marker_db.set_location(mid, ar_location)
-        #else:
-        #    rospy.loginfo('skipped updating ARMarkers because we are moving')
+#else:
+#            rospy.loginfo('skipped updating ARMarkers because we are moving')
 
         for mid in self.markers.keys():
             if mid in visible_ids:
@@ -657,9 +663,8 @@ class BehaviorServer:
         self.actions_tree = {'path': self.path_to_rcommander_files, 'actions':[]}
         self.actserv = None
 
-        self.start_marker_server()
         self.create_actions_tree()
-        self.action_marker_manager.update_behavior_menus()
+        self.start_marker_server()
         self.start_list_service()
         self.start_execution_action_server()
 
@@ -671,6 +676,8 @@ class BehaviorServer:
 
         self.action_marker_manager = ActionMarkersManager(self.action_tag_database_name, self.marker_server_lock, 
                 self, self.marker_server, self.actions_db_changed_cb, self.tf_listener)
+        self.insert_database_actions()
+        self.action_marker_manager.update_behavior_menus()
 
         self.ar_marker_manager = ARMarkersManager(self.ar_tag_database_name, self.action_marker_manager, self.marker_server_lock, 
                 self.marker_server, self.tf_listener, self.broadcaster)
@@ -841,7 +848,6 @@ class BehaviorServer:
         actions = ras.find_all_actions(self.path_to_rcommander_files)
         self.loaded_actions, self.actions_tree = self.load_action_from_found_paths(actions)
         self.insert_locations_folder()
-        self.insert_database_actions()
 
         rospy.loginfo('All actions found\n')
         for k in self.loaded_actions.keys():
