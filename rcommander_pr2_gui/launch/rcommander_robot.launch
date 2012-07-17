@@ -8,6 +8,8 @@
     <arg name="aware_home" default="false"/>
     <arg name="hrl" default="true"/>
     <arg name="henry" default="false"/>
+    <include file="$(find pr2_machine)/$(env ROBOT).machine" />
+
 
     <group if="$(arg maps)">
         <group if="$(arg aware_home)">
@@ -40,12 +42,6 @@
 
     <include file="$(find rcommander_pr2_gui)/launch/ptp_arm_action.launch"/>
 
-    <node pkg="rcommander_pr2_gui" type="min_time_node" output="screen" name="min_time_to_move_node"/>
-
-    <node pkg="topic_tools" type="throttle" output="screen" name="joint_states_throttler" args="messages joint_states 20."/>
-
-    <node pkg="tf_broadcast_server" type="tf_broadcast_server.py" output="screen" name="rcommander_tf_broadcast"/>
-
     <include file="$(find rcommander_ar_pose)/launch/ar_pose.launch">
          <arg name="kinect" value="true"/>
     </include>
@@ -54,8 +50,16 @@
 
     <include file="$(find rcommander_pr2_gui)/launch/rcommander_robot_brittle.launch"/>
 
+    <node pkg="rcommander_pr2_gui" type="min_time_node" output="screen" name="min_time_to_move_node"/>
+
+    <node pkg="topic_tools" type="throttle" output="screen" name="joint_states_throttler" args="messages joint_states 20."/>
+
+    <node pkg="tf_broadcast_server" type="tf_broadcast_server.py" output="screen" name="rcommander_tf_broadcast"/>
+
+
     <node pkg="rcommander_pr2_gui" type="rcommander_pr2_ar_server.py" 
         output="screen" name="rcommander_pr2_ar_server"
-        args="$(env HOME)/action_database.pkl $(env HOME)/tag_database.pkl  $(env HOME)/robot_behaviors">
+        args="$(env HOME)/action_database.pkl $(env HOME)/tag_database.pkl  $(env HOME)/robot_behaviors" 
+        machine="c1">
     </node>
 </launch>
