@@ -134,6 +134,7 @@ class PreciseNavigateSmach(smach.State):
 
     def execute(self, userdata):
         #Create goal and send it up here
+        self.tf_listener.waitForTransform(self.CONTROL_FRAME, self.pose_stamped.header.frame_id,  rospy.Time(0), rospy.Duration(10.))
         bl_T_frame = tfu.tf_as_matrix(self.tf_listener.lookupTransform(self.CONTROL_FRAME, self.pose_stamped.header.frame_id, rospy.Time(0)))
 
         #print 'control_T_frame\n', bl_T_frame
