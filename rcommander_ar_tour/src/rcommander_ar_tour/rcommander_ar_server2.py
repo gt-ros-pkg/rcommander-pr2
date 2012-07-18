@@ -681,7 +681,7 @@ class BehaviorServer:
         menu_control.interaction_mode = ims.InteractiveMarkerControl.MENU
         menu_control.name = 'menu_rescan'
         menu_control.markers.append(copy.deepcopy(int_marker.controls[0].markers[0]))
-        menu_control.always_visible.True
+        menu_control.always_visible = True
         int_marker.controls.append(menu_control)
 
         self.marker_server_lock.acquire()
