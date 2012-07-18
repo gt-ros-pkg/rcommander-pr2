@@ -8,7 +8,9 @@
     <arg name="aware_home" default="false"/>
     <arg name="hrl" default="true"/>
     <arg name="henry" default="false"/>
-    <include file="$(find pr2_machine)/$(env ROBOT).machine" />
+
+    <machine name="c1" address="c1" default="true"/>
+    <machine name="c2" address="c2" env-loader="/u/cbsdemo/env.sh"/>
 
 
     <group if="$(arg maps)">
@@ -38,14 +40,17 @@
 
     <include unless="$(arg sim)" file="$(find rcommander_pr2_gui)/launch/pr2_gripper_sensor_actions.launch"/>
 
-    <include file="$(find face_detector)/launch/face_detector_action.wide.launch"/>
+    <!--<include file="$(find face_detector)/launch/face_detector_action.wide.launch"/>-->
 
+    <!--c2-->
     <include file="$(find rcommander_pr2_gui)/launch/ptp_arm_action.launch"/>
 
+    <!--c2-->
     <include file="$(find rcommander_ar_pose)/launch/ar_pose.launch">
          <arg name="kinect" value="true"/>
     </include>
 
+    <!--c2-->
     <include if="$(arg rosbridge)" file="$(find rcommander_web)/launch/rosbridge.launch"/>
 
     <include file="$(find rcommander_pr2_gui)/launch/rcommander_robot_brittle.launch"/>
@@ -54,12 +59,13 @@
 
     <node pkg="topic_tools" type="throttle" output="screen" name="joint_states_throttler" args="messages joint_states 20."/>
 
-    <node pkg="tf_broadcast_server" type="tf_broadcast_server.py" output="screen" name="rcommander_tf_broadcast"/>
+    <!--c2-->
+    <node pkg="tf_broadcast_server" type="tf_broadcast_server.py" output="screen" name="rcommander_tf_broadcast" machine="c2"/>
 
-
+    <!--c2-->
     <node pkg="rcommander_pr2_gui" type="rcommander_pr2_ar_server.py" 
         output="screen" name="rcommander_pr2_ar_server"
-        args="$(env HOME)/action_database.pkl $(env HOME)/tag_database.pkl  $(env HOME)/robot_behaviors" 
-        machine="c1">
+        args="$(env HOME)/action_database.pkl $(env HOME)/tag_database.pkl  $(env HOME)/robot_behaviors"
+        machine="c2">
     </node>
 </launch>
