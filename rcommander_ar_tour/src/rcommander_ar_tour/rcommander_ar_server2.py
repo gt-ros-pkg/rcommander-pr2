@@ -813,7 +813,12 @@ class BehaviorServer:
         self.action_marker_manager.set_task_frame(None) #This will stop the publishing process
 
     def ar_marker_cb(self, msg):
-        self.visible_markers = msg.markers
+        #Filter out markers detected as being behind head
+        valid_markers = []
+        for marker in msg.markers:
+            if marker.pose.position.z < 0:
+                valid_markers.append(marker)
+        self.visible_markers = valid_markers
 
     def _load_action_at_path(self, action):
         rospy.loginfo('Loading ' + action)
@@ -864,7 +869,7 @@ class BehaviorServer:
 
         return loaded_actions, pruned_tree
 
-    def refresh_actions_tree(self):
+    def refresh_actions_tree(self, feedback):
         self.create_actions_tree()
         self.action_marker_manager.update_behavior_menus()
 
