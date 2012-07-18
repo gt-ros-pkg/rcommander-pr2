@@ -816,7 +816,7 @@ class BehaviorServer:
         #Filter out markers detected as being behind head
         valid_markers = []
         for marker in msg.markers:
-            if marker.pose.position.z < 0:
+            if marker.pose.pose.position.z > 0:
                 valid_markers.append(marker)
         self.visible_markers = valid_markers
 
