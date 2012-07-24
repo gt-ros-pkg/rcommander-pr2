@@ -7,12 +7,22 @@ import numpy as np
 import actionlib_msgs.msg as am
 import smach
 import functools as ft
-import pr2_utils as pu
+import pypr2.pr2_utils as pu
 from rcommander_pr2_gui.srv import MinTime
 import trajectory_msgs.msg as tm
 import os.path as pt
 import roslib
-import pr2_utils as p2u
+import pypr2.pr2_utils as p2u
+
+def split_joints_list(jlist):
+    left = []
+    right = []
+    for d in jlist:
+        if d['arm'] == 'left':
+            left.append(d)
+        else:
+            right.append(d)
+    return left, right
 
 
 class JointSequenceTool(tu.ToolBase, p2u.JointTool):
@@ -39,28 +49,40 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
         palette.setColor(QPalette.Text, QColor(r, g, b, 255))
         self.time_box.setPalette(palette)
 
+        jang_list = self.get_joint_angs_list()
+        left_list, right_list = split_joints_list(jang_list)
+
         #arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
         arm = self.get_arm_radio()
         if arm == 'left':
             #idx = 0
             pref = 'l_'
             left_arm = True
+            ang_list = left_list
         else:
             #idx = 1
             pref = 'r_'
             left_arm = False
+            ang_list = right_list
 
-        if len(self.get_joint_angs_list()) == 0:
+        if len(ang_list) == 0:
             return
 
         if self.list_manager.get_selected_idx() == None:
-            ref = self.get_joint_angs_list()[-1]
+            ref = ang_list[-1]
         else:
-            pidx = self.list_manager.get_selected_idx() - 1
+            sidx = self.list_manager.get_selected_idx()
+            ang_list_idx = None
+            for idx, d in enumerate(ang_list):
+                if d == jang_list[sidx]:
+                    ang_list_idx = idx
+            if ang_list_idx == None:
+                return
+            pidx = ang_list_idx - 1
             if pidx < 0:
                 return 
             else:
-                ref = self.get_joint_angs_list()[pidx]
+                ref = ang_list[pidx]
 
         start_point = tm.JointTrajectoryPoint()
         start_point.velocities = [0.] * len(p2u.JOINT_NAME_FIELDS)
@@ -87,7 +109,8 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
         self._check_time_validity(value)
 
     def get_current_data_cb(self):
-        return {'time': self.time_box.value(), 
+        return {'arm': self.get_arm_radio(),
+                'time': self.time_box.value(), 
                 'angs': self.read_joints_from_fields(True)}
 
     def set_current_data_cb(self, data):
@@ -102,6 +125,7 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
         self.set_joints_to_fields(data['angs'])
         self.time_box.setValue(data['time'])
         self._time_changed_validate(data['time'])
+        self.set_arm_radio(data['arm'])
 
         if self.element_will_be_added:
             self.element_will_be_added = False
@@ -109,7 +133,8 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
     def live_update_cb(self):
         pose_mat = self.get_robot_joint_angles()
         self.reset_live_update = False
-        self.list_manager.display_record({'time': self.time_box.value(),
+        self.list_manager.display_record({'arm': self.get_arm_radio(),
+                                          'time': self.time_box.value(),
                                           'angs': pose_mat.A1.tolist()})
         self.reset_live_update = True
 
@@ -124,18 +149,19 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
     def add_element_cb(self):
         self.element_will_be_added = True
 
-    #    #Live update is off at this point, and we have a new point
-    #    #If current exists, overwrite its old value, reset variable current
-    #    #   (do a _refill to make sure ordering is ok)
-    #    #   (reselect element)
-
-    #    #turn live update back on, this will save the just added element!
+    def arm_radio_toggled(self, state):
+        self.check_all_joint_limits()
+        self._check_time_validity(self.time_box.value())
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
         items_to_monitor = []
 
         fields, arm_radio_boxes, buttons = self.make_joint_boxes(pbox, self.rcommander)
+        arm_radio_buttons = self.get_arm_radio_buttons()
+        for b in arm_radio_buttons:
+            self.rcommander.connect(b, SIGNAL('toggled(bool)'), self.arm_radio_toggled)
+
         formlayout.addRow('&Arm', arm_radio_boxes)
         for field in fields:
             formlayout.addRow(field['name'], field['item'])
@@ -174,14 +200,13 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
         #if (self.joint_angs_list == None or len(self.joint_angs_list) == 0) and (name != None):
         if (len(self.get_joint_angs_list()) == 0) and (name != None):
             return None
-        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
-        sstate = JointSequenceState(nname, arm, self.list_manager.get_data())
+        sstate = JointSequenceState(nname, self.list_manager.get_data())
         return sstate
 
     def set_node_properties(self, my_node):
         self.list_manager.set_data(my_node.joint_waypoints)
         self.list_manager.select_default_item()
-        self.set_arm_radio(my_node.arm)
+        #self.set_arm_radio(my_node.arm)
 
     def reset(self):
         self.set_arm_radio('left')
@@ -193,276 +218,150 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
 
 class JointSequenceState(tu.StateBase): 
 
-    def __init__(self, name, arm, joint_waypoints):
+    def __init__(self, name, joint_waypoints):
         tu.StateBase.__init__(self, name)
-        self.arm = arm
         self.joint_waypoints = joint_waypoints
 
     def get_smach_state(self):
-        return JointSequenceStateSmach(self.arm, self.joint_waypoints)
+        return JointSequenceStateSmach(self.joint_waypoints)
 
 
 class JointSequenceStateSmach(smach.State): 
 
     TIME_OUT_FACTOR = 3.
 
-    def __init__(self, arm, joint_waypoints):
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'aborted'], 
+    def __init__(self, joint_waypoints):
+        smach.State.__init__(self, outcomes = ['aborted', 'succeeded', 'preempted', 'timed_out'], 
                              input_keys = [], output_keys = [])
-        self.arm = arm
         self.joint_waypoints = joint_waypoints
-        self.arm_obj = None
+        self.l_arm_obj = None
+        self.r_arm_obj = None
+
 
     def set_robot(self, pr2):
         if pr2 == None:
             return
-
-        if self.arm == 'left':
-            self.arm_obj = pr2.left
-
-        if self.arm == 'right':
-            self.arm_obj = pr2.right
+        self.l_arm_obj = pr2.left
+        self.r_arm_obj = pr2.right
         self.controller_manager = pr2.controller_manager
 
+
     def execute(self, userdata):
-        status, started, stopped = self.controller_manager.joint_mode(self.arm)
+        left_points, right_points = split_joints_list([wp['data'] for wp in self.joint_waypoints])
+        if len(left_points) > 0 and len(right_points) > 0:
+            arms = 'both'
+        elif len(left_points) > 0:
+            arms = 'left'
+        elif len(right_points) > 0:
+            arms = 'right'
+            
+        status, started, stopped = self.controller_manager.joint_mode(arms)
+        clients = []
+        states = []
+        trajectory_time_out = -1
+        for arm_obj, points in zip([self.l_arm_obj, self.r_arm_obj], [left_points, right_points]):
+            if len(points) == 0:
+                continue
+            #Construct trajectory command
+            times = []
+            wps = []
+            for d in points:
+                wps.append(np.matrix(d['angs']).T)
+                times.append(d['time'])
 
-        #Construct trajectory command
-        times = []
-        wps = []
-        for d in self.joint_waypoints:
-            wps.append(np.matrix(d['data']['angs']).T)
-            times.append(d['data']['time'])
+            arm_obj.set_poses(np.column_stack(wps), np.cumsum(np.array(times)), block=False)
+            clients.append(arm_obj.client)
+            states.append(arm_obj.client.get_state())
+            time_out = JointSequenceStateSmach.TIME_OUT_FACTOR * np.sum(times)
+            trajectory_time_out = max(time_out, trajectory_time_out)
 
-        self.arm_obj.set_poses(np.column_stack(wps), np.cumsum(np.array(times)), block=False)
-        client = self.arm_obj.client
-        state = client.get_state()
-
-        #Monitor execution
-        trajectory_time_out = JointSequenceStateSmach.TIME_OUT_FACTOR * np.sum(times)
-        succeeded = False
-        preempted = False
-        r = rospy.Rate(30)
-        start_time = rospy.get_time()
-        while not rospy.is_shutdown():
-            #we have been preempted
-            if self.preempt_requested():
-                rospy.loginfo('JointSequenceState: preempt requested')
-                client.cancel_goal()
-                self.service_preempt()
-                preempted = True
-                break
-
-            if (rospy.get_time() - start_time) > trajectory_time_out:
-                client.cancel_goal()
-                rospy.loginfo('JointSequenceState: timed out!')
-                succeeded = False
-                break
-
-            #print tu.goal_status_to_string(state)
-            if (state not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING]):
-                if state == am.GoalStatus.SUCCEEDED:
-                    rospy.loginfo('JointSequenceState: Succeeded!')
-                    succeeded = True
-                break
-
-            state = client.get_state()
-
-            r.sleep()
-
-        #print 'end STATE', state
-
+        # returns one of failed, preempted, timed_out, or succeeded
+        result = tu.monitor_goals(self, clients, 'JointSequenceState', trajectory_time_out)
         self.controller_manager.switch(stopped, started)
-
-        if preempted:
-            return 'preempted'
-
-        if succeeded:
-            return 'succeeded'
-
-        if state == am.GoalStatus.ABORTED:
+        if result == 'failed':
             return 'aborted'
-
-        return 'failed'
-
-        #formlayout.addRow('&Sequence:', self.list_box) #
-        #formlayout.addRow(self.list_box)
-        #formlayout.addRow(self.list_widget_buttons)
-
-        #self.list_box = QWidget(pbox)
-        #self.list_box_layout = QHBoxLayout(self.list_box)
-        #self.list_box_layout.setMargin(0)
-
-        #self.list_widget = QListWidget(self.list_box)
-        #self.rcommander.connect(self.list_widget, SIGNAL('itemSelectionChanged()'), self.item_selection_changed_cb)
-        #self.list_box_layout.addWidget(self.list_widget)
-
-        #self.list_widget_buttons = QWidget(pbox)
-        #self.lbb_hlayout = QHBoxLayout(self.list_widget_buttons)
-
-        #self.move_up_button = QPushButton(self.list_widget_buttons) #
-        #self.move_up_button.setText("")
-        #icon = QIcon()
-        #base_path = roslib.packages.get_pkg_dir('rcommander_pr2_gui')
-        #icon.addPixmap(QPixmap(pt.join(base_path, "icons/UpButton.png")), QIcon.Normal, QIcon.Off)
-        #self.move_up_button.setIcon(icon)
-        #self.move_up_button.setObjectName("up_button")
-        #self.rcommander.connect(self.move_up_button, SIGNAL('clicked()'), self.move_up_cb)
-        #self.move_up_button.setToolTip('Move Up')
-
-        #self.move_down_button = QPushButton(self.list_widget_buttons)
-        #self.move_down_button.setText("")
-        #icon = QIcon()
-        #icon.addPixmap(QPixmap(pt.join(base_path, "icons/DownButton.png")), QIcon.Normal, QIcon.Off)
-        #self.move_down_button.setIcon(icon)
-        #self.move_down_button.setObjectName("down_button")
-        #self.rcommander.connect(self.move_down_button, SIGNAL('clicked()'), self.move_down_cb)
-        #self.move_down_button.setToolTip('Move Down')
-	
-        #self.add_joint_set_button = QPushButton(self.list_widget_buttons) #
-        #self.add_joint_set_button.setText("")
-        #icon = QIcon()
-        #icon.addPixmap(QPixmap(pt.join(base_path, "icons/AddButton.png")), QIcon.Normal, QIcon.Off)
-        #self.add_joint_set_button.setIcon(icon)
-        #self.add_joint_set_button.setObjectName("add_button")
-        #self.rcommander.connect(self.add_joint_set_button, SIGNAL('clicked()'), self.add_joint_set_cb)
-        ##QToolTip.add(add_joint_set_button, 'Add')
-        #self.add_joint_set_button.setToolTip('Add')
-
-        #self.remove_joint_set_button = QPushButton(self.list_widget_buttons)
-        #self.remove_joint_set_button.setText("")
-        #icon = QIcon()
-        #icon.addPixmap(QPixmap(pt.join(base_path, "icons/RemoveButton.png")), QIcon.Normal, QIcon.Off)
-        #self.remove_joint_set_button.setIcon(icon)
-        #self.remove_joint_set_button.setObjectName("remove_button")
-        #self.rcommander.connect(self.remove_joint_set_button, SIGNAL('clicked()'), self.remove_pose_cb)
-        #self.remove_joint_set_button.setToolTip('Remove')
-
-        #self.save_button = QPushButton(self.list_widget_buttons)
-        #self.save_button.setText("")
-        #icon = QIcon()
-        #icon.addPixmap(QPixmap(pt.join(base_path, "icons/SaveButton.png")), QIcon.Normal, QIcon.Off)
-        #self.save_button.setIcon(icon)
-        #self.save_button.setObjectName("save_button")
-        #self.rcommander.connect(self.save_button, SIGNAL('clicked()'), self.save_button_cb)
-        #self.save_button.setToolTip('Save')
-        
-        #spacer = QSpacerItem(40, 20, QSizePolicy.Minimum, QSizePolicy.Expanding) #
-
-        #self.lbb_hlayout.addWidget(self.add_joint_set_button) #
-        #self.lbb_hlayout.addWidget(self.remove_joint_set_button)
-        #self.lbb_hlayout.addWidget(self.save_button)
-        #self.lbb_hlayout.addItem(spacer) #
-        #self.lbb_hlayout.addWidget(self.move_up_button) #
-        #self.lbb_hlayout.addWidget(self.move_down_button) #
-        #self.lbb_hlayout.setContentsMargins(2, 2, 2, 2)
+        return result
 
 
 
-    #def _has_name(self, test_name):
-    #    for rec in self.joint_angs_list:
-    #        if rec['name'] == test_name:
-    #            return True
-    #        else:
-    #            return False
 
-    #def _create_name(self):
-    #    idx = len(self.joint_angs_list)
-    #    tentative_name = 'point%d' % idx 
 
-    #    while self._has_name(tentative_name):
-    #        idx = idx + 1
-    #        tentative_name = 'point%d' % idx 
 
-    #    return tentative_name
 
-    #def item_selection_changed_cb(self):
-    #    self.set_update_mode(False)
-    #    selected = self.list_widget.selectedItems()
-    #    if len(selected) == 0:
-    #        return
-    #    idx = self._find_index_of(str(selected[0].text()))
-    #    self.curr_selected = idx
 
-    #    joint_angs = self.joint_angs_list[idx]['angs']
-    #    self._set_joints_to_fields(joint_angs)
-    #    self.time_box.setValue(self.joint_angs_list[idx]['time'])
-    #    self._time_changed_validate(self.joint_angs_list[idx]['time'])
 
-    #    #self.status_bar_timer.stop()
-    #    #self.pose_button.setEnabled(True)
 
-    #def add_joint_set_cb(self):
-    #    #Create a new string, check to see whether it's in the current list
-    #    name = self._create_name()
-    #    #self.list_widget.addItem(name)
-    #    self.joint_angs_list.append({'name':name, 
-    #        'time': self.time_box.value(), 
-    #        'angs': self._read_joints_from_fields(True)})
-    #    self._refill_list_widget(self.joint_angs_list)
 
-    #def _find_index_of(self, name):
-    #    for idx, tup in enumerate(self.joint_angs_list):
-    #        if tup['name'] == name:
-    #            return idx
-    #    return None
 
-    #def move_up_cb(self):
-    #    #get the current index
-    #    idx = self._selected_idx()
-    #    if idx == None:
-    #        return
 
-    #    #pop & insert it
-    #    item = self.joint_angs_list.pop(idx)
-    #    self.joint_angs_list.insert(idx-1, item)
 
-    #    #refresh
-    #    self._refill_list_widget(self.joint_angs_list)
-    #    self.list_widget.setCurrentItem(self.list_widget.item(idx-1))
 
-    #def move_down_cb(self):
-    #    #get the current index
-    #    idx = self._selected_idx()
-    #    if idx == None:
-    #        return
 
-    #    #pop & insert it
-    #    item = self.joint_angs_list.pop(idx)
-    #    self.joint_angs_list.insert(idx+1, item)
 
-    #    #refresh
-    #    self._refill_list_widget(self.joint_angs_list)
-    #    self.list_widget.setCurrentItem(self.list_widget.item(idx+1))
 
-    #def _selected_idx(self):
-    #    #Get currently selected
-    #    selected = self.list_widget.selectedItems()
-    #    if len(selected) == 0:
-    #        return None
-    #    sname = str(selected[0].text())
 
-    #    #Remove it from list_widget and joint_angs_list
-    #    idx = self._find_index_of(sname)
-    #    return idx
 
-    #def save_button_cb(self):
-    #    idx = self._selected_idx()
-    #    if idx == None:
-    #        return
-    #    el = self.joint_angs_list[idx]
-    #    self.joint_angs_list[idx] = {'name': el['name'],
-    #                                 'time': self.time_box.value(), 
-    #                                 'angs': self._read_joints_from_fields(True)}
 
-    #def remove_pose_cb(self):
-    #    idx = self._selected_idx()
-    #    if idx == None:
-    #        return
-    #    #self.list_widget.takeItem(idx)
-    #    #self.list_widget.removeItemWidget(selected[0])
-    #    if idx == None:
-    #        raise RuntimeError('Inconsistency detected in list')
-    #    else:
-    #        self.joint_angs_list.pop(idx)
-    #    self._refill_list_widget(self.joint_angs_list)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        #succeeded = False
+        #preempted = False
+        #r = rospy.Rate(30)
+        #start_time = rospy.get_time()
+        #while not rospy.is_shutdown():
+        #    #we have been preempted
+        #    if self.preempt_requested():
+        #        rospy.loginfo('JointSequenceState: preempt requested')
+        #        [c.cancel_goal() for c in clients]
+        #        self.service_preempt()
+        #        preempted = True
+        #        break
+
+        #    if (rospy.get_time() - start_time) > trajectory_time_out:
+        #        [c.cancel_goal() for c in clients]
+        #        rospy.loginfo('JointSequenceState: timed out!')
+        #        succeeded = False
+        #        break
+
+        #    #print tu.goal_status_to_string(state)
+        #    stopped_states = [s not in [am.GoalStatus.ACTIVE, am.GoalStatus.PENDING] for s in states]
+        #    if np.all(stopped_states):
+        #        #succeed if all states succeeded
+        #        if np.all([s == am.GoalStatus.SUCCEEDED for s in states]):
+        #            rospy.loginfo('JointSequenceState: Succeeded!')
+        #            succeeded = True
+        #        break
+        #        #failed if any state failed
+
+        #    states = [c.get_state() for c in clients]
+        #    r.sleep()
+
+
+        #if preempted:
+        #    return 'preempted'
+
+        #if succeeded:
+        #    return 'succeeded'
+
+        #if state == am.GoalStatus.ABORTED:
+        #    return 'aborted'
+
+        #return 'failed'
+

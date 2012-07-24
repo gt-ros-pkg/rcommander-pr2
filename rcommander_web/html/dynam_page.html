@@ -1,0 +1,105 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Demo</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="css/jquery.mobile-1.1.0.css" />
+		<script src="js/jquery-1.7.1.js"></script>
+		<script src="js/jquery.mobile-1.1.0.js"></script>
+		<script src="js/ros/ros.js"></script>
+		<script src="js/ros/common.js"></script>
+
+	</head>
+
+	<script>
+		var NODE_HANDLE = undefined;
+		var ESC_STRING = '798987';
+
+		function log(msg) {
+			$('#status').empty();
+			$('#status').append(msg.toString() + '<br>');
+		};
+
+		function tag(tag_type) {
+			return $(document.createElement(tag_type));
+		}
+
+		function encode_path(p) {
+			pp = p.replace(new RegExp(ESC_STRING, 'g'), ESC_STRING + ESC_STRING);
+			return pp.replace(/\//g, ESC_STRING);
+		}
+
+		function decode_path(p) {
+			pp = p.replace(new RegExp(ESC_STRING + ESC_STRING, 'g'), ESC_STRING);
+			return pp.replace(new RegExp(ESC_STRING, 'g'), '/');
+		}
+
+		function create_jquery_page(rpath) {
+			title = tag('h1').append('RCommander Behaviors: ' + rpath);
+			behavior_list = tag('ul');
+			behavior_list.attr({
+				id : 'behavior_list',
+				'data-role' : 'listview',
+				'data-inset' : true,
+				'data-filter' : false
+			});
+
+			behavior_list.append('<li><a href=#' + encode_path('test_behaviors/subdir') + '>subdir</a> </li>');
+			behavior_list.append('<li><a href="#test_behaviors">test_behaviors</a> </li>');
+
+			status_div = tag('div').attr('id', 'status');
+			header_div = tag('div').attr('data-role', 'header').append(title);
+			header_div.attr('data-add-back-btn', 'true');
+			body_div = tag('div').attr('data-role', 'content');
+			body_div.append(behavior_list);
+			body_div.append(status_div);
+
+			page_div = tag('div');
+			page_div.attr('id', encode_path(rpath));
+			page_div.attr('data-role', 'page');
+			page_div.append(header_div);
+			page_div.append(body_div);
+
+			if (undefined != $('#' + page_div.attr('id'))) {
+				$('#' + page_div.attr('id')).remove();
+			}
+			$('body').append(page_div);
+			return $('#' + page_div.attr('id'));
+		}
+
+		function start() {
+			// page = create_jquery_page('test_behaviors');
+			// $.mobile.changePage(page, {
+				// dataUrl : document.URL + '#test_behaviors'
+			// });	
+			go_to_url({toPage:document.URL, options: {}});
+		}
+
+		function go_to_url(data) {
+			var u = $.mobile.path.parseUrl(data.toPage), re = /^#/;
+			rpath = decode_path(u.hash.replace(/#/, ''));
+			if ($.mobile.activePage == undefined || $.mobile.activePage.attr('id') == undefined || decode_path($.mobile.activePage.attr('id')) != rpath) {
+				if (rpath.length == 0) {
+					rpath = 'test_behaviors';
+				}
+				page = create_jquery_page(rpath);
+				data.options.dataUrl = u.href;
+				$.mobile.changePage(page, data.options);
+			}
+		}
+
+
+		$(document).bind("pagebeforechange", function(e, data) {
+			if ( typeof data.toPage === "string") {
+				go_to_url(data)
+				e.preventDefault();
+			}
+		});
+
+	</script>
+
+	<body onload="start()">
+
+	</body>
+</html>

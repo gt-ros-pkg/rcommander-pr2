@@ -1,11 +1,12 @@
 import rcommander.tool_utils as tu
-import tf_utils as tfu
-import pr2_utils as p2u
+import pypr2.tf_utils as tfu
+import pypr2.pr2_utils as p2u
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 import rospy
+import tf
 import geometry_msgs.msg as geo
 import tf.transformations as tr
 import smach
@@ -28,6 +29,28 @@ def pose_distance(ps_a, ps_b, tflistener):
     a_T_b[0:3, 3] = 0
     desired_angle, desired_axis, _ = tf.transformations.rotation_from_matrix(a_T_b)
     return desired_trans, desired_angle, desired_axis
+
+def interpolate_pose_stamped(pose_stamped_a, pose_stamped_b, frac):
+    apose = pose_stamped_a.pose
+    bpose = pose_stamped_b.pose
+    ap = np.matrix([apose.position.x, apose.position.y, apose.position.z])
+    bp = np.matrix([bpose.position.x, bpose.position.y, bpose.position.z])
+    ip = ap + (bp - ap) * frac
+
+    aq = [apose.orientation.x, apose.orientation.y, apose.orientation.z, apose.orientation.w]
+    bq = [bpose.orientation.x, bpose.orientation.y, bpose.orientation.z, bpose.orientation.w]
+    iq = tr.quaternion_slerp(aq, bq, frac)
+
+    ps = geo.PoseStamped()
+    ps.header = pose_stamped_b.header
+    ps.pose.position.x = ip[0,0]
+    ps.pose.position.y = ip[0,1]
+    ps.pose.position.z = ip[0,2]
+    ps.pose.orientation.x = iq[0]
+    ps.pose.orientation.y = iq[1]
+    ps.pose.orientation.z = iq[2]
+    ps.pose.orientation.w = iq[3]
+    return ps
 
 
 class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
@@ -73,6 +96,11 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 
         for gb in list_widgets:
             formlayout.addRow(gb)
+
+        items_to_monitor = [self.time_box]
+        items_to_monitor += self.get_all_data_input_widgets()
+        self.list_manager.monitor_changing_values_in(self.rcommander, items_to_monitor)
+
         self.reset()
 
     def get_current_pose(self):
@@ -110,7 +138,6 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
             nname = self.name + str(self.counter)
         else:
             nname = name
-            self
         return VelocityPriorityState(nname, self.list_manager.get_data())
 
     def set_node_properties(self, node):
@@ -127,6 +154,18 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.list_manager.reset()
         self.list_manager.set_default_selection()
 
+def has_frame(tf_listener, source, target):
+    try:
+        rospy.loginfo('waiting for transform between %s and %s' % (source, target))
+        tf_listener.waitForTransform(source, target, rospy.Time(0), rospy.Duration(3.))
+        tf_listener.lookupTransform(source, target, rospy.Time(0))
+        return True
+    except tf.LookupException, e:
+        print 'LookupException', e
+        return False
+    except tf.ExtrapolationException, e:
+        print 'ExtrapolationException', e
+        return False
 
 class VelocityPriorityState(tu.StateBase):
 
@@ -150,6 +189,7 @@ class PlayTrajectory(threading.Thread):
         self.controller_frame = controller_frame
         self.tip_frame = tip_frame
         self.tf_listener = tf_listener
+        self.step_resolution = 1./100. #50hz
 
     def set_stop(self):
         self.stop = True
@@ -158,15 +198,58 @@ class PlayTrajectory(threading.Thread):
         #Change duration to cumulative time.
         if len(self.messages) == 0:
             return
+
+        #put in the current pose so that we'll interpolate there
+        messages = []
+        frame_described_in = self.messages[0]['pose_stamped'].header.frame_id
+        if self.messages[0]['arm'] == 'left':
+            arm_tip_frame = VelocityPriorityMoveTool.LEFT_TIP
+        else:
+            arm_tip_frame = VelocityPriorityMoveTool.RIGHT_TIP
+        
+        p_arm = tfu.tf_as_matrix(self.tf_listener.lookupTransform(frame_described_in, arm_tip_frame, rospy.Time(0)))
+        trans, rotation = tr.translation_from_matrix(p_arm), tr.quaternion_from_matrix(p_arm)
+        initial_pose = geo.PoseStamped()
+        initial_pose.pose.position.x = trans[0]
+        initial_pose.pose.position.y = trans[1]
+        initial_pose.pose.position.z = trans[2]
+        initial_pose.pose.orientation.x = rotation[0]
+        initial_pose.pose.orientation.y = rotation[1]
+        initial_pose.pose.orientation.z = rotation[2]
+        initial_pose.pose.orientation.w = rotation[3]
+        initial_pose.header = self.messages[0]['pose_stamped'].header
+
+        current_self_messages = [{'arm': self.messages[0]['arm'],
+                                  'pose_stamped': initial_pose,
+                                  'time': self.messages[0]['time']}]
+        current_self_messages = current_self_messages + self.messages
+
+        #interpolate
+        for msg_a, msg_b, idx_a in zip(current_self_messages[:-1], current_self_messages[1:], range(len(current_self_messages[:-1]))):
+            n_steps = int(np.floor(msg_b['time'] / self.step_resolution))
+            if n_steps == 0:
+                messages.append(msg_a)
+            else:
+                for i in range(n_steps):
+                    ps    = interpolate_pose_stamped(msg_a['pose_stamped'], msg_b['pose_stamped'], i/float(n_steps))
+                    msg_i = {'arm': msg_a['arm'],
+                             'pose_stamped': ps,
+                             'time': self.step_resolution}
+                    messages.append(msg_i)
+
+        messages.append({'arm': self.messages[-1]['arm'],
+                         'pose_stamped': self.messages[-1]['pose_stamped'],
+                         'time': self.step_resolution})
+
         timeslp = [0.0]
-        for idx, message in enumerate(self.messages[1:]):
+        for idx, message in enumerate(messages[1:]):
             timeslp.append(message['time'] + timeslp[idx])
 
         current_pose = tfu.tf_as_matrix(self.tf_listener.lookupTransform(VelocityPriorityMoveTool.COMMAND_FRAME, 
             self.controller_frame, rospy.Time(0)))
         #print 'current_pose\n', current_pose
         wall_start_time = rospy.get_rostime().to_time()
-        for t, el in zip(timeslp, self.messages):
+        for t, el in zip(timeslp, messages):
             #Sleep if needed
             cur_time = rospy.get_rostime().to_time()
             wall_time_from_start = cur_time - wall_start_time
@@ -203,7 +286,7 @@ class VelocityPriorityStateSmach(smach.State):
 
     #def __init__(self, frame, source_for_origin, poses_list, robot):
     def __init__(self, poses_list):
-        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], 
+        smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'frame_invalid'], 
                              input_keys = [], output_keys = [])
         #self.frame = frame
         #self.source_for_origin = source_for_origin
@@ -213,7 +296,9 @@ class VelocityPriorityStateSmach(smach.State):
         self.robot = None
 
     def set_robot(self, robot_obj):
-        self.robot = robot_obj
+        if robot_obj != None:
+            self.controller_manager = robot_obj.controller_manager
+            self.robot = robot_obj
 
     def execute(self, userdata):
         #Sort into two lists
@@ -226,6 +311,29 @@ class VelocityPriorityStateSmach(smach.State):
                 lp.append(p)
             else:
                 rp.append(p)
+
+        if len(lp) > 0 and len(rp) > 0:
+            arm = 'both'
+        elif len(lp) > 0:
+            arm = 'left'
+        elif len(rp) > 0:
+            arm = 'right'
+        else:
+            raise RuntimeError('Don\'t know which arm to use!')
+
+        status, started, stopped = self.controller_manager.cart_mode(arm)
+
+
+        frames_valid = True
+
+        if len(lp) > 0:
+            frames_valid = frames_valid and has_frame(self.robot.tf_listener, lp[0]['pose_stamped'].header.frame_id, VelocityPriorityMoveTool.LEFT_TIP)
+
+        if len(rp) > 0:
+            frames_valid = frames_valid and has_frame(self.robot.tf_listener, rp[0]['pose_stamped'].header.frame_id, VelocityPriorityMoveTool.RIGHT_TIP)
+
+        if not frames_valid:
+            return 'frame_invalid'
 
         lpthread = PlayTrajectory(self.lcart, lp, VelocityPriorityMoveTool.LEFT_CONTROL_FRAME,
                                   VelocityPriorityMoveTool.LEFT_TIP, self.robot.tf_listener)
@@ -242,8 +350,8 @@ class VelocityPriorityStateSmach(smach.State):
             if self.preempt_requested():
                 rospy.loginfo('VelocityPriorityStateSmach: preempt requested')
                 #self.action_client.cancel_goal()
-                lpthread.stop()
-                rpthread.stop()
+                lpthread.set_stop()
+                rpthread.set_stop()
                 self.service_preempt()
                 preempted = True
                 break

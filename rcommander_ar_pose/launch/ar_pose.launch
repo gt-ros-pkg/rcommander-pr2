@@ -1,0 +1,13 @@
+<launch>
+    <arg name="kinect" default="true"/>
+    <node name="ar_pose" pkg="ar_pose" type="ar_multi" respawn="false" output="screen" machine="c2">
+        <param name="marker_pattern_list" value="$(find rcommander_ar_pose)/data/object_4x4"/>
+        <param name="threshold" value="100"/>
+
+        <remap if="$(arg kinect)" from="/usb_cam/image_raw"   to="/head_mount_kinect/rgb/image_color"/>
+        <remap if="$(arg kinect)" from="/usb_cam/camera_info" to="/head_mount_kinect/rgb/camera_info"/>
+
+        <remap unless="$(arg kinect)" from="/usb_cam/image_raw" to="/wide_stereo/left/image_rect_color"/>
+        <remap unless="$(arg kinect)" from="/usb_cam/camera_info" to="/wide_stereo/left/camera_info"/>
+    </node>
+</launch>

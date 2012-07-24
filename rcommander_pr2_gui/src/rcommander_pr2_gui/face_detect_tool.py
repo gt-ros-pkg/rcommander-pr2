@@ -8,7 +8,7 @@ from tf_broadcast_server.srv import BroadcastTransform, GetTransforms, ClearTran
 from face_detector.msg import *
 import actionlib
 import geometry_msgs.msg as geo
-import rcommander.tf_utils as tfu
+import pypr2.tf_utils as tfu
 from object_manipulator.convert_functions import mat_to_pose, stamp_pose, change_pose_stamped_frame
 
 class FaceDetectTool(tu.ToolBase):

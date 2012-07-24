@@ -58,6 +58,9 @@ class JointTool:
         if arm == 'right':
             self.arm_radio_buttons[1].setChecked(True)
 
+    def get_arm_radio_buttons(self):
+        return self.arm_radio_buttons
+
     def get_arm_radio(self):
         return tu.selected_radio_button(self.arm_radio_buttons).lower()
 
@@ -178,6 +181,12 @@ class JointTool:
             exec('line_edit = self.%s' % name)
             line_edit.setValue(deg)
 
+    def check_all_joint_limits(self):
+        arm = self.get_arm_radio()
+        for idx, name in enumerate(JOINT_NAME_FIELDS):
+            exec('line_edit = self.%s' % name)
+            self.check_joint_limits(arm, line_edit.value(), name)
+
     def check_joint_limits(self, arm, value, joint):
         if arm == 'left':
             idx = 0
@@ -213,9 +222,9 @@ class SE3Tool:
         self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
 
     def make_se3_boxes(self, pbox):
-        self.xline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
-        self.yline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
-        self.zline = tu.double_spin_box(pbox, -3.,3.,.01) #QLineEdit(pbox)
+        self.xline = tu.double_spin_box(pbox, -200., 200.,.01) #QLineEdit(pbox)
+        self.yline = tu.double_spin_box(pbox, -200., 200.,.01) #QLineEdit(pbox)
+        self.zline = tu.double_spin_box(pbox, -200., 200.,.01) #QLineEdit(pbox)
         self.phi_line   = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
         self.theta_line = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
         self.psi_line   = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
@@ -242,7 +251,13 @@ class SE3Tool:
     def make_frame_box(self, pbox):
         frame_box = QComboBox(pbox)
         #for f in self.tf_listener.getFrameStrings():
-        for f in self.frames_service().frames:
+        for i in range(3):
+            try:
+                frames = self.frames_service().frames
+                break
+            except AttributeError, e:
+                self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
+        for f in frames:
             frame_box.addItem(f)
         return frame_box
     
@@ -487,9 +502,15 @@ class ListManager:
             return
         if idx == None:
             raise RuntimeError('Inconsistency detected in list')
-        else:
-            self.data_list.pop(idx)
+
+        print 'removing', idx
+        self.disable_saving = True
+        self.data_list.pop(idx)
+        #new_select = idx+1
+        #if new_select > len(self.data_list):
         self._refill_list_widget(self.data_list)
+        self.curr_selected = None
+        self.disable_saving = False
 
     def get_data(self, clean=False):
         if clean:
@@ -500,9 +521,6 @@ class ListManager:
     def set_data(self, data_list):
         self.data_list = copy.deepcopy(data_list)
         self._refill_list_widget(self.data_list)
-
-
-
 
 
 def position(point):
@@ -896,8 +914,8 @@ class PR2Torso(Joint):
     def __init__(self, joint_provider):
         Joint.__init__(self, 'torso_controller', joint_provider)
         self.torso = actionlib.SimpleActionClient('torso_controller/position_joint_action', pm.SingleJointPositionAction)
-        rospy.loginfo('waiting for torso_controller')
-        self.torso.wait_for_server()
+        rospy.loginfo('waiting for torso_controller/position_joint_action')
+        #self.torso.wait_for_server()
 
     def set_pose(self, p, block=True):
         self.torso.send_goal(pm.SingleJointPositionGoal(position = p))

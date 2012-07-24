@@ -1,0 +1,13 @@
+<package>
+  <description brief="rcommander_ar_pose">
+     Files for launching ar_pose with custom settings.
+  </description>
+  <author>Hai Nguyen (haidai@gmail.com), Advisor: Charles C. Kemp, Lab: Healthcare Robotics Lab, Georgia Tech</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/rcommander_ar_pose</url>
+  <depend package="ar_pose"/>
+
+</package>
+
+
