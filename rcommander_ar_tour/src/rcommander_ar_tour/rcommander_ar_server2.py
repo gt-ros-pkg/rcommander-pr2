@@ -27,6 +27,7 @@ import inspect as insp
 import detect_robot_move as drm
 import rcommander_web.rcommander_auto_server as ras
 import tf
+import tf.transformations as tr
 import cPickle as pk
 import functools as ft
 
@@ -34,11 +35,16 @@ import re
 import copy
 from threading import RLock
 import pdb
+import glob
 
 DEFAULT_LOC = [[0.,0.,0.], [0.,0.,0.,1.]]
+HEAD_MARKER_LOC = ([0,0,1.], tr.quaternion_from_euler(0, 0, np.radians(180.)))
 
 def tag_name(tagid, behavior_name):
-    return '%s (Tag #%d)' % (behavior_name, tagid)
+    if tagid != None:
+        return '%s (Tag #%d)' % (behavior_name, tagid)
+    else:
+        return '%s' % (behavior_name)
 
 def feedback_to_string(ftype):
     names = ['keep_alive', 'pose_update', 
@@ -65,7 +71,7 @@ def interactive_marker(name, pose, scale):
     int_marker.pose.orientation.x = pose[1][0]
     int_marker.pose.orientation.y = pose[1][1]
     int_marker.pose.orientation.z = pose[1][2]
-    int_marker.pose.orientation.w = pose[1][2]
+    int_marker.pose.orientation.w = pose[1][3]
     
     int_marker.scale = scale
     int_marker.name = name
@@ -89,12 +95,12 @@ def make_sphere_control(name, scale):
     control.interaction_mode = ims.InteractiveMarkerControl.BUTTON
     return control
 
-def make_control_marker():
+def make_control_marker(orientation=[0,0,0,1.]):
     control = ims.InteractiveMarkerControl()
-    control.orientation.x = 0
-    control.orientation.y = 0
-    control.orientation.z = 0
-    control.orientation.w = 1
+    control.orientation.x = orientation[0]
+    control.orientation.y = orientation[1]
+    control.orientation.z = orientation[2]
+    control.orientation.w = orientation[3]
     control.interaction_mode = ims.InteractiveMarkerControl.MOVE_AXIS
     return control
 
@@ -113,14 +119,23 @@ def make_directional_controls(name):
 
     return [x_control, y_control, z_control]
 
+def make_orientation_controls(name):
+    controls = make_directional_controls(name + '_rotate')
+    controls[0].interaction_mode = ims.InteractiveMarkerControl.ROTATE_AXIS
+    controls[1].interaction_mode = ims.InteractiveMarkerControl.ROTATE_AXIS
+    controls[2].interaction_mode = ims.InteractiveMarkerControl.ROTATE_AXIS
+    return controls
+
+
 def pose_to_tup(p):
     return [p.position.x, p.position.y, p.position.z], \
             [p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
 
 ##
 # @param callback is a function: f(menu_item, full_action_path)
-def menu_handler_from_action_tree(actions_tree, callback):
-    handler = mh.MenuHandler()
+def menu_handler_from_action_tree(actions_tree, callback, handler=None):
+    if handler == None:
+        handler = mh.MenuHandler()
     menu_handler_from_action_tree_helper(handler, actions_tree, callback)
     return handler
 
@@ -169,6 +184,14 @@ def lookup_transform(listener, aframe, bframe):
 
 #def tfu_transform(aframe, bframe, listener):
 #    map_T_ar = tfu.transform(aframe, bframe, self.tf_listener, t=0)
+
+def find_nested_folder(actions_tree, path):
+    if len(path) <= 0:
+        return actions_tree
+    folder = find_folder(actions_tree, path[0])
+    if folder != None:
+        return find_nested_folder(folder, path[1:])
+
 
 def find_folder(actions_tree, folder_name):
     return find_folder_idx(actions_tree, folder_name)[0]
@@ -310,13 +333,16 @@ class ActionMarker:
         self.marker_name = 'action_' + self.actionid
         pose = self.location_in_frame
 
-        int_marker = interactive_marker(self.marker_name, (pose[0], (0,0,0,1)), scale)
+        #print 'made marker with pose', pose
+        int_marker = interactive_marker(self.marker_name, (pose[0], pose[1]), scale)
+        #print int_marker.pose.orientation
         int_marker.header.frame_id = self.frame #self.tagid
         int_marker.description = self._make_description()
         int_marker.controls.append(make_sphere_control(self.marker_name + '_1', scale/8.))
         int_marker.controls.append(make_sphere_control(self.marker_name + '_2', scale))
         int_marker.controls[1].markers[0].color = color
         int_marker.controls += make_directional_controls(self.marker_name)
+        int_marker.controls += make_orientation_controls(self.marker_name)
 
         self.server_lock.acquire()
         self.marker_server.insert(int_marker, self.marker_cb)
@@ -430,14 +456,15 @@ class ActionMarkersManager:
         else:
             return None
 
-    def create_action(self, frame, tagid):
+    def create_action(self, parent_frame, tagid, loc=DEFAULT_LOC):
         #print 'create_action: tagid class', tagid.__class__
-        actionid = self.marker_db.insert('action', frame, tagid)
+        actionid = self.marker_db.insert('action', parent_frame, tagid, action_pose=loc)
         rec = self.marker_db.get(actionid)
         self._create_marker(actionid)
         self.server_lock.acquire()
         self.marker_server.applyChanges()
         self.server_lock.release()
+        return actionid
     
     # create the interactive marker obj
     def _create_marker(self, actionid):#, location_in_frame, frame, behavior_name, tagid):
@@ -491,11 +518,10 @@ class ActionMarkersManager:
         self.server_lock.release()
 
     def _action_selection_menu_cb(self, actionid, menu_item, full_action_path, int_feedback):
-        print 'menu called back on', actionid, menu_item, full_action_path #, int_feedback
+        rospy.loginfo('Clicked behavior %s on action %s' % (full_action_path, actionid))
         self.marker_db.update_behavior(actionid, full_action_path)
-        self.markers[actionid].update_name(menu_item)
+        self.markers[actionid].update_name(pt.split(full_action_path)[1])
         self.actions_db_changed_cb()
-
 
 class ARTagDatabase(Database):
 
@@ -662,21 +688,70 @@ class BehaviorServer:
         self.visible_markers = {}
         self.actions_tree = {'path': self.path_to_rcommander_files, 'actions':[]}
         self.actserv = None
+        self.head_menu_marker = None
 
         self.create_actions_tree()
         self.start_marker_server()
         self.start_list_service()
         self.start_execution_action_server()
-        self.create_refresh_interactive_marker()
+        self.create_head_menu()
 
-    def create_refresh_interactive_marker(self):
-        int_marker = interactive_marker('behavior_server_refresh', ([0,0,1.], [0,0,0,1]), .2)
+    def learnable_behavior_menu_cb(self, menu_item, full_action_path, int_feedback):
+        clicked_action = full_action_path
+        folder, action_name = pt.split(full_action_path)
+        all_actions = glob.glob(pt.join(folder, '*'))
+        nonmatchings = []
+
+        for a in all_actions:
+            if a != clicked_action:
+                nonmatchings.append(a)
+
+        if len(nonmatchings) > 1:
+            rospy.logerr('Found too many items in %s.  There can only be two behaviors.' % folder)
+            return
+
+        clicked_compliment = nonmatchings[0]
+
+        rospy.loginfo('clicked %s, compliment is %s' % (clicked_action, clicked_compliment))
+
+        p_tll = tfu.tf_as_matrix(HEAD_MARKER_LOC)
+        self.tf_listener.waitForTransform('map', 'torso_lift_link', rospy.Time.now(), rospy.Duration(10))
+        map_T_tll = tfu.transform('map', 'torso_lift_link', self.tf_listener, t=0)
+        p_map = tfu.matrix_as_tf(map_T_tll * p_tll)
+
+        #Create two markers
+        actionid = self.action_marker_manager.create_action('map', tagid=None, loc=p_map)
+        self.action_marker_manager._action_selection_menu_cb(actionid, 
+                            menu_item, clicked_action, int_feedback)
+
+        cactionid = self.action_marker_manager.create_action('map', tagid=None, loc=p_map)
+        self.action_marker_manager._action_selection_menu_cb(cactionid, 
+                            menu_item, clicked_compliment, int_feedback)
+
+
+    def create_head_menu(self):
+        if self.head_menu_marker != None:
+            self.marker_server_lock.acquire()
+            self.marker_server.erase('behavior_server_refresh')
+            self.marker_server_lock.release()
+
+        int_marker = interactive_marker('behavior_server_refresh', HEAD_MARKER_LOC, .2)
         int_marker.header.frame_id = 'torso_lift_link'
         int_marker.description = ''
         int_marker.controls.append(make_sphere_control(int_marker.name, .2))
 
         menu_handler = mh.MenuHandler()
-        menu_handler.insert('Rescan Behaviors', parent=None, callback=self.refresh_actions_tree)
+        menu_handler.insert('Rescan Behaviors', parent=None, callback=self.rescan_behaviors_cb)
+        menu_handler.insert('-----------------', parent=None, callback=None)
+
+        #Insert calls to learnable behaviors
+        behavior_folder = find_folder(self.actions_tree, 'Behaviors')
+        if behavior_folder != None:
+            learnable_folder = copy.deepcopy(find_folder(behavior_folder, 'Learnable'))
+            if learnable_folder != None:
+                tree = {'path':'root', 'actions':[learnable_folder]}
+                menu_handler_from_action_tree(tree, self.learnable_behavior_menu_cb, menu_handler)
+
         menu_control = ims.InteractiveMarkerControl()
         menu_control.interaction_mode = ims.InteractiveMarkerControl.MENU
         menu_control.name = 'menu_rescan'
@@ -687,7 +762,9 @@ class BehaviorServer:
         self.marker_server_lock.acquire()
         self.marker_server.insert(int_marker, None)
         menu_handler.apply(self.marker_server, int_marker.name)
+        self.marker_server.applyChanges()
         self.marker_server_lock.release()
+        self.head_menu_marker = int_marker
 
     def get_actions_tree(self):
         return self.actions_tree
@@ -869,8 +946,10 @@ class BehaviorServer:
 
         return loaded_actions, pruned_tree
 
-    def refresh_actions_tree(self, feedback):
+    def rescan_behaviors_cb(self, feedback):
+        rospy.loginfo('Rescan behaviors called')
         self.create_actions_tree()
+        self.create_head_menu()
         self.action_marker_manager.update_behavior_menus()
 
     def create_actions_tree(self):
