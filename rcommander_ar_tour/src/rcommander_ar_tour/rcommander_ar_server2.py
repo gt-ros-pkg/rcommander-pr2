@@ -119,6 +119,14 @@ def make_directional_controls(name):
 
     return [x_control, y_control, z_control]
 
+def make_orientation_controls(name):
+    controls = make_directional_controls(name + '_rotate')
+    controls[0].interaction_mode = ims.InteractiveMarkerControl.ROTATE_AXIS
+    controls[1].interaction_mode = ims.InteractiveMarkerControl.ROTATE_AXIS
+    controls[2].interaction_mode = ims.InteractiveMarkerControl.ROTATE_AXIS
+    return controls
+
+
 def pose_to_tup(p):
     return [p.position.x, p.position.y, p.position.z], \
             [p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
@@ -259,7 +267,6 @@ class ActionMarker:
         self.frame = frame
         self.tagid = tagid
         self.behavior_name = behavior_name
-        print 'created ActionMarker with', location_in_frame
         self.location_in_frame = location_in_frame
         self.marker_server = marker_server
         self.server_lock = server_lock
@@ -335,6 +342,7 @@ class ActionMarker:
         int_marker.controls.append(make_sphere_control(self.marker_name + '_2', scale))
         int_marker.controls[1].markers[0].color = color
         int_marker.controls += make_directional_controls(self.marker_name)
+        int_marker.controls += make_orientation_controls(self.marker_name)
 
         self.server_lock.acquire()
         self.marker_server.insert(int_marker, self.marker_cb)
