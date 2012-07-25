@@ -741,9 +741,6 @@ class BehaviorServer:
         int_marker.controls.append(make_sphere_control(int_marker.name, .2))
 
         menu_handler = mh.MenuHandler()
-<<<<<<< Updated upstream
-        menu_handler.insert('Rescan Behaviors', parent=None, callback=self.refresh_actions_tree)
-=======
         menu_handler.insert('Rescan Behaviors', parent=None, callback=self.rescan_behaviors_cb)
         menu_handler.insert('-----------------', parent=None, callback=None)
 
@@ -755,7 +752,6 @@ class BehaviorServer:
                 tree = {'path':'root', 'actions':[learnable_folder]}
                 menu_handler_from_action_tree(tree, self.learnable_behavior_menu_cb, menu_handler)
 
->>>>>>> Stashed changes
         menu_control = ims.InteractiveMarkerControl()
         menu_control.interaction_mode = ims.InteractiveMarkerControl.MENU
         menu_control.name = 'menu_rescan'
@@ -766,13 +762,9 @@ class BehaviorServer:
         self.marker_server_lock.acquire()
         self.marker_server.insert(int_marker, None)
         menu_handler.apply(self.marker_server, int_marker.name)
-<<<<<<< Updated upstream
-        self.marker_server_lock.release()
-=======
         self.marker_server.applyChanges()
         self.marker_server_lock.release()
         self.head_menu_marker = int_marker
->>>>>>> Stashed changes
 
     def get_actions_tree(self):
         return self.actions_tree
@@ -954,15 +946,10 @@ class BehaviorServer:
 
         return loaded_actions, pruned_tree
 
-<<<<<<< Updated upstream
-    def refresh_actions_tree(self, feedback):
-        self.create_actions_tree()
-=======
     def rescan_behaviors_cb(self, feedback):
         rospy.loginfo('Rescan behaviors called')
         self.create_actions_tree()
         self.create_head_menu()
->>>>>>> Stashed changes
         self.action_marker_manager.update_behavior_menus()
 
     def create_actions_tree(self):
