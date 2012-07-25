@@ -724,6 +724,8 @@ class BehaviorServer:
         self.action_marker_manager._action_selection_menu_cb(actionid, 
                             menu_item, clicked_action, int_feedback)
 
+        rospy.sleep(.5)
+
         cactionid = self.action_marker_manager.create_action('map', tagid=None, loc=p_map)
         self.action_marker_manager._action_selection_menu_cb(cactionid, 
                             menu_item, clicked_compliment, int_feedback)
