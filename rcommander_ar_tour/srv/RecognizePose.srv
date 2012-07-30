@@ -1,0 +1,6 @@
+string actionid
+geometry_msgs/PoseStamped last_known_pose
+---
+geometry_msgs/PoseStamped pose
+string pickled_dict
+
