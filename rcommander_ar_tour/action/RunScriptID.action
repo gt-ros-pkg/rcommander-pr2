@@ -1,0 +1,6 @@
+string actionid
+---
+string result
+---
+string node_type
+string current_node
