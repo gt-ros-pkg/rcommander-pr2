@@ -1,6 +1,6 @@
 <launch>
     <arg name="kinect" default="true"/>
-    <node name="ar_pose" pkg="ar_pose" type="ar_multi" respawn="false" output="screen" machine="c2">
+    <node name="ar_pose" pkg="ar_pose" type="ar_multi" respawn="false" output="screen" machine="c2rcommander">
         <param name="marker_pattern_list" value="$(find rcommander_ar_pose)/data/object_4x4"/>
         <param name="threshold" value="100"/>
 
