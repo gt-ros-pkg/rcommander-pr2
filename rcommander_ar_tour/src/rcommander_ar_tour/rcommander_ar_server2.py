@@ -6,10 +6,18 @@ import std_msgs.msg as stdm
 import interactive_markers.interactive_marker_server as ims
 import interactive_markers.menu_handler as mh
 import ar_pose.msg as ar_msg
+
+import sys
+#import pdb
+#for s in sys.path:
+#    print s
+#pdb.set_trace()
 from rcommander_web.srv import ActionInfo, ActionInfoResponse
+import rcommander_ar_tour.srv as rsrv
 import geometry_msgs.msg as gmsg
 
 import rcommander_web.msg as rmsg
+import rcommander_ar_tour.msg as atmsg
 #from rcommander_web.msg import *
 #import rcommander_ar_pose.utils as rap
 import pypr2.tf_utils as tfu
@@ -131,6 +139,17 @@ def pose_to_tup(p):
     return [p.position.x, p.position.y, p.position.z], \
             [p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
 
+def tup_to_pose(p):
+    pose = gmsg.Pose()
+    pose.position.x = p[0][0]
+    pose.position.y = p[0][1]
+    pose.position.z = p[0][2]
+    pose.orientation.x = p[1][0]
+    pose.orientation.y = p[1][1]
+    pose.orientation.z = p[1][2]
+    pose.orientation.w = p[1][3]
+    return pose
+
 ##
 # @param callback is a function: f(menu_item, full_action_path)
 def menu_handler_from_action_tree(actions_tree, callback, handler=None):
@@ -229,6 +248,12 @@ class Database:
         self.database.pop(an_id)
         self.modified = True
 
+    def set_property(self, actionid, prop_name, value):
+        self.database[actionid][prop_name] = value
+
+    def has_property(self, actionid, prop_name):
+        return self.database[actionid].has_key(prop_name)
+
 
 class ActionDatabase(Database):
        
@@ -238,8 +263,8 @@ class ActionDatabase(Database):
    def insert(self, name, frame, tagid, action_pose=DEFAULT_LOC, behavior_path=None):
        actionid = name + str(rospy.get_rostime().to_time())
        self.database[actionid] = {'name': name, 'frame': frame, 
-                                   'loc': action_pose, 'behavior_path': behavior_path,
-                                   'tagid': tagid}
+                                  'loc': action_pose, 'behavior_path': behavior_path,
+                                  'tagid': tagid}
        self.modified = True
        return actionid
 
@@ -254,6 +279,7 @@ class ActionDatabase(Database):
    def update_loc(self, actionid, loc):
        self.database[actionid]['loc'] = loc
        self.modified = True
+
 
 class ActionMarker:
 
@@ -284,7 +310,10 @@ class ActionMarker:
 
     def _add_delete_option(self, menu_handler):
         menu_handler.insert('-----------------', parent=None, callback=None)
+        menu_handler.insert('Train', parent=None, callback=self.train_cb)
         menu_handler.insert('Delete', parent=None, callback=self.delete_action_cb)
+
+    def train_cb(self, feedback):
 
     def delete_action_cb(self, feedback):
         self.manager.delete_marker_cb(self.actionid)
@@ -312,6 +341,7 @@ class ActionMarker:
             self.marker_name = None
 
     def update(self, pose_in_defined_frame):
+        self.manager.update_loc(self.actionid, pose_to_tup(pose_in_defined_frame))
         self.marker_obj.pose = pose_in_defined_frame
         self.location_in_frame = pose_to_tup(pose_in_defined_frame)
 
@@ -405,12 +435,11 @@ class ActionMarker:
         #print 'called', feedback_to_string(feedback.event_type), feedback.marker_name, feedback.control_name
         if feedback.event_type == ims.InteractiveMarkerFeedback.POSE_UPDATE:
             #p_ar = tfu.tf_as_matrix(pose_to_tup(feedback.pose))
-            p_ar = pose_to_tup(feedback.pose)
+            #p_ar = pose_to_tup(feedback.pose)
             #self.tf_listener.waitForTransform(self.frame, 'map', 
             #        rospy.Time.now(), rospy.Duration(10))
             #ar_T_map = tfu.transform(self.frame, 'map', self.tf_listener, t=0)
             #p_ar = tfu.matrix_as_tf(ar_T_map * p_map)
-            self.manager.update_loc(self.actionid, p_ar)
             self.update(feedback.pose)
 
         sphere_match = re.search('_sphere$', feedback.control_name)
@@ -456,9 +485,9 @@ class ActionMarkersManager:
         else:
             return None
 
-    def create_action(self, parent_frame, tagid, loc=DEFAULT_LOC):
+    def create_action(self, parent_frame, tagid, loc=DEFAULT_LOC, name='action'):
         #print 'create_action: tagid class', tagid.__class__
-        actionid = self.marker_db.insert('action', parent_frame, tagid, action_pose=loc)
+        actionid = self.marker_db.insert(name, parent_frame, tagid, action_pose=loc)
         rec = self.marker_db.get(actionid)
         self._create_marker(actionid)
         self.server_lock.acquire()
@@ -491,10 +520,16 @@ class ActionMarkersManager:
             return None
 
     def delete_marker_cb(self, actionid):
-        print 'delete called on', actionid
+        if self.marker_db.has_property(actionid, 'complement'):
+            cactionid = self.marker_db.get(actionid)['complement']
+            self.markers[cactionid].remove()
+            self.markers.pop(cactionid)
+            self.marker_db.remove(cactionid)
+
         self.markers[actionid].remove()
         self.markers.pop(actionid)
         self.marker_db.remove(actionid)
+
         self.server_lock.acquire()
         self.marker_server.applyChanges()
         self.server_lock.release()
@@ -522,6 +557,9 @@ class ActionMarkersManager:
         self.marker_db.update_behavior(actionid, full_action_path)
         self.markers[actionid].update_name(pt.split(full_action_path)[1])
         self.actions_db_changed_cb()
+
+    def get_marker(self, actionid):
+        return self.markers[actionid]
 
 class ARTagDatabase(Database):
 
@@ -579,14 +617,15 @@ class ARTagMarker:
         #print 'ARTagMarker: clicked on', feedback.marker_name
 
     def update(self, pose_in_map_frame):
-        pose = gmsg.Pose()
-        pose.position.x = pose_in_map_frame[0][0]
-        pose.position.y = pose_in_map_frame[0][1]
-        pose.position.z = pose_in_map_frame[0][2]
-        pose.orientation.x = pose_in_map_frame[1][0]
-        pose.orientation.y = pose_in_map_frame[1][1]
-        pose.orientation.z = pose_in_map_frame[1][2]
-        pose.orientation.w = pose_in_map_frame[1][3]
+        #pose = gmsg.Pose()
+        #pose.position.x = pose_in_map_frame[0][0]
+        #pose.position.y = pose_in_map_frame[0][1]
+        #pose.position.z = pose_in_map_frame[0][2]
+        #pose.orientation.x = pose_in_map_frame[1][0]
+        #pose.orientation.y = pose_in_map_frame[1][1]
+        #pose.orientation.z = pose_in_map_frame[1][2]
+        #pose.orientation.w = pose_in_map_frame[1][3]
+        pose = tup_to_pose(pose_in_map_frame)
 
         self.server_lock.acquire()
         self.marker_server.setPose(self.marker_name, pose)
@@ -692,7 +731,7 @@ class BehaviorServer:
 
         self.create_actions_tree()
         self.start_marker_server()
-        self.start_list_service()
+        self.start_services()
         self.start_execution_action_server()
         self.create_head_menu()
 
@@ -710,9 +749,9 @@ class BehaviorServer:
             rospy.logerr('Found too many items in %s.  There can only be two behaviors.' % folder)
             return
 
-        clicked_compliment = nonmatchings[0]
+        clicked_complement = nonmatchings[0]
 
-        rospy.loginfo('clicked %s, compliment is %s' % (clicked_action, clicked_compliment))
+        rospy.loginfo('clicked %s, complement is %s' % (clicked_action, clicked_complement))
 
         p_tll = tfu.tf_as_matrix(HEAD_MARKER_LOC)
         self.tf_listener.waitForTransform('map', 'torso_lift_link', rospy.Time.now(), rospy.Duration(10))
@@ -720,15 +759,19 @@ class BehaviorServer:
         p_map = tfu.matrix_as_tf(map_T_tll * p_tll)
 
         #Create two markers
-        actionid = self.action_marker_manager.create_action('map', tagid=None, loc=p_map)
+        
+        actionid = self.action_marker_manager.create_action('map', tagid=None, loc=p_map, 
+                name=pt.split(clicked_action)[1])
         self.action_marker_manager._action_selection_menu_cb(actionid, 
                             menu_item, clicked_action, int_feedback)
 
-        rospy.sleep(.5)
-
-        cactionid = self.action_marker_manager.create_action('map', tagid=None, loc=p_map)
+        cactionid = self.action_marker_manager.create_action('map', tagid=None, loc=p_map, 
+                name=pt.split(clicked_complement)[1])
         self.action_marker_manager._action_selection_menu_cb(cactionid, 
-                            menu_item, clicked_compliment, int_feedback)
+                            menu_item, clicked_complement, int_feedback)
+
+        self.action_marker_manager.marker_db.set_property(actionid, 'complement', cactionid)
+        self.action_marker_manager.marker_db.set_property(cactionid, 'complement', actionid)
 
 
     def create_head_menu(self):
@@ -787,14 +830,45 @@ class BehaviorServer:
         rospy.loginfo('Ready!')
 
     #For listing / serving actions
-    def start_list_service(self):
+    def start_services(self):
         #self.main_dir_watcher = ras.WatchDirectory(self.path_to_rcommander_files, self.main_directory_watch_cb)
         rospy.Service('list_rcommander_actions', ActionInfo, self.list_action_cb)
+        rospy.Service('get_behavior_property', rsrv.ActionProperty, self.get_behavior_property_cb)
+        rospy.Service('set_behavior_pose', rsrv.SetBehaviorPose, self.set_behavior_pose_cb)
+        rospy.Service('get_behavior_pose', rsrv.GetBehaviorPose, self.get_behavior_pose_cb)
 
     def start_execution_action_server(self):
         self.actserv = actionlib.SimpleActionServer('run_rcommander_action_web', rmsg.RunScriptAction, 
-                            execute_cb=self.execute_cb, auto_start=False)
+                            execute_cb=self.run_action_cb, auto_start=False)
+        self.actserv = actionlib.SimpleActionServer('run_actionid', atmsg.RunScriptIDAction, 
+                            execute_cb=self.run_actionid_cb, auto_start=False)
         self.actserv.start()
+
+    def set_behavior_pose_cb(self, req):
+        pose = req.posestamped.pose
+        actionid = req.actionid
+
+        marker_obj = self.action_marker_manager.get_marker(actionid)
+        marker_obj.update(pose)
+
+        self.marker_server_lock.acquire()
+        self.marker_server.setPose(marker_obj.marker_name, pose)
+        self.marker_server.applyChanges()
+        self.marker_server_lock.release()
+        return rsrv.SetBehaviorPoseResponse()
+
+    def get_behavior_pose_cb(self, req):
+        marker = self.action_marker_manager.get_marker(req.actionid)
+        ps = PoseStamped()
+        ps.pose = tup_to_pose(marker.location_in_frame)
+        ps.header.stamp_id = marker.frame
+        return rsrv.GetBehaviorPoseResponse(ps)
+
+    def get_behavior_property_cb(self, req):
+        actionid = req.actionid
+        prop = req.attribute
+        value = self.action_marker_manager.marker_db[actionid][prop]
+        return rsrv.ActionPropertyResponse(value)
 
     def list_action_cb(self, req):
         path = req.path
@@ -864,7 +938,8 @@ class BehaviorServer:
         if entry['behavior_path'] != None:
             action_path = self._behavior_path_to_location_path(entry['behavior_path'], entry['tagid'])
             rospy.loginfo('Inserted %s into loaded_actions.' % action_path)
-            self.loaded_actions[action_path] = ft.partial(self._execute_database_action_cb, actionid)
+            self.loaded_actions[action_path] = {'function': ft.partial(self._execute_database_action_cb, actionid),
+                                                'actionid': actionid}
             locations_tree['actions'] += [action_path]
 
     def _behavior_path_to_location_path(self, behavior_path, tagid):
@@ -877,18 +952,21 @@ class BehaviorServer:
         root_path = pt.join(root_path, tag_name(tagid, behavior_name))
         return pt.join(self.path_to_rcommander_files, pt.join('Locations', root_path))
 
-    def execute_cb(self, goal):
-        rospy.loginfo('Executing: ' + goal.action_path)
-        if hasattr(self.loaded_actions[goal.action_path], '__call__'):
-            self.loaded_actions[goal.action_path]()
-        else:
-            self.loaded_actions[goal.action_path]['scripted_action_server'].execute(self.actserv)
+    def run_actionid_cb(self, req):
+        self._execute_database_action_cb(req.actionid)
+
+    def run_action_cb(self, req):
+        rospy.loginfo('Executing: ' + req.action_path)
+        if hasattr(self.loaded_actions[req.action_path], '__call__'):
+            self.loaded_actions[req.action_path]['function']()
+        #else:
+        #    self.loaded_actions[goal.action_path]['scripted_action_server'].execute(self.actserv)
 
     def _execute_database_action_cb(self, actionid):
         entry = self.action_marker_manager.marker_db.get(actionid)
-        self.action_marker_manager.set_task_frame(actionid)
-        self.publish_task_frame_transform()
-        self.loaded_actions[entry['behavior_path']]['scripted_action_server'].execute(self.actserv)
+        self.set_task_frame(actionid)
+        #self.loaded_actions[entry['behavior_path']]['scripted_action_server'].execute(self.actserv)
+        self.loaded_actions[entry['behavior_path']]['function']()#.execute(self.actserv)
         self.action_marker_manager.set_task_frame(None) #This will stop the publishing process
 
     def ar_marker_cb(self, msg):
@@ -904,8 +982,9 @@ class BehaviorServer:
         action_path = action
         for i in range(4):
             try:
-                load_dict = {'scripted_action_server':  ras.ScriptedActionServer(action, 
-                                                                action_path, self.robot),
+                action_server = ras.ScriptedActionServer(action, action_path, self.robot)
+                load_dict = {'scripted_action_server':  action_server,
+                             'function': ft.partial(action_server.execute, self.actserv)
                              #'watcher': ras.WatchDirectory(action_path, 
                              #    self.sub_directory_changed_cb)
                              }
