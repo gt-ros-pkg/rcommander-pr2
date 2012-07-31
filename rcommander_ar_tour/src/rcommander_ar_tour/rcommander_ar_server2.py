@@ -314,6 +314,7 @@ class ActionMarker:
         menu_handler.insert('Delete', parent=None, callback=self.delete_action_cb)
 
     def train_cb(self, feedback):
+        self.manager.train_publisher.Publish(atmsg.TrainAction(self.actionid))
 
     def delete_action_cb(self, feedback):
         self.manager.delete_marker_cb(self.actionid)
@@ -461,6 +462,7 @@ class ActionMarkersManager:
         self.marker_server = marker_server
         self.actions_db_changed_cb = actions_db_changed_cb
         self.tf_listener = tf_listener
+        self.train_publisher = rospy.Publisher('train_action', atmsg.TrainAction)
 
         #Database and marker list has to be in sync!
         self.marker_db = Database_load(action_marker_database_name, ActionDatabase)
