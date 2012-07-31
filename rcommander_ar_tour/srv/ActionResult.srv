@@ -1,0 +1,4 @@
+string actionid
+string info
+bool result
+---
