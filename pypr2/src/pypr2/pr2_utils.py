@@ -982,7 +982,7 @@ class PR2Base:
         goal = hm.GoAngleGoal()
         goal.angle = angle
         self.go_angle_client.send_goal(goal)
-        print 'SENT TURN GOAL'
+        #print 'SENT TURN GOAL'
         if block:
             rospy.loginfo('turn_to: waiting for turn..')
             self.go_angle_client.wait_for_result()
@@ -1022,6 +1022,9 @@ class PR2Base:
         if block:
             self.go_xy_client.wait_for_result()
 
+def create_joint_provider()
+    jl = GenericListener('joint_state_listener', sm.JointState, 'joint_states', 100)
+    return ft.partial(jl.read, allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
 
 class PR2:
 
@@ -1030,8 +1033,9 @@ class PR2:
         #print 'PR2 OBJECT CREATED'
         #print '===================================='
         self.tf_listener = tf_listener
-        jl = GenericListener('joint_state_listener', sm.JointState, 'joint_states', 100)
-        joint_provider = ft.partial(jl.read, allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+        #jl = GenericListener('joint_state_listener', sm.JointState, 'joint_states', 100)
+        #joint_provider = ft.partial(jl.read, allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
+        joint_provider = create_joint_provider()
         self.left  = PR2Arm(joint_provider, tf_listener, 'l')
         self.right = PR2Arm(joint_provider, tf_listener, 'r')
         self.torso = PR2Torso(joint_provider)
