@@ -1022,7 +1022,7 @@ class PR2Base:
         if block:
             self.go_xy_client.wait_for_result()
 
-def create_joint_provider()
+def create_joint_provider():
     jl = GenericListener('joint_state_listener', sm.JointState, 'joint_states', 100)
     return ft.partial(jl.read, allow_duplication=False, willing_to_wait=True, warn=False, quiet=True)
 
