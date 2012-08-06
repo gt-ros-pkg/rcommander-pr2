@@ -478,7 +478,7 @@ class ActionMarkersManager:
         for actionid in self.markers.keys():
             marker = self.markers[actionid]
             if marker.is_current_task_frame:
-                return marker.frame, marker.location_in_frame
+                return actionid, marker.frame, marker.location_in_frame
         return None
 
     def _get_behavior_name(self, rec):
@@ -637,6 +637,7 @@ class ARTagMarker:
         self.server_lock.acquire()
         self.marker_server.erase(self.marker_name)
         self.server_lock.release()
+
 
 def ar_frame_name(tagid):
     return '4x4_' + str(tagid)
@@ -838,6 +839,8 @@ class BehaviorServer:
         rospy.Service('get_behavior_property', rsrv.ActionProperty, self.get_behavior_property_cb)
         rospy.Service('set_behavior_pose', rsrv.SetBehaviorPose, self.set_behavior_pose_cb)
         rospy.Service('get_behavior_pose', rsrv.GetBehaviorPose, self.get_behavior_pose_cb)
+        rospy.Service('get_active_action_id', rsrv.GetActiveActionID, self.get_active_action_id_cb)
+
 
     def start_execution_action_server(self):
         self.actserv = actionlib.SimpleActionServer('run_rcommander_action_web', rmsg.RunScriptAction, 
@@ -845,6 +848,15 @@ class BehaviorServer:
         self.actserv = actionlib.SimpleActionServer('run_actionid', atmsg.RunScriptIDAction, 
                             execute_cb=self.run_actionid_cb, auto_start=False)
         self.actserv.start()
+
+    def get_active_action_id_cb(self, req):
+        task_frame_info = self.action_marker_manager.get_current_task_frame()
+        if task_frame_info != None:
+            actionid, _, _ = task_frame_info
+            return rsrv.GetActiveActionIDResponse(actionid)
+        else:
+            return rsrv.GetActiveActionIDResponse('')
+
 
     def set_behavior_pose_cb(self, req):
         pose = req.posestamped.pose
@@ -857,6 +869,7 @@ class BehaviorServer:
         self.marker_server.setPose(marker_obj.marker_name, pose)
         self.marker_server.applyChanges()
         self.marker_server_lock.release()
+
         return rsrv.SetBehaviorPoseResponse()
 
     def get_behavior_pose_cb(self, req):
@@ -1067,7 +1080,7 @@ class BehaviorServer:
         task_frame_info = self.action_marker_manager.get_current_task_frame()
         if task_frame_info == None:
             return
-        frame, loc = task_frame_info
+        actionid, frame, loc = task_frame_info
         self.broadcaster.sendTransform(loc[0], loc[1], rospy.Time.now(), 'task_frame', frame)
 
     def step(self, timer_obj):
