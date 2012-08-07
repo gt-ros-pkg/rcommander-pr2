@@ -6,6 +6,7 @@ import std_msgs.msg as stdm
 import interactive_markers.interactive_marker_server as ims
 import interactive_markers.menu_handler as mh
 import ar_pose.msg as ar_msg
+import geometry_msgs.msg as gmsg
 
 import sys
 #import pdb
@@ -874,9 +875,9 @@ class BehaviorServer:
 
     def get_behavior_pose_cb(self, req):
         marker = self.action_marker_manager.get_marker(req.actionid)
-        ps = PoseStamped()
+        ps = gmsg.PoseStamped()
         ps.pose = tup_to_pose(marker.location_in_frame)
-        ps.header.stamp_id = marker.frame
+        ps.header.frame_id = marker.frame
         return rsrv.GetBehaviorPoseResponse(ps)
 
     def get_behavior_property_cb(self, req):
