@@ -544,13 +544,17 @@ def standard_rad(t):
 
 ## Make sure that the first element is close to the current angle and make sure
 ## that every other element conforms.
-def angle_consistency_check(current_angle, angles_list):
+def angle_consistency_check(current_angle, angles_list, allow_spins=False):
     diff = standard_rad(angles_list[0] - current_angle)
     start_angle = current_angle + diff
     angles = []
     prev = angles_list[0]
     for current in angles_list[1:]:
-        angles.append(start_angle + (current - prev))
+        if allow_spins:
+            angles.append(start_angle + (current - prev))
+        else:
+            angles.append(start_angle + standard_rad(current - prev))
+
     return [start_angle] + angles
 
 ra = math.radians
@@ -569,7 +573,7 @@ class TestAngleConsistency(unittest.TestCase):
         self.assertEqual(ret, [ra(20.-360), ra(-360.+360.+180)])
 
     def test_03(self):
-        ret = angle_consistency_check(0, [ra(3620), ra(3960), ra(4320)])
+        ret = angle_consistency_check(0, [ara(3620), ra(3960), ra(4320)])
         self.assertEqual(ret, [ra(20.), ra(360.), ra(720.)])
 
     def test_04(self):
@@ -842,7 +846,7 @@ class PR2Arm(Joint):
     ##
     # @param pos_mat column matrix of poses
     # @param times array of times
-    def set_poses(self, pos_mat, times, vel_mat=None, block=True):
+    def set_poses(self, pos_mat, times, vel_mat=None, block=True, allow_spins=False):
         #p = self.pose()
         #for i in range(pos_mat.shape[1]):
         #    pos_mat[4,i] = unwrap2(p[4,0], pos_mat[4,i])
@@ -850,8 +854,8 @@ class PR2Arm(Joint):
         #    p = pos_mat[:,i]
 
         cur_pose = self.pose()
-        pos_mat[4,:] = np.matrix(angle_consistency_check(cur_pose[4,0], pos_mat[4,:].A1))
-        pos_mat[6,:] = np.matrix(angle_consistency_check(cur_pose[6,0], pos_mat[6,:].A1))
+        pos_mat[4,:] = np.matrix(angle_consistency_check(cur_pose[4,0], pos_mat[4,:].A1), allow_spins)
+        pos_mat[6,:] = np.matrix(angle_consistency_check(cur_pose[6,0], pos_mat[6,:].A1), allow_spins)
 
         pos_mat = np.column_stack([cur_pose, pos_mat])
         #print 'SETPOSES', times, times.__class__
