@@ -216,6 +216,19 @@ class JointTool:
         exec('self.%s.setPalette(palette)' % joint_name)
 
 
+def make_frame_box(pbox, frame_service):
+    frame_box = QComboBox(pbox)
+    for i in range(3):
+        try:
+            frames = frames_service().frames
+            break
+        except AttributeError, e:
+            frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
+    for f in frames:
+        frame_box.addItem(f)
+    return frame_box, frame_service
+
+
 class SE3Tool:
 
     def __init__(self):
@@ -249,17 +262,19 @@ class SE3Tool:
         return [self.xline, self.yline, self.zline, self.phi_line, self.theta_line, self.psi_line]
     
     def make_frame_box(self, pbox):
-        frame_box = QComboBox(pbox)
-        #for f in self.tf_listener.getFrameStrings():
-        for i in range(3):
-            try:
-                frames = self.frames_service().frames
-                break
-            except AttributeError, e:
-                self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
-        for f in frames:
-            frame_box.addItem(f)
+        frame_box, self.frames_service = make_frame_box(pbox, self.frames_service)
         return frame_box
+        #frame_box = QComboBox(pbox)
+        ##for f in self.tf_listener.getFrameStrings():
+        #for i in range(3):
+        #    try:
+        #        frames = self.frames_service().frames
+        #        break
+        #    except AttributeError, e:
+        #        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
+        #for f in frames:
+        #    frame_box.addItem(f)
+        #return frame_box
     
     def make_task_frame_box(self, pbox):
         self.frame_box = self.make_frame_box(pbox)
@@ -932,12 +947,35 @@ class PR2Head(Joint):
 
     def __init__(self, joint_provider):
         Joint.__init__(self, 'head_traj_controller', joint_provider)
+        self.head_client = actionlib.SimpleActionClient('head_traj_controller/point_head_action', 
+                pm.PointHeadAction)
 
     def set_pose(self, pos, length=5., block=False):
         for i in range(2):
             cpos = self.pose()
         MIN_TIME = .1
         self.set_poses(np.column_stack([cpos, pos]), np.array([MIN_TIME, MIN_TIME+length]))
+
+    def look_at(self, pt3d, frame='base_link', pointing_frame="wide_stereo_link",
+                pointing_axis=np.matrix([1, 0, 0.]).T, wait=True):
+        g = pm.PointHeadGoal()
+        g.target.header.frame_id = frame
+        g.target.point = gm.Point(*pt3d.T.A1.tolist())
+
+        g.pointing_frame = pointing_frame
+        g.pointing_axis.x = pointing_axis[0,0]
+        g.pointing_axis.y = pointing_axis[1,0]
+        g.pointing_axis.z = pointing_axis[2,0]
+        g.min_duration = rospy.Duration(1.0)
+        g.max_velocity = 10.
+
+        self.head_client.send_goal(g)
+        if wait:
+            self.head_client.wait_for_result(rospy.Duration(1.))
+        if self.head_client.get_state() == amsg.GoalStatus.SUCCEEDED:
+            return True
+        else:
+            return False
 
 
 class PR2Base:
