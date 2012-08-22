@@ -1,6 +1,7 @@
 import roslib; roslib.load_manifest('rcommander_pr2_gui')
 import rospy
 import actionlib
+import actionlib_msgs.msg as amsg
 import trajectory_msgs.msg as tm
 import numpy as np
 import functools as ft
@@ -169,6 +170,9 @@ class JointTool:
         else:
             arm_obj = self.robot.right
         pose_mat = arm_obj.pose()
+        pose_mat[4,0] = pose_mat[4,0] % (np.pi*2)
+        pose_mat[6,0] = pose_mat[6,0] % (np.pi*2)
+
         return pose_mat
 
     def live_update_cb(self):
@@ -216,7 +220,7 @@ class JointTool:
         exec('self.%s.setPalette(palette)' % joint_name)
 
 
-def make_frame_box(pbox, frame_service):
+def make_frame_box(pbox, frames_service):
     frame_box = QComboBox(pbox)
     for i in range(3):
         try:
@@ -226,7 +230,7 @@ def make_frame_box(pbox, frame_service):
             frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
     for f in frames:
         frame_box.addItem(f)
-    return frame_box, frame_service
+    return frame_box, frames_service
 
 
 class SE3Tool:
@@ -869,8 +873,8 @@ class PR2Arm(Joint):
         #    p = pos_mat[:,i]
 
         cur_pose = self.pose()
-        pos_mat[4,:] = np.matrix(angle_consistency_check(cur_pose[4,0], pos_mat[4,:].A1), allow_spins)
-        pos_mat[6,:] = np.matrix(angle_consistency_check(cur_pose[6,0], pos_mat[6,:].A1), allow_spins)
+        pos_mat[4,:] = np.matrix(angle_consistency_check(cur_pose[4,0], pos_mat[4,:].A1, allow_spins))
+        pos_mat[6,:] = np.matrix(angle_consistency_check(cur_pose[6,0], pos_mat[6,:].A1, allow_spins))
 
         pos_mat = np.column_stack([cur_pose, pos_mat])
         #print 'SETPOSES', times, times.__class__

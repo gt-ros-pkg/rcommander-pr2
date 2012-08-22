@@ -55,6 +55,7 @@
       <rcommander plugin="rcommander_pr2_gui.precise_navigate_tool"         robot="pr2" tab="Misc"/>  
       <rcommander plugin="rcommander_pr2_gui.speak_tool"                    robot="pr2" tab="Interaction"/>  
       <rcommander plugin="rcommander_pr2_gui.move_head_tool"                robot="pr2" tab="Interaction"/>  
+      <rcommander plugin="rcommander_pr2_gui.look_at_tool"                  robot="pr2" tab="Interaction"/>  
       <rcommander plugin="rcommander_pr2_gui.face_detect_tool"              robot="pr2" tab="Origins"/>  
   </export>
 
