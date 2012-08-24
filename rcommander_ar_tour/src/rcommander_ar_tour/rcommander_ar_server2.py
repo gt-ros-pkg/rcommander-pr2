@@ -315,7 +315,8 @@ class ActionMarker:
         menu_handler.insert('Delete', parent=None, callback=self.delete_action_cb)
 
     def train_cb(self, feedback):
-        self.manager.train_publisher.Publish(atmsg.TrainAction(self.actionid))
+        rospy.loginfo('train_cb called %s' % str(feedback))
+        self.manager.train_publisher.publish(atmsg.TrainAction(self.actionid))
 
     def delete_action_cb(self, feedback):
         self.manager.delete_marker_cb(self.actionid)
@@ -691,8 +692,8 @@ class ARMarkersManager:
                         self.markers[mid].update(ar_location)
                         markers_changed = True
                     self.marker_db.set_location(mid, ar_location)
-#else:
-#            rospy.loginfo('skipped updating ARMarkers because we are moving')
+        #else:
+        #    rospy.loginfo('skipped updating ARMarkers because we are moving')
 
         for mid in self.markers.keys():
             if mid in visible_ids:
@@ -730,7 +731,8 @@ class BehaviorServer:
         self.ar_pose_sub = None
         self.visible_markers = {}
         self.actions_tree = {'path': self.path_to_rcommander_files, 'actions':[]}
-        self.actserv = None
+        self.actserv_runweb      = None
+        self.actserv_runactionid = None
         self.head_menu_marker = None
 
         self.create_actions_tree()
@@ -838,17 +840,18 @@ class BehaviorServer:
         #self.main_dir_watcher = ras.WatchDirectory(self.path_to_rcommander_files, self.main_directory_watch_cb)
         rospy.Service('list_rcommander_actions', ActionInfo, self.list_action_cb)
         rospy.Service('get_behavior_property', rsrv.ActionProperty, self.get_behavior_property_cb)
+        #rospy.Service('get_trf_mode', rsrv.GetTRFProperty, self.get_trf_property_cb)
         rospy.Service('set_behavior_pose', rsrv.SetBehaviorPose, self.set_behavior_pose_cb)
         rospy.Service('get_behavior_pose', rsrv.GetBehaviorPose, self.get_behavior_pose_cb)
         rospy.Service('get_active_action_id', rsrv.GetActiveActionID, self.get_active_action_id_cb)
 
-
     def start_execution_action_server(self):
-        self.actserv = actionlib.SimpleActionServer('run_rcommander_action_web', rmsg.RunScriptAction, 
-                            execute_cb=self.run_action_cb, auto_start=False)
-        self.actserv = actionlib.SimpleActionServer('run_actionid', atmsg.RunScriptIDAction, 
-                            execute_cb=self.run_actionid_cb, auto_start=False)
-        self.actserv.start()
+        self.actserv_runweb = actionlib.SimpleActionServer('run_rcommander_action_web', rmsg.RunScriptAction, 
+                            execute_cb=self.run_action_web_cb, auto_start=False)
+        #self.actserv_runactionid = actionlib.SimpleActionServer('run_actionid', atmsg.RunScriptIDAction, 
+        #                            execute_cb=self.run_actionid_cb, auto_start=False)
+        self.actserv_runweb.start()
+        #self.actserv_runactionid.start()
 
     def get_active_action_id_cb(self, req):
         task_frame_info = self.action_marker_manager.get_current_task_frame()
@@ -883,8 +886,11 @@ class BehaviorServer:
     def get_behavior_property_cb(self, req):
         actionid = req.actionid
         prop = req.attribute
-        value = self.action_marker_manager.marker_db[actionid][prop]
-        return rsrv.ActionPropertyResponse(value)
+        value = self.action_marker_manager.marker_db.get(actionid)[prop]
+        if isinstance(value, str):
+            return rsrv.ActionPropertyResponse(value)
+        else:
+            return rsrv.ActionPropertyResponse(pk.dumps(value))
 
     def list_action_cb(self, req):
         path = req.path
@@ -968,22 +974,22 @@ class BehaviorServer:
         root_path = pt.join(root_path, tag_name(tagid, behavior_name))
         return pt.join(self.path_to_rcommander_files, pt.join('Locations', root_path))
 
-    def run_actionid_cb(self, req):
-        self._execute_database_action_cb(req.actionid)
+    #def run_actionid_cb(self, req):
+    #    self._execute_database_action_cb(req.actionid, self.actserv_runactionid)
 
-    def run_action_cb(self, req):
+    def run_action_web_cb(self, req):
         rospy.loginfo('Executing: ' + req.action_path)
         if hasattr(self.loaded_actions[req.action_path], '__call__'):
-            self.loaded_actions[req.action_path]['function']()
+            self.loaded_actions[req.action_path]['function'](self.actserv_runweb)
         #else:
         #    self.loaded_actions[goal.action_path]['scripted_action_server'].execute(self.actserv)
 
-    def _execute_database_action_cb(self, actionid):
+    def _execute_database_action_cb(self, actionid, actserv):
         entry = self.action_marker_manager.marker_db.get(actionid)
-        self.set_task_frame(actionid)
-        #self.loaded_actions[entry['behavior_path']]['scripted_action_server'].execute(self.actserv)
-        self.loaded_actions[entry['behavior_path']]['function']()#.execute(self.actserv)
-        self.action_marker_manager.set_task_frame(None) #This will stop the publishing process
+        self.action_marker_manager.set_task_frame(actionid)
+        self.loaded_actions[entry['behavior_path']]['function'](actserv)
+        #This will stop the publishing process
+        self.action_marker_manager.set_task_frame(None) 
 
     def ar_marker_cb(self, msg):
         #Filter out markers detected as being behind head
@@ -1000,7 +1006,7 @@ class BehaviorServer:
             try:
                 action_server = ras.ScriptedActionServer(action, action_path, self.robot)
                 load_dict = {'scripted_action_server':  action_server,
-                             'function': ft.partial(action_server.execute, self.actserv)
+                             'function': action_server.execute
                              #'watcher': ras.WatchDirectory(action_path, 
                              #    self.sub_directory_changed_cb)
                              }
@@ -1104,7 +1110,10 @@ class BehaviorServer:
         rospy.Timer(rospy.Duration(.1), self.step)
 
 
-def run(robot, tf_listener, action_database_name, ar_tag_database_name, path_to_rcommander_files):
+##
+# @param server_func, mechanism allowing inherited  servers to run too
+def run(robot, tf_listener, action_database_name, 
+        ar_tag_database_name, path_to_rcommander_files, server_func):
     import sys
     from PyQt4 import QtCore#, QtGui
     import signal
@@ -1112,10 +1121,14 @@ def run(robot, tf_listener, action_database_name, ar_tag_database_name, path_to_
     app = QtCore.QCoreApplication(sys.argv)
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    behavior_server = BehaviorServer(action_database_name, ar_tag_database_name, 
-            path_to_rcommander_files, tf_listener, robot)
-    behavior_server.start()
+    if server_func != None:
+        behavior_server = server_func(action_database_name, ar_tag_database_name, 
+                path_to_rcommander_files, tf_listener, robot)
+    else:
+        behavior_server = BehaviorServer(action_database_name, ar_tag_database_name, 
+                path_to_rcommander_files, tf_listener, robot)
 
+    behavior_server.start()
     rospy.loginfo('RCommander AR Tour Server up!')
     app.exec_()
 
