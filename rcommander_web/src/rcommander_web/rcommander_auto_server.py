@@ -216,12 +216,21 @@ class ScriptedActionServer:
     def _status_cb(self, active_states):
         self.message = active_states[0]
 
-    #def _state_machine_status_cb(self):
-    def execute(self, actserver):
+    ##
+    # Executes the loaded action. 
+    #
+    # @param actserver the action server to check for state changes
+    # @param state_machine_modifier is a function that takes in (graph_model, robot_object)
+    def execute(self, actserver, state_machine_modifier=None):
         self.last_msg = ''
         r = rospy.Rate(30)
+
         #self.graph_model.register_status_cb(self._state_machine_status_cb)
-        state_machine = self.graph_model.create_state_machine(self.robot)
+        if state_machine_modifier == None:
+            state_machine = self.graph_model.create_state_machine(self.robot)
+        else:
+            state_machine = state_machine_modifier(graph_model, self.robot)
+
         self.graph_model.register_start_cb(self._status_cb)
         self.graph_model.register_transition_cb(self._status_cb)
         self.graph_model.run(self.action_name, state_machine=state_machine)
