@@ -18,11 +18,11 @@ class DetectRobotMove:
     TIME_TO_WAIT_AFTER_MOVING = 3.
 
     def __init__(self):
-        sub = rospy.Subscriber("joint_states", sm.JointState, self.joint_state_cb)
         self.last_msg = None
         self.joint_dict = {}
         self.is_moving_time = rospy.get_rostime().to_time()
         self.watch_idx = []
+        sub = rospy.Subscriber("joint_states", sm.JointState, self.joint_state_cb)
 
     def joint_state_cb(self, msg):
         if self.last_msg == None:
