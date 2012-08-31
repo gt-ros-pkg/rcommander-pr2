@@ -229,7 +229,7 @@ class ScriptedActionServer:
         if state_machine_modifier == None:
             state_machine = self.graph_model.create_state_machine(self.robot)
         else:
-            state_machine = state_machine_modifier(graph_model, self.robot)
+            state_machine = state_machine_modifier(self.graph_model, self.robot)
 
         self.graph_model.register_start_cb(self._status_cb)
         self.graph_model.register_transition_cb(self._status_cb)
