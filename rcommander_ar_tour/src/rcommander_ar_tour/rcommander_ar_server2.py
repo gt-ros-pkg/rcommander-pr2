@@ -343,8 +343,10 @@ class ActionMarker:
             self.marker_obj = None
             self.marker_name = None
 
-    def update(self, pose_in_defined_frame):
-        self.manager.update_loc(self.actionid, pose_to_tup(pose_in_defined_frame))
+    ##
+    # @param update_database whether to update the marker database with this new pose
+    def update(self, pose_in_defined_frame, update_database):
+        self.manager.update_loc(self.actionid, pose_to_tup(pose_in_defined_frame), update_database)
         self.marker_obj.pose = pose_in_defined_frame
         self.location_in_frame = pose_to_tup(pose_in_defined_frame)
 
@@ -443,7 +445,7 @@ class ActionMarker:
             #        rospy.Time.now(), rospy.Duration(10))
             #ar_T_map = tfu.transform(self.frame, 'map', self.tf_listener, t=0)
             #p_ar = tfu.matrix_as_tf(ar_T_map * p_map)
-            self.update(feedback.pose)
+            self.update(feedback.pose, True)
 
         sphere_match = re.search('_sphere$', feedback.control_name)
         if (sphere_match != None) \
@@ -545,8 +547,9 @@ class ActionMarkersManager:
             self.markers[k].set_selected(k == actionid)
 
     # callback from ARTagMarker to update location of action
-    def update_loc(self, actionid, loc):
-        self.marker_db.update_loc(actionid, loc)
+    def update_loc(self, actionid, loc, update_database=True):
+        if update_database:
+            self.marker_db.update_loc(actionid, loc)
 
     def update_behavior_menus(self):
         self.server_lock.acquire()
@@ -865,9 +868,11 @@ class BehaviorServer:
     def set_behavior_pose_cb(self, req):
         pose = req.posestamped.pose
         actionid = req.actionid
+        update_database = req.update_database
 
         marker_obj = self.action_marker_manager.get_marker(actionid)
-        marker_obj.update(pose)
+        #this updates both the marker's location and db
+        marker_obj.update(pose, update_database)
 
         self.marker_server_lock.acquire()
         self.marker_server.setPose(marker_obj.marker_name, pose)
@@ -877,10 +882,9 @@ class BehaviorServer:
         return rsrv.SetBehaviorPoseResponse()
 
     def get_behavior_pose_cb(self, req):
-        marker = self.action_marker_manager.get_marker(req.actionid)
         ps = gmsg.PoseStamped()
-        ps.pose = tup_to_pose(marker.location_in_frame)
-        ps.header.frame_id = marker.frame
+        ps.pose = tup_to_pose(self.action_marker_manager.marker_db.get(req.actionid)['loc'])
+        ps.header.frame_id = self.action_marker_manager.marker_db.get(req.actionid)['frame']
         return rsrv.GetBehaviorPoseResponse(ps)
 
     def get_behavior_property_cb(self, req):
@@ -979,7 +983,7 @@ class BehaviorServer:
 
     def run_action_web_cb(self, req):
         rospy.loginfo('Executing: ' + req.action_path)
-        if hasattr(self.loaded_actions[req.action_path], '__call__'):
+        if hasattr(self.loaded_actions[req.action_path]['function'], '__call__'):
             self.loaded_actions[req.action_path]['function'](self.actserv_runweb)
         #else:
         #    self.loaded_actions[goal.action_path]['scripted_action_server'].execute(self.actserv)
