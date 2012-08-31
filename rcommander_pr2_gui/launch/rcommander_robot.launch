@@ -53,9 +53,7 @@
 
     <!--c2-->
     <include if="$(arg rosbridge)" file="$(find rcommander_web)/launch/rosbridge.launch"/>
-
     <include file="$(find rcommander_pr2_gui)/launch/rcommander_robot_brittle.launch"/>
-
     <node pkg="tf_broadcast_server" type="tf_broadcast_server.py" name="tf_broadcast_server"/>
 
     <group if="$(arg arserver)">
