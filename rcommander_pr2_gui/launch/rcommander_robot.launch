@@ -13,7 +13,6 @@
     <machine name="c1rcommander" address="c1" default="true"/>
     <machine name="c2rcommander" address="c2" env-loader="/u/haidai/env.sh"/>
 
-
     <group if="$(arg maps)">
         <group if="$(arg aware_home)">
             <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/aware_home_025.yaml"/>
@@ -55,6 +54,7 @@
     <include if="$(arg rosbridge)" file="$(find rcommander_web)/launch/rosbridge.launch"/>
     <include file="$(find rcommander_pr2_gui)/launch/rcommander_robot_brittle.launch"/>
     <node pkg="tf_broadcast_server" type="tf_broadcast_server.py" name="tf_broadcast_server"/>
+    <node pkg="rcommander_pr2_gui" type="min_time_node" output="screen" name="rcommander_pr2_min_time_node"/>
 
     <group if="$(arg arserver)">
         <node pkg="rcommander_pr2_gui" type="rcommander_pr2_ar_server.py" 
