@@ -6,8 +6,8 @@
     <arg name="rosbridge" default="true"/>
 
     <arg name="wg" default="false"/>
-    <arg name="aware_home" default="false"/>
-    <arg name="hrl" default="true"/>
+    <arg name="aware_home" default="true"/>
+    <arg name="hrl" default="false"/>
     <arg name="henry" default="false"/>
 
     <machine name="c1rcommander" address="c1" default="true"/>
