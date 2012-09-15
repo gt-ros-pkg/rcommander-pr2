@@ -131,14 +131,14 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
             self.element_will_be_added = False
 
     def live_update_cb(self):
-        pose_mat = self.get_robot_joint_angles()
+        pos_mat = self.get_robot_joint_angles()
         pos_mat[4,:] = pos_mat[4,:] % (2.*np.pi)
         pos_mat[6,:] = pos_mat[4,:] % (2.*np.pi)
 
         self.reset_live_update = False
         self.list_manager.display_record({'arm': self.get_arm_radio(),
                                           'time': self.time_box.value(),
-                                          'angs': pose_mat.A1.tolist()})
+                                          'angs': pos_mat.A1.tolist()})
         self.reset_live_update = True
 
     def live_update_toggle_cb(self, state):
