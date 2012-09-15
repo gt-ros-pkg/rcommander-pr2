@@ -873,6 +873,8 @@ class PR2Arm(Joint):
         #    p = pos_mat[:,i]
 
         cur_pose = self.pose()
+        #import pdb
+        #pdb.set_trace()
         pos_mat[4,:] = np.matrix(angle_consistency_check(cur_pose[4,0], pos_mat[4,:].A1, allow_spins))
         pos_mat[6,:] = np.matrix(angle_consistency_check(cur_pose[6,0], pos_mat[6,:].A1, allow_spins))
 
