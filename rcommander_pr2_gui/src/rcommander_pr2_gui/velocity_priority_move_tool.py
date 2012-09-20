@@ -1,6 +1,6 @@
 import rcommander.tool_utils as tu
-import tf_utils as tfu
-import pr2_utils as p2u
+import pypr2.tf_utils as tfu
+import pypr2.pr2_utils as p2u
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -156,9 +156,15 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 
 def has_frame(tf_listener, source, target):
     try:
+        rospy.loginfo('waiting for transform between %s and %s' % (source, target))
+        tf_listener.waitForTransform(source, target, rospy.Time(0), rospy.Duration(3.))
         tf_listener.lookupTransform(source, target, rospy.Time(0))
         return True
     except tf.LookupException, e:
+        print 'LookupException', e
+        return False
+    except tf.ExtrapolationException, e:
+        print 'ExtrapolationException', e
         return False
 
 class VelocityPriorityState(tu.StateBase):
@@ -220,7 +226,7 @@ class PlayTrajectory(threading.Thread):
 
         #interpolate
         for msg_a, msg_b, idx_a in zip(current_self_messages[:-1], current_self_messages[1:], range(len(current_self_messages[:-1]))):
-            n_steps = np.floor(msg_b['time'] / self.step_resolution)
+            n_steps = int(np.floor(msg_b['time'] / self.step_resolution))
             if n_steps == 0:
                 messages.append(msg_a)
             else:
@@ -344,8 +350,8 @@ class VelocityPriorityStateSmach(smach.State):
             if self.preempt_requested():
                 rospy.loginfo('VelocityPriorityStateSmach: preempt requested')
                 #self.action_client.cancel_goal()
-                lpthread.stop()
-                rpthread.stop()
+                lpthread.set_stop()
+                rpthread.set_stop()
                 self.service_preempt()
                 preempted = True
                 break

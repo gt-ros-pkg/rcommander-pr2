@@ -1,0 +1,29 @@
+<package>
+  <description brief="pypr2">
+    Python interface for the PR2
+  </description>
+
+  <author>Hai Nguyen (haidai@gmail.com), Advisor: Charles C. Kemp, Lab:Healthcare Robotics Lab, Georgia Tech</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/pypr2</url>
+
+  <depend package="rospy"/>
+  <depend package="actionlib"/>
+  <depend package="tf"/>
+
+  <depend package="trajectory_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="std_msgs"/>
+  <depend package="pr2_controllers_msgs"/>
+  <depend package="geometry_msgs"/>
+  <depend package="kinematics_msgs"/>
+  <depend package="rcommander"/>
+
+  <depend package="object_manipulator"/>
+  <depend package="pycontroller_manager"/>
+  <depend package="simple_move_base"/>
+
+</package>
+
+

@@ -3,7 +3,6 @@
      Files for launching ar_pose with custom settings.
   </description>
   <author>Hai Nguyen (haidai@gmail.com), Advisor: Charles C. Kemp, Lab: Healthcare Robotics Lab, Georgia Tech</author>
-  <author></author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/rcommander_ar_pose</url>

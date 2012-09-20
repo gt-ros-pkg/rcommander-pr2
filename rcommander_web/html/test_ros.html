@@ -1,0 +1,68 @@
+<html>
+  <head>
+    <script type="text/javascript" src="http://brown-ros-pkg.googlecode.com/svn/tags/brown-ros-pkg/rosbridge/ros.js"></script>
+    <script type="text/javascript">
+        function main() {
+          var x = 0;
+          var z = 0;
+          var connection = new ros.Connection("ws://monty1.hsi.gatech.edu:9091");
+
+          connection.setOnClose(
+                  function (e) {
+                    document.write('connection closed<br/>');
+                  });
+
+          connection.setOnError(
+                  function (e) {
+                    document.write('error!<br/>');
+                  });
+
+          connection.setOnOpen(
+                function (e) {
+                    document.write('connected to ROS<br/>');
+
+                    function pub() {
+                        connection.publish('/cmd_vel', 'geometry_msgs/Twist', '{"linear":{"x":' + x + ',"y":0,"z":0}, "angular":{"x":0,"y":0,"z":' + z + '}}');
+                    }
+
+                    function handleKey(code, down) {
+                        var scale = 0;
+                        if (down == true) {
+                          scale = 1;
+                        }
+                        switch (code) {
+                        case 37:
+                          //left
+                          z = 1 * scale;
+                          break;
+                        case 38:
+                          //up
+                          x = .5 * scale;
+                          break;
+                        case 39:
+                          //right 
+                          z = -1 * scale;
+                          break;
+                        case 40:
+                          //down
+                          x = -.5 * scale;
+                          break;
+                        }
+                        pub();
+                    }
+
+                    document.addEventListener('keydown', function (e) {
+                      handleKey(e.keyCode, true);
+                    }, true);
+
+                    document.addEventListener('keyup', function (e) {
+                      handleKey(e.keyCode, false);
+                    }, true);
+
+                });
+        }
+    </script>
+  </head>
+<body onload="main()">
+</body>
+</html>

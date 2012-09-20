@@ -7,12 +7,12 @@ import numpy as np
 import actionlib_msgs.msg as am
 import smach
 import functools as ft
-import pr2_utils as pu
+import pypr2.pr2_utils as pu
 from rcommander_pr2_gui.srv import MinTime
 import trajectory_msgs.msg as tm
 import os.path as pt
 import roslib
-import pr2_utils as p2u
+import pypr2.pr2_utils as p2u
 
 def split_joints_list(jlist):
     left = []
@@ -76,6 +76,8 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
             for idx, d in enumerate(ang_list):
                 if d == jang_list[sidx]:
                     ang_list_idx = idx
+            if ang_list_idx == None:
+                return
             pidx = ang_list_idx - 1
             if pidx < 0:
                 return 
@@ -129,11 +131,14 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
             self.element_will_be_added = False
 
     def live_update_cb(self):
-        pose_mat = self.get_robot_joint_angles()
+        pos_mat = self.get_robot_joint_angles()
+        pos_mat[4,:] = pos_mat[4,:] % (2.*np.pi)
+        pos_mat[6,:] = pos_mat[4,:] % (2.*np.pi)
+
         self.reset_live_update = False
         self.list_manager.display_record({'arm': self.get_arm_radio(),
                                           'time': self.time_box.value(),
-                                          'angs': pose_mat.A1.tolist()})
+                                          'angs': pos_mat.A1.tolist()})
         self.reset_live_update = True
 
     def live_update_toggle_cb(self, state):
@@ -276,8 +281,8 @@ class JointSequenceStateSmach(smach.State):
         # returns one of failed, preempted, timed_out, or succeeded
         result = tu.monitor_goals(self, clients, 'JointSequenceState', trajectory_time_out)
         self.controller_manager.switch(stopped, started)
-        if result == 'aborted':
-            return 'failed'
+        if result == 'failed':
+            return 'aborted'
         return result
 
 

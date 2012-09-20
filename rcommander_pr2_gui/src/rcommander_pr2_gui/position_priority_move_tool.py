@@ -4,7 +4,7 @@ import rcommander.tool_utils as tu
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import rospy
-import tf_utils as tfu
+import pypr2.tf_utils as tfu
 import tf.transformations as tr
 import numpy as np
 from object_manipulator.convert_functions import *
@@ -14,7 +14,7 @@ import geometry_msgs.msg as geo
 import actionlib 
 import smach
 import actionlib_msgs.msg as am
-import pr2_utils as p2u
+import pypr2.pr2_utils as p2u
 from tf_broadcast_server.srv import BroadcastTransform, GetTransforms
 
 class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):

@@ -1,0 +1,57 @@
+
+<!DOCTYPE html> 
+<html> 
+<head> 
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"> 
+<title>Test Robot Model</title> 
+
+<!-- REQUIRED scripts for ROS -->
+<script type="text/javascript" src="js/jquery/jquery-latest.js"></script>
+<script type="text/javascript" src="js/ros/ros.js"></script>
+<script type="text/javascript" src="js/ros/tf/tf.js"></script>
+<script type="text/javascript" src="js/ros/common.js"></script>
+<script src="js/spidergl.js"> </script> 
+
+<script> 
+
+function start()
+{ 
+  var node = new ros.NodeHandle("ws://monty1.hsi.gatech.edu:9091");
+  node.setOnClose(function(e) {
+    ros_debug("Disconnected or Can't Connect.");
+  });
+
+  node.setOnError(function(e) {
+    ros_debug("Unknown error!");
+  });
+
+  node.setOnOpen(function(e) {   
+    ros_debug("Connected to " + node.url + ".");
+    var tf = new ros.tf.Transformer(node, "/tf"); 
+    var vm = new ros.webgl.VisualizationManager("SGL_CANVAS1");
+    vm.initialize(node, tf);
+    vm.addRobotModel("resources/pr2_description/pr2_urdf.xml");
+    //vm.addRobotModel("resources/remote_lab_description/remote_lab_urdf.xml");
+    vm.addGrid("/odom_combined", 10.0, 1.0);
+  });
+  
+  window.onresize = function() {
+    var c = document.getElementById('SGL_CANVAS1');
+    c.width  = window.innerWidth;
+    c.height = window.innerHeight;
+  }
+  window.onresize(); 
+}
+</script> 
+<style type="text/css"> 
+    canvas {
+        border: 2px solid black;
+    }
+</style> 
+</head> 
+
+<body onload="start()" style="margin:0;padding:0;background-color:black;overflow:hidden"> 
+<canvas id="SGL_CANVAS1" width="1000" height="600"></canvas> 
+</body> 
+ 
+</html> 

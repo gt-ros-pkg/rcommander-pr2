@@ -1,0 +1,26 @@
+(ircommander_pr2_gui.speak_tool
+SpeakNode
+p1
+(dp2
+S'runnable'
+p3
+I01
+sS'name'
+p4
+S'speak0'
+p5
+sS'outputs'
+p6
+(dp7
+sS'text'
+p8
+S'here you go human. i will let go if you tap my hand.'
+p9
+sS'remapping'
+p10
+(dp11
+sS'voice'
+p12
+S'don_diphone'
+p13
+sb.

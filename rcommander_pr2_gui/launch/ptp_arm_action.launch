@@ -1,12 +1,12 @@
 <launch>
-  <node pkg="ptp_arm_action" type="ptp_arm_action_server.py" args="left" output="screen" name="ptp_action_left">
+  <node pkg="ptp_arm_action" type="ptp_arm_action_server.py" args="left" output="screen" name="ptp_action_left" machine="c2rcommander">
   	<param name="translation_tolerance" value=".015"/>	
         <param name="rotation_tolerance" value="5"/>
         <param name="timeout" value="30"/>
         <param name="stall_time" value="3."/>
   </node>
 
-  <node pkg="ptp_arm_action" type="ptp_arm_action_server.py" args="right" output="screen" name="ptp_action_right">
+  <node pkg="ptp_arm_action" type="ptp_arm_action_server.py" args="right" output="screen" name="ptp_action_right" machine="c2rcommander">
   	<param name="translation_tolerance" value=".015"/>	
         <param name="rotation_tolerance" value="5"/>
         <param name="timeout" value="30"/>

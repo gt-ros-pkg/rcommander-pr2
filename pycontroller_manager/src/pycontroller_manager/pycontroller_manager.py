@@ -2,7 +2,9 @@ import roslib; roslib.load_manifest('pycontroller_manager')
 import rospy
 import pr2_mechanism_msgs.srv as pmm
 
-POSSIBLE_CTRLS_PARAMETER = "/pr2_controller_manager/%s_arm_possible_ctrls" # KelseyH
+LOADED_CTRLS_PARAMS = {
+    'r' : "/controller_manager/loaded_ctrls/right_arm",
+    'l' : "/controller_manager/loaded_ctrls/left_arm",
 
 class ControllerManager:
 
@@ -29,6 +31,7 @@ class ControllerManager:
     # conflict with those which are currently running.
     # KelseyH
     def get_possible_running_ctrls(self, start_con):
+        #rospy.loginfo("get_possible... in")
         # find the sides the start controllers are on
         arms_starting = []
         for con in start_con:
@@ -40,7 +43,10 @@ class ControllerManager:
         possible_ctrls = []
         for arm in ['l', 'r']:
             if arm in arms_starting:
-                possible_ctrls.append(rosparam.get_param(POSSIBLE_CTRLS_PARAMETER % arm))
+                try:
+                    possible_ctrls.extend(rospy.get_param(LOADED_CTRLS_PARAMS[arm]))
+                except KeyError, e:
+                    pass
 
         # check to see if the possible controllers are indeed running
         stop_con = []
@@ -48,10 +54,17 @@ class ControllerManager:
         for i, controller in enumerate(con_states.controllers):
             if controller in possible_ctrls and con_states.state[i] == 'running':
                 stop_con.append(controller)
-        return stop_con
+        stop_con_no_start = []
+        for con in stop_con:
+            if not con in start_con:
+                stop_con_no_start.append(con)
+        #rospy.loginfo("get_possible... out")
+        #rospy.loginfo(str(arms_starting) + str(start_con) + str(possible_ctrls) + str(stop_con_no_start))
+        return stop_con_no_start
 
     def switch(self, start_con, stop_con):
         stop_con.extend(self.get_possible_running_ctrls(start_con)) # KelseyH
+
         con = self.list_controllers()
         valid_start = []
         valid_stop = []

@@ -1,0 +1,3 @@
+string actionid
+---
+geometry_msgs/PoseStamped posestamped

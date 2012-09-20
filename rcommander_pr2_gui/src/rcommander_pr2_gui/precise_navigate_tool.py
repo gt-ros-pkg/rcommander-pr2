@@ -4,14 +4,14 @@ import rcommander.tool_utils as tu
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import rospy
-import tf_utils as tfu
+import pypr2.tf_utils as tfu
 import tf.transformations as tr
 import simple_move_base.msg as smb
 import math
 import actionlib
 import smach
 from tf_broadcast_server.srv import GetTransforms
-import pr2_utils as p2u
+import pypr2.pr2_utils as p2u
 import numpy as np
 import re
 
@@ -34,8 +34,8 @@ class PreciseNavigateTool(tu.ToolBase, p2u.SE3Tool):
         p2u.SE3Tool.__init__(self)
         self.tf_listener = rcommander.tf_listener
 
-        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
-        gravity_aligned_frames = ['/map', '/base_link']
+        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=False)
+        gravity_aligned_frames = ['/map', '/base_link', '/task_frame']
         self.allowed_frames = []
         fourfour = re.compile('^/4x4_\d+')
         for f in self.frames_service().frames:
@@ -134,6 +134,7 @@ class PreciseNavigateSmach(smach.State):
 
     def execute(self, userdata):
         #Create goal and send it up here
+        self.tf_listener.waitForTransform(self.CONTROL_FRAME, self.pose_stamped.header.frame_id,  rospy.Time(0), rospy.Duration(10.))
         bl_T_frame = tfu.tf_as_matrix(self.tf_listener.lookupTransform(self.CONTROL_FRAME, self.pose_stamped.header.frame_id, rospy.Time(0)))
 
         #print 'control_T_frame\n', bl_T_frame
@@ -149,7 +150,7 @@ class PreciseNavigateSmach(smach.State):
         #print 'bl_T_frame * h_frame\n', bl_T_frame * h_frame
         x, y, t = se2_from_se3(bl_T_frame * h_frame)
 
-        print 'GOAL', x, y, np.degrees(t)
+        #print 'GOAL', x, y, np.degrees(t)
 
         xy_goal = smb.GoXYGoal(x,y)
         self.go_xy_client.send_goal(xy_goal)

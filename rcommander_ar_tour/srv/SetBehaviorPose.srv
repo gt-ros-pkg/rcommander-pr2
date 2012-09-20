@@ -1,0 +1,4 @@
+string actionid
+geometry_msgs/PoseStamped posestamped
+bool update_database
+---

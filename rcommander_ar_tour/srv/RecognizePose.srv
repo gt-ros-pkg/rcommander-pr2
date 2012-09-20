@@ -1,0 +1,6 @@
+string actionid
+string mode
+---
+geometry_msgs/PoseStamped posestamped
+string pickled_dict
+

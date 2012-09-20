@@ -13,7 +13,10 @@
   <depend package="smach"/>
   <depend package="actionlib"/>
 
+  <depend package="rcommander_ar_tour"/>
+  <depend package="rcommander_web"/>
   <depend package="rcommander"/>
+  <depend package="pypr2"/>
   <depend package="tts_server"/>
 
   <depend package="geometry_msgs"/>
@@ -37,6 +40,7 @@
   <depend package="face_detector"/>
 
   <depend package="simple_move_base"/>
+  <depend package="rosbridge"/>
 
   <export>
       <rcommander plugin="rcommander_pr2_gui.tuck_tool"                     robot="pr2" tab="Manipulation"/> 
@@ -51,9 +55,9 @@
       <rcommander plugin="rcommander_pr2_gui.precise_navigate_tool"         robot="pr2" tab="Misc"/>  
       <rcommander plugin="rcommander_pr2_gui.speak_tool"                    robot="pr2" tab="Interaction"/>  
       <rcommander plugin="rcommander_pr2_gui.move_head_tool"                robot="pr2" tab="Interaction"/>  
+      <rcommander plugin="rcommander_pr2_gui.look_at_tool"                  robot="pr2" tab="Interaction"/>  
       <rcommander plugin="rcommander_pr2_gui.face_detect_tool"              robot="pr2" tab="Origins"/>  
   </export>
 
 </package>
-
 
