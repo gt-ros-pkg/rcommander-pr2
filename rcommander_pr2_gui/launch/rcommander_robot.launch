@@ -40,7 +40,7 @@
 
     <include unless="$(arg sim)" file="$(find rcommander_pr2_gui)/launch/pr2_gripper_sensor_actions.launch"/>
 
-    <!--<include file="$(find face_detector)/launch/face_detector_action.wide.launch"/>-->
+    <include file="$(find face_detector)/launch/face_detector_action.wide.launch"/>
 
     <!--c2-->
     <include file="$(find rcommander_pr2_gui)/launch/ptp_arm_action.launch"/>
