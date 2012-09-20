@@ -984,7 +984,13 @@ class BehaviorServer:
     def run_action_web_cb(self, req):
         rospy.loginfo('Executing: ' + req.action_path)
         if hasattr(self.loaded_actions[req.action_path]['function'], '__call__'):
+            start_time = rospy.get_time()
+            rospy.loginfo('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            rospy.loginfo('Recording time.')
+            rospy.loginfo('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
             self.loaded_actions[req.action_path]['function'](self.actserv_runweb)
+            end_time = rospy.get_time()
+            rospy.loginfo('Took %.3f seconds to run' % (end_time - start_time))
         #else:
         #    self.loaded_actions[goal.action_path]['scripted_action_server'].execute(self.actserv)
 
@@ -1133,6 +1139,8 @@ def run(robot, tf_listener, action_database_name,
                 path_to_rcommander_files, tf_listener, robot)
 
     behavior_server.start()
+    rospy.loginfo('RCommander AR Tour: Action database name %s' % action_database_name)
+    rospy.loginfo('RCommander AR Tour: Tag database name %s' % ar_tag_database_name)
     rospy.loginfo('RCommander AR Tour Server up!')
     app.exec_()
 
