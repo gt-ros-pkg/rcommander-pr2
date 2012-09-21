@@ -4,7 +4,7 @@ import rospy
 import tf.transformations as tr
 import pypr2.tf_utils as tfu
 import pypr2.pr2_utils as ut
-import simple_move_base.msg as hm
+import pypr2.msg as hm
 import tf
 
 import geometry_msgs.msg as gm
