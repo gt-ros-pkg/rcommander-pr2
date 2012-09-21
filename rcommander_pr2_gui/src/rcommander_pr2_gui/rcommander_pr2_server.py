@@ -6,7 +6,6 @@ import sys
 import tf 
 import rospy
 
-# "home/haidai/Desktop/rcommander")
 rospy.init_node('rcommander_pr2_server')
 path = sys.argv[1]
 tf = tf.TransformListener()
