@@ -39,7 +39,6 @@
   <depend package="tf_broadcast_server"/>
   <depend package="face_detector"/>
 
-  <depend package="simple_move_base"/>
   <depend package="rosbridge"/>
 
   <export>

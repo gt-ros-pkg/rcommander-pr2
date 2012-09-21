@@ -6,7 +6,7 @@ from PyQt4.QtCore import *
 import rospy
 import pypr2.tf_utils as tfu
 import tf.transformations as tr
-import simple_move_base.msg as smb
+import pypr2.msg as smb
 import math
 import actionlib
 import smach
