@@ -1,7 +1,14 @@
 <launch>
-    <arg name="use_throttled_tf" default="true"/>
+    <arg name="tf_throttled" default="true"/>
     <remap from="joint_states" to="joint_states_throttle"/>
 
-    <remap if="$(arg use_throttled_tf)" from="tf" to="tf_throttled"/>
-    <node pkg="rcommander_pr2_gui" type="rcommander_pr2.py" output="screen" name="rcommander_pr2_gui"/>
+    <include if="$(arg tf_throttled)" file="$(find tf_throttle)/launch/tf_republished.launch"/>
+
+    <node pkg="rcommander_pr2_gui" type="rcommander_pr2.py" output="screen" name="rcommander_pr2_gui">
+      <remap if="$(arg tf_throttled)" from="tf" to="tf_republished"/>
+    </node>
+
+    <node pkg="rviz" name="$(anon rviz-1)" type="rviz" respawn="false" output="screen" args="-d $(find rcommander_pr2_gui)/rcommander_rviz.vcg"> 
+      <remap if="$(arg tf_throttled)" from="tf" to="tf_republished"/>
+    </node>
 </launch>

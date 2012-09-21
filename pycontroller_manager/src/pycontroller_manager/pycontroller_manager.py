@@ -5,6 +5,7 @@ import pr2_mechanism_msgs.srv as pmm
 LOADED_CTRLS_PARAMS = {
     'r' : "/controller_manager/loaded_ctrls/right_arm",
     'l' : "/controller_manager/loaded_ctrls/left_arm",
+}
 
 class ControllerManager:
 

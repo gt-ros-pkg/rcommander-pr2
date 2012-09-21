@@ -22,7 +22,6 @@
 
   <depend package="object_manipulator"/>
   <depend package="pycontroller_manager"/>
-  <depend package="simple_move_base"/>
 
 </package>
 

@@ -1,7 +1,7 @@
 <launch>
     <arg name="sim" default="false"/>
     <arg name="interactive_manipulation" default="true"/>
-    <arg name="arserver" default="false"/>
+    <arg name="arserver" default="true"/>
     <arg name="maps" default="true"/>
     <arg name="rosbridge" default="true"/>
 
