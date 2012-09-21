@@ -1,5 +1,5 @@
 #! /usr/bin/python
-import roslib; roslib.load_manifest('simple_move_base')
+import roslib; roslib.load_manifest('pypr2')
 import rospy
 import tf.transformations as tr
 import pypr2.tf_utils as tfu
