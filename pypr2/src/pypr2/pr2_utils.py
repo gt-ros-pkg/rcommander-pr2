@@ -27,7 +27,7 @@ import copy
 import unittest
 import math
 
-import simple_move_base.msg as hm #TODO move this somewhere
+import pypr2.msg as hm #TODO move this somewhere
 
 JOINT_NAME_FIELDS = ["shoulder_pan_joint", "shoulder_lift_joint", "upper_arm_roll_joint", 
                       "elbow_flex_joint", "forearm_roll_joint", "wrist_flex_joint", "wrist_roll_joint"]
