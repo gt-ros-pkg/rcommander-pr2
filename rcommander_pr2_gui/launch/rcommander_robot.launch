@@ -15,7 +15,7 @@
 
     <group if="$(arg maps)">
         <group if="$(arg aware_home)">
-            <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/aware_home_025.yaml"/>
+            <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find rcommander_pr2_gui)/maps/aware_home_025.yaml"/>
         </group>
 
         <group if="$(arg wg)">
@@ -28,7 +28,7 @@
         </group>
 
         <group if="$(arg hrl)">
-            <node name="map_server" pkg="map_server" type="map_server" args="$(find gt_pr2)/navigation/maps/hsi_full_4_24.yaml" machine="c2"/>
+            <node name="map_server" pkg="map_server" type="map_server" args="$(find rcommander_pr2_gui)/maps/navigation/maps/hsi_full_4_24.yaml" machine="c2"/>
         </group>
     </group>
 
