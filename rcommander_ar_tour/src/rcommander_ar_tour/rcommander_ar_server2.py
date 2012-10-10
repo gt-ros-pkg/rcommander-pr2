@@ -307,12 +307,19 @@ class ActionMarker:
         else:
             self._make_empty_menu()
         self.is_current_task_frame = False
+        self.movement_controls = True
         self._make_marker()
 
     def _add_delete_option(self, menu_handler):
         menu_handler.insert('-----------------', parent=None, callback=None)
-        menu_handler.insert('Train', parent=None, callback=self.train_cb)
+        #menu_handler.insert('Train', parent=None, callback=self.train_cb)
+        menu_handler.insert('Toggle Controls', parent=None, callback=self.toggle_controls_cb)
         menu_handler.insert('Delete', parent=None, callback=self.delete_action_cb)
+
+    def toggle_controls_cb(self, feedback):
+        self.remove()
+        self.movement_controls = not self.movement_controls
+        self._make_marker()
 
     def train_cb(self, feedback):
         rospy.loginfo('train_cb called %s' % str(feedback))
@@ -376,8 +383,9 @@ class ActionMarker:
         int_marker.controls.append(make_sphere_control(self.marker_name + '_1', scale/8.))
         int_marker.controls.append(make_sphere_control(self.marker_name + '_2', scale))
         int_marker.controls[1].markers[0].color = color
-        int_marker.controls += make_directional_controls(self.marker_name)
-        int_marker.controls += make_orientation_controls(self.marker_name)
+        if self.movement_controls:
+            int_marker.controls += make_directional_controls(self.marker_name)
+            int_marker.controls += make_orientation_controls(self.marker_name)
 
         self.server_lock.acquire()
         self.marker_server.insert(int_marker, self.marker_cb)

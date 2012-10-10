@@ -14,4 +14,4 @@ path_to_rcommander_files = sys.argv[3]
 
 tf = tf.TransformListener()
 pr2 = pu.PR2(tf)
-rcs.run(pr2, tf, action_database_name, ar_tag_database_name, path_to_rcommander_files)
+rcs.run(pr2, tf, action_database_name, ar_tag_database_name, path_to_rcommander_files, None)
