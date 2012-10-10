@@ -133,7 +133,7 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
     def live_update_cb(self):
         pos_mat = self.get_robot_joint_angles()
         pos_mat[4,:] = pos_mat[4,:] % (2.*np.pi)
-        pos_mat[6,:] = pos_mat[4,:] % (2.*np.pi)
+        pos_mat[6,:] = pos_mat[6,:] % (2.*np.pi)
 
         self.reset_live_update = False
         self.list_manager.display_record({'arm': self.get_arm_radio(),
