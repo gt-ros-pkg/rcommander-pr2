@@ -202,6 +202,24 @@ def lookup_transform(listener, aframe, bframe):
         rospy.logdebug( 'exception %s' % str(e.__class__))
         return None
 
+def catch_silly_tf_exceptions_and_ignore_them(func):
+    try:
+        result = func()
+        return result
+
+    except tf.ExtrapolationException, e:
+        rospy.logdebug( 'exception %s' % str(e))
+        return None
+
+    except tf.ConnectivityException, e:
+        rospy.logdebug( 'exception %s' % str(e))
+        return None
+
+    except tf.LookupException, e:
+        rospy.logdebug( 'exception %s' % str(e.__class__))
+        return None
+
+
 #def tfu_transform(aframe, bframe, listener):
 #    map_T_ar = tfu.transform(aframe, bframe, self.tf_listener, t=0)
 
@@ -475,6 +493,7 @@ class ActionMarkersManager:
         self.actions_db_changed_cb = actions_db_changed_cb
         self.tf_listener = tf_listener
         self.train_publisher = rospy.Publisher('train_action', atmsg.TrainAction)
+        #self.cloud_click_sub = rospy.Subscriber('cloud_click_point', gmsg.PoseStamped, self.cloud_clicked_cb)
 
         #Database and marker list has to be in sync!
         self.marker_db = Database_load(action_marker_database_name, ActionDatabase)
@@ -485,6 +504,30 @@ class ActionMarkersManager:
             self._create_marker(action_id)
         self.marker_server.applyChanges()
         self.server_lock.release()
+
+    def cloud_clicked_cb(self, posestamped):
+        marker_obj = None
+        for actionid in self.markers.keys():
+            marker = self.markers[actionid]
+            if marker.is_current_task_frame:
+                marker_obj = marker
+
+        def transformPose(frame):
+            self.tf_listener.waitForTransform(frame, posestamped.header.frame_id, 
+                    rospy.Time.now(), rospy.Duration(10))
+            return self.tf_listener.transformPose(frame, posestamped)
+
+        if marker_obj != None:
+            fps = catch_silly_tf_exceptions_and_ignore_them(
+                    ft.partial(transformPose, marker_obj.frame))
+
+            if fps != None:
+                current_orientation = self.marker_db.get(marker_obj.actionid)['loc'][1]
+                fps.pose.orientation.x = current_orientation[0]
+                fps.pose.orientation.y = current_orientation[1]
+                fps.pose.orientation.z = current_orientation[2]
+                fps.pose.orientation.w = current_orientation[3]
+                marker_obj.update(fps.pose, True)
 
     def get_current_task_frame(self):
         for actionid in self.markers.keys():
