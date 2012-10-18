@@ -42,6 +42,8 @@
 
     <include file="$(find face_detector)/launch/face_detector_action.wide.launch"/>
 
+    <node name="joint_states_throttler" pkg="topic_tools" type="throttle" args="messages joint_states 25.0"/>
+
     <!--c2-->
     <include file="$(find rcommander_pr2_gui)/launch/ptp_arm_action.launch"/>
 
