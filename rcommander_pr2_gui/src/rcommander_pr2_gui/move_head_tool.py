@@ -85,14 +85,16 @@ class MoveHeadTool(tu.ToolBase):
             formlayout.addRow(gb)
         self.reset()
 
-
     def new_node(self, name=None):
         self.list_manager.save_currently_selected_item()
         if name == None:
             nname = self.name + str(self.counter)
         else:
             nname = name
-        return MoveHeadState(nname, self.list_manager.get_data())
+        data = self.list_manager.get_data()
+        if len(data) == 0 and name != None:
+            return None
+        return MoveHeadState(nname, data)
 
     def reset(self):
         for box in self.joint_boxes:
