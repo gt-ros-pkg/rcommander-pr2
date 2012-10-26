@@ -53,7 +53,7 @@ class SafeMoveArmTool(tu.ToolBase, p2u.JointTool):
 
     def reset(self):
         self.set_update_mode(False)
-        self.set_arm_radio('left')
+        self.set_arm_radio('right')
         self.set_all_fields_to_zero()
 
 
