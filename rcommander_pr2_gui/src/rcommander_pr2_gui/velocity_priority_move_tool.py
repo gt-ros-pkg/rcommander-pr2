@@ -138,14 +138,19 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
             nname = self.name + str(self.counter)
         else:
             nname = name
-        return VelocityPriorityState(nname, self.list_manager.get_data())
+        data = self.list_manager.get_data()
+        #name == None means that it's a throwaway node
+        if len(data) == 0 and name != None:
+            return None
+
+        return VelocityPriorityState(nname, data)
 
     def set_node_properties(self, node):
         self.list_manager.set_data(node.pose_stamps_list)
         self.list_manager.select_default_item()
 
     def reset(self):
-        self.arm_radio_buttons[0].setChecked(True)
+        self.arm_radio_buttons[1].setChecked(True)
         for vr in [self.xline, self.yline, self.zline, self.phi_line, self.theta_line, self.psi_line]: 
             vr.setValue(0.0)
         self.frame_box.setCurrentIndex(self.frame_box.findText(self.default_frame))
