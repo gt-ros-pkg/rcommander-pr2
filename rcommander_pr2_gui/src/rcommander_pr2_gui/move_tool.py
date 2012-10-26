@@ -173,7 +173,7 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
             items_to_monitor.append(field['item'])
 
         self.time_box = tu.double_spin_box(pbox, 0, 1000, .2)
-        self.time_box.setValue(1.)
+        self.time_box.setValue(3.)
         formlayout.addRow('&Time', self.time_box)
         self.rcommander.connect(self.time_box, SIGNAL('valueChanged(double)'), self._time_changed_validate)
         items_to_monitor.append(self.time_box)
@@ -212,7 +212,7 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
         #self.set_arm_radio(my_node.arm)
 
     def reset(self):
-        self.set_arm_radio('left')
+        self.set_arm_radio('right')
         self.set_all_fields_to_zero()
         self.pose_button.setEnabled(True)
         self.list_manager.reset()
