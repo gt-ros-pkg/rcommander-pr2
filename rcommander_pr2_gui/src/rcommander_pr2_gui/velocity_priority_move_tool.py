@@ -68,22 +68,31 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.default_frame = '/torso_lift_link'
         self.tf_listener = rcommander.tf_listener
 
+
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
         frame_box = self.make_task_frame_box(pbox)
         group_boxes = self.make_se3_boxes(pbox)
         self.arm_radio_boxes, self.arm_radio_buttons = tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
-        self.list_manager = p2u.ListManager(self.get_current_data_cb, self.set_current_data_cb, None, name_preffix='point')
+        self.list_manager = p2u.ListManager(self.get_current_data_cb, 
+                self.set_current_data_cb, None, name_preffix='point')
         list_widgets = self.list_manager.make_widgets(pbox, self.rcommander)
 
         self.pose_button = QPushButton(pbox)
-        self.pose_button.setText('Current Pose')
+        self.pose_button.setText('Update')
         self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_pose)
+
+        self.add_pose_button = QPushButton(pbox)
+        self.add_pose_button.setText('Add Current Pose')
+        self.rcommander.connect(self.add_pose_button, SIGNAL('clicked()'), self.add_current_pose)
+
         self.time_box = QDoubleSpinBox(pbox)
         #self.rcommander.connect(self.time_box, SIGNAL('valueChanged(double)'), self.time_box_value_changed_cb)
         self.time_box.setMinimum(0)
         self.time_box.setMaximum(1000.)
         self.time_box.setSingleStep(.1)
+
+        self.joint_angles_hidden = None
 
         formlayout.addRow('&Frame', frame_box)
         formlayout.addRow('&Arm', self.arm_radio_boxes)
@@ -93,6 +102,7 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
             formlayout.addRow(gb)
 
         formlayout.addRow(self.pose_button)
+        formlayout.addRow(self.add_pose_button)
 
         for gb in list_widgets:
             formlayout.addRow(gb)
@@ -102,6 +112,10 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.list_manager.monitor_changing_values_in(self.rcommander, items_to_monitor)
 
         self.reset()
+
+    def add_current_pose(self):
+        self.get_current_pose()
+        self.list_manager.add_cb()
 
     def get_current_pose(self):
         frame_described_in = str(self.frame_box.currentText())
