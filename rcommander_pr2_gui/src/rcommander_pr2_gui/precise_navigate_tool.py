@@ -34,14 +34,14 @@ class PreciseNavigateTool(tu.ToolBase, p2u.SE3Tool):
         p2u.SE3Tool.__init__(self)
         self.tf_listener = rcommander.tf_listener
 
-        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=False)
-        gravity_aligned_frames = ['/map', '/base_link', '/task_frame']
-        self.allowed_frames = []
-        fourfour = re.compile('^/4x4_\d+')
-        for f in self.frames_service().frames:
-            mobj = fourfour.match(f)
-            if f in gravity_aligned_frames or mobj != None:
-                self.allowed_frames.append(f)
+        #self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=False)
+        #gravity_aligned_frames = ['/map', '/base_link', '/task_frame']
+        #self.allowed_frames = []
+        #fourfour = re.compile('^/4x4_\d+')
+        #for f in self.frames_service().frames:
+        #    mobj = fourfour.match(f)
+        #    if f in gravity_aligned_frames or mobj != None:
+        #        self.allowed_frames.append(f)
 
 
     def fill_property_box(self, pbox):
@@ -56,18 +56,19 @@ class PreciseNavigateTool(tu.ToolBase, p2u.SE3Tool):
         self.pose_button = QPushButton(pbox)
         self.pose_button.setText('Current Pose')
 
-        self.frame_box = QComboBox(pbox)
-        for f in self.allowed_frames:
-            self.frame_box.addItem(f)
+        frame_box = self.make_task_frame_box(pbox)
+        #self.frame_box = QComboBox(pbox)
+        #for f in self.allowed_frames:
+        #    self.frame_box.addItem(f)
 
         #formlayout.addRow("&X", self.xline)
         #formlayout.addRow("&Y", self.yline)
         #formlayout.addRow("&Theta", self.tline)
 
+        formlayout.addRow("&Time Out", self.time_out)
+        formlayout.addRow("&Frame", frame_box)
         formlayout.addRow(group_boxes[0])
         formlayout.addRow(group_boxes[1])
-        formlayout.addRow("&Time Out", self.time_out)
-        formlayout.addRow("&Frame", self.frame_box)
 
         formlayout.addRow(self.pose_button)
         self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_pose)
