@@ -61,7 +61,7 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         motion_layout.addRow('&Time Out', self.timeout_box)
 
         self.pose_button = QPushButton(pbox)
-        self.pose_button.setText('Current Pose')
+        self.pose_button.setText('Update')
         self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_pose)
 
         #formlayout.addRow(task_frame_box)
@@ -73,20 +73,24 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.reset()
 
     def get_current_pose(self):
-        frame_described_in = str(self.frame_box.currentText())
-        arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
-        if arm == 'right':
-            arm_tip_frame = PositionPriorityMoveTool.RIGHT_TIP
-        else:
-            arm_tip_frame = PositionPriorityMoveTool.LEFT_TIP
-        self.tf_listener.waitForTransform(frame_described_in, arm_tip_frame, rospy.Time(), rospy.Duration(2.))
-        p_arm = self.tf_listener.lookupTransform(frame_described_in, arm_tip_frame, rospy.Time(0))
+        try:
+            frame_described_in = str(self.frame_box.currentText())
+            arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+            if arm == 'right':
+                arm_tip_frame = PositionPriorityMoveTool.RIGHT_TIP
+            else:
+                arm_tip_frame = PositionPriorityMoveTool.LEFT_TIP
+            self.tf_listener.waitForTransform(frame_described_in, arm_tip_frame, rospy.Time(), rospy.Duration(2.))
+            p_arm = self.tf_listener.lookupTransform(frame_described_in, arm_tip_frame, rospy.Time(0))
 
-        #print 'current pose', p_arm
-        for value, vr in zip(p_arm[0], [self.xline, self.yline, self.zline]):
-            vr.setValue(value)
-        for value, vr in zip(tr.euler_from_quaternion(p_arm[1]), [self.phi_line, self.theta_line, self.psi_line]):
-            vr.setValue(np.degrees(value))
+            #print 'current pose', p_arm
+            for value, vr in zip(p_arm[0], [self.xline, self.yline, self.zline]):
+                vr.setValue(value)
+            for value, vr in zip(tr.euler_from_quaternion(p_arm[1]), [self.phi_line, self.theta_line, self.psi_line]):
+                vr.setValue(np.degrees(value))
+        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
+                QMessageBox.information(self.rcommander, self.button_name, 
+                        'Error looking up frame named "%s".  If this is a task frame, is it highlighted red?' % str(self.frame_box.currentText()))
 
     def new_node(self, name=None):
         #make name
@@ -168,6 +172,7 @@ class PositionPrioritySmach(smach.State):
     def set_robot(self, robot_obj):
         if robot_obj != None:
             self.robot = robot_obj
+            self.tf_listener = robot_obj.tf_listener
 
     def execute_goal(self, goal):
         self.action_client.send_goal(goal)
@@ -219,21 +224,26 @@ class PositionPrioritySmach(smach.State):
         else:
             raise Exception('Unexpected state reached: %d' % state)
 
-            
-
-
-
-        #if succeeded:
-        #    return 'succeeded'
-
-        #return 'failed'
 
     def execute(self, userdata):
-        goal = ptp.LinearMovementGoal()
-        goal.goal = self.pose_stamped
-        goal.trans_vel = self.trans_vel
-        goal.rot_vel   = self.rot_vel
-        goal.trans_tolerance = self.trans_tolerance
-        goal.time_out = self.time_out
-        return self.execute_goal(goal)
+        try:
+            #Test that this frame is defined
+            self.tf_listener.waitForTransform('/base_link', 
+                    self.pose_stamped.header.frame_id,
+                    rospy.Time(0), rospy.Duration(10.))
+
+            goal = ptp.LinearMovementGoal()
+            goal.goal = self.pose_stamped
+            goal.trans_vel = self.trans_vel
+            goal.rot_vel   = self.rot_vel
+            goal.trans_tolerance = self.trans_tolerance
+            goal.time_out = self.time_out
+            return self.execute_goal(goal)
+
+        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
+            if '/task_frame' == self.pose_stamped.header.frame_id:
+                raise tu.TaskFrameError(str(self.__class__), '/base_link')
+            else:
+                raise tu.FrameError(str(self.__class__), 
+                        self.pose_stamped.header.frame_id, '/base_link')
 

@@ -37,6 +37,7 @@ class GripperEventTool(tu.ToolBase):
         formlayout.addRow('&Acceleration', self.accel_box.container)
         formlayout.addRow('&Slip', self.slip_box.container)
         pbox.update()
+        self.reset()
 
     def new_node(self, name=None):
         #print 'gripper event new node called'

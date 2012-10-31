@@ -53,17 +53,20 @@ class NavigateTool(tu.ToolBase, p2u.SE3Tool):
         self.reset()
 
     def get_current_pose(self):
-        frame = str(self.frame_box.currentText())
-        #try:
-        self.tf_listener.waitForTransform(frame, ROBOT_FRAME_NAME,  rospy.Time(), rospy.Duration(2.))
-        p_base = tfu.transform(frame, ROBOT_FRAME_NAME, self.tf_listener) \
-                    * tfu.tf_as_matrix(([0., 0., 0., 1.], tr.quaternion_from_euler(0,0,0)))
-        p_base_tf = tfu.matrix_as_tf(p_base)
+        try:
+            frame = str(self.frame_box.currentText())
+            self.tf_listener.waitForTransform(frame, ROBOT_FRAME_NAME,  rospy.Time(), rospy.Duration(2.))
+            p_base = tfu.transform(frame, ROBOT_FRAME_NAME, self.tf_listener) \
+                        * tfu.tf_as_matrix(([0., 0., 0., 1.], tr.quaternion_from_euler(0,0,0)))
+            p_base_tf = tfu.matrix_as_tf(p_base)
 
-        for value, vr in zip(p_base_tf[0], [self.xline, self.yline, self.zline]):
-            vr.setValue(value)
-        for value, vr in zip(tr.euler_from_quaternion(p_base_tf[1]), [self.phi_line, self.theta_line, self.psi_line]):
-            vr.setValue(np.degrees(value))
+            for value, vr in zip(p_base_tf[0], [self.xline, self.yline, self.zline]):
+                vr.setValue(value)
+            for value, vr in zip(tr.euler_from_quaternion(p_base_tf[1]), [self.phi_line, self.theta_line, self.psi_line]):
+                vr.setValue(np.degrees(value))
+        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
+                QMessageBox.information(self.rcommander, self.button_name, 
+                        'Error looking up frame named "%s".  If this is a task frame, is it highlighted red?' % str(self.frame_box.currentText()))
 
     def new_node(self, name=None):
         if name == None:

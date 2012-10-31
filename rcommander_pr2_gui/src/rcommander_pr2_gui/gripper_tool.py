@@ -26,6 +26,7 @@ class GripperTool(tu.ToolBase):
         formlayout.addRow('&Gripper Opening', self.gripper_box.container)
         formlayout.addRow('&Effort', self.effort_box.container)
         pbox.update()
+        self.reset()
 
     def new_node(self, name=None):
         selected_arm = None

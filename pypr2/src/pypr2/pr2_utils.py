@@ -84,15 +84,22 @@ class JointTool:
                            "item": box, 
                            'joint': name})
 
-        self.live_update_button = QPushButton(pbox)
+
+        self.update_buttons_holder = QWidget(pbox)
+        self.lbb_hlayout = QHBoxLayout(self.update_buttons_holder)
+
+        self.live_update_button = QPushButton(self.update_buttons_holder)
         self.live_update_button.setText('Live Update')
         connector.connect(self.live_update_button, SIGNAL('clicked()'), self.update_selected_cb)
 
-        self.pose_button = QPushButton(pbox)
-        self.pose_button.setText('Set to Current Pose')
+        self.pose_button = QPushButton(self.update_buttons_holder)
+        self.pose_button.setText('Update')
         connector.connect(self.pose_button, SIGNAL('clicked()'), self.current_pose_cb)
 
-        return fields, self.arm_radio_boxes, [self.live_update_button, self.pose_button]
+        self.lbb_hlayout.addWidget(self.live_update_button)
+        self.lbb_hlayout.addWidget(self.pose_button)
+
+        return fields, self.arm_radio_boxes, [self.update_buttons_holder]
 
     def set_joints_to_fields(self, joints):
         for idx, name in enumerate(JOINT_NAME_FIELDS):
