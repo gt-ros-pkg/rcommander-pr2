@@ -126,7 +126,7 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.trans_vel_line.setValue(.02)
         self.rot_vel_line.setValue(.16)
         self.timeout_box.setValue(20)
-        self.arm_radio_buttons[0].setChecked(True)
+        self.arm_radio_buttons[1].setChecked(True)
         self.tolerance_box.setValue(.02)
 
 class PositionPriorityState(tu.StateBase): # smach_ros.SimpleActionState):

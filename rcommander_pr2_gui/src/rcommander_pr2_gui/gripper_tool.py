@@ -56,7 +56,7 @@ class GripperTool(tu.ToolBase):
     def reset(self):
         self.gripper_box.set_value(0.0)
         self.effort_box.set_value(50.)
-        self.radio_buttons[0].setChecked(True)
+        self.radio_buttons[1].setChecked(True)
 
 
 class GripperState(tu.SimpleStateBase): # smach_ros.SimpleActionState):

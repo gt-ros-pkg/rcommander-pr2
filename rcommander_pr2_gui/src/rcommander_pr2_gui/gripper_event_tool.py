@@ -74,7 +74,7 @@ class GripperEventTool(tu.ToolBase):
         #self.child_node = gripper_event_state.get_child()
 
     def reset(self):
-        self.gripper_radio_buttons[0].setChecked(True)
+        self.gripper_radio_buttons[1].setChecked(True)
         self.event_box.setCurrentIndex(self.event_box.findText(GripperEventStateSmach.EVENT_LIST[0]))
         self.accel_box.set_value(8.25)
         self.slip_box.set_value(.01)
