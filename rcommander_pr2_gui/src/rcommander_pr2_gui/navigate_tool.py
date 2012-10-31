@@ -12,6 +12,7 @@ import pypr2.pr2_utils as p2u
 import numpy as np
 import smach
 import actionlib
+import tf
 #import tf.tranformations as tr
 
 ROBOT_FRAME_NAME = '/base_link'
@@ -53,6 +54,7 @@ class NavigateTool(tu.ToolBase, p2u.SE3Tool):
 
     def get_current_pose(self):
         frame = str(self.frame_box.currentText())
+        #try:
         self.tf_listener.waitForTransform(frame, ROBOT_FRAME_NAME,  rospy.Time(), rospy.Duration(2.))
         p_base = tfu.transform(frame, ROBOT_FRAME_NAME, self.tf_listener) \
                     * tfu.tf_as_matrix(([0., 0., 0., 1.], tr.quaternion_from_euler(0,0,0)))
@@ -105,34 +107,41 @@ class NavigateSmach(smach.State):
             self.tf_listener = pr2.tf_listener
 
     def execute(self, userdata):
-        print 'waiting for transform'
-        self.tf_listener.waitForTransform(self.pose_stamped.header.frame_id, '/map', rospy.Time(0), rospy.Duration(10.))
-        self.pose_stamped.header.stamp = rospy.Time()
-        ps = self.tf_listener.transformPose('/map', self.pose_stamped)
-        g = mm.MoveBaseGoal()
-        p = g.target_pose
-        
-        p.header.frame_id = ps.header.frame_id
-        p.header.stamp = rospy.get_rostime()
+        rospy.loginfo('waiting for transform')
 
-        p.pose.position.x = ps.pose.position.x
-        p.pose.position.y = ps.pose.position.y
-        p.pose.position.z = 0 #ps.pose.position.z
+        try:
+            self.tf_listener.waitForTransform(self.pose_stamped.header.frame_id, '/map', rospy.Time(0), rospy.Duration(10.))
+            self.pose_stamped.header.stamp = rospy.Time()
+            ps = self.tf_listener.transformPose('/map', self.pose_stamped)
+            g = mm.MoveBaseGoal()
+            p = g.target_pose
+            
+            p.header.frame_id = ps.header.frame_id
+            p.header.stamp = rospy.get_rostime()
+
+            p.pose.position.x = ps.pose.position.x
+            p.pose.position.y = ps.pose.position.y
+            p.pose.position.z = 0 #ps.pose.position.z
        
-        raw_angles = tr.euler_from_quaternion([ps.pose.orientation.x, ps.pose.orientation.y,
-                                  ps.pose.orientation.z, ps.pose.orientation.w])
-        quat = tr.quaternion_from_euler(0., 0., raw_angles[2])
-        p.pose.orientation.x = quat[0]
-        p.pose.orientation.y = quat[1]
-        p.pose.orientation.z = quat[2]
-        p.pose.orientation.w = quat[3]
+            raw_angles = tr.euler_from_quaternion([ps.pose.orientation.x, ps.pose.orientation.y,
+                                      ps.pose.orientation.z, ps.pose.orientation.w])
+            quat = tr.quaternion_from_euler(0., 0., raw_angles[2])
+            p.pose.orientation.x = quat[0]
+            p.pose.orientation.y = quat[1]
+            p.pose.orientation.z = quat[2]
+            p.pose.orientation.w = quat[3]
 
-        print g
-        self.move_base_client.send_goal(g)
-        result = tu.monitor_goals(self, [self.move_base_client], 'NavigateSmach', 60*60)
-        if result == 'failed':
-            return 'aborted'
-        return result
+            self.move_base_client.send_goal(g)
+            result = tu.monitor_goals(self, [self.move_base_client], 'NavigateSmach', 60*60)
+            if result == 'failed':
+                return 'aborted'
+            return result
+        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
+            if '/task_frame' == self.pose_stamped.header.frame_id:
+                raise tu.TaskFrameError(str(self.__class__), '/map')
+            else:
+                raise tu.FrameError(str(self.__class__), self.pose_stamped.header.frame_id, '/map')
+        
 
 
 
