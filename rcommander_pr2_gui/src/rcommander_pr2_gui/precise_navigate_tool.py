@@ -55,7 +55,7 @@ class PreciseNavigateTool(tu.ToolBase, p2u.SE3Tool):
         self.time_out = tu.double_spin_box(pbox, 0., 60., 1.) #QLineEdit(pbox)
 
         self.pose_button = QPushButton(pbox)
-        self.pose_button.setText('Current Pose')
+        self.pose_button.setText('Update')
 
         frame_box = self.make_task_frame_box(pbox)
         #self.frame_box = QComboBox(pbox)

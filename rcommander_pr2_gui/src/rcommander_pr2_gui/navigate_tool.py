@@ -41,7 +41,7 @@ class NavigateTool(tu.ToolBase, p2u.SE3Tool):
         group_boxes = self.make_se3_boxes(pbox)
 
         self.pose_button = QPushButton(pbox)
-        self.pose_button.setText('Current Pose')
+        self.pose_button.setText('Update')
         frame_box = self.make_task_frame_box(pbox)
 
         formlayout.addRow("&Frame", frame_box)
