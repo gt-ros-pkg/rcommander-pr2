@@ -122,8 +122,9 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.reset()
 
     def add_current_pose(self):
-        if self.get_current_pose():
-            self.list_manager.add_cb()
+        self.list_manager.add_cb()
+        self.get_current_pose()
+        self.list_manager.save_currently_selected_item()
 
     def get_current_pose(self):
         try:
