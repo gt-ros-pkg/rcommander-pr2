@@ -52,6 +52,19 @@ def interpolate_pose_stamped(pose_stamped_a, pose_stamped_b, frac):
     ps.pose.orientation.w = iq[3]
     return ps
 
+def has_frame(tf_listener, source, target):
+    try:
+        rospy.loginfo('waiting for transform between %s and %s' % (source, target))
+        tf_listener.waitForTransform(source, target, rospy.Time(0), rospy.Duration(3.))
+        tf_listener.lookupTransform(source, target, rospy.Time(0))
+        return True
+    except tf.LookupException, e:
+        print 'LookupException', e
+        return False
+    except tf.ExtrapolationException, e:
+        print 'ExtrapolationException', e
+        return False
+
 
 class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 
@@ -188,18 +201,6 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.list_manager.reset()
         self.list_manager.set_default_selection()
 
-#def has_frame(tf_listener, source, target):
-#    try:
-#        rospy.loginfo('waiting for transform between %s and %s' % (source, target))
-#        tf_listener.waitForTransform(source, target, rospy.Time(0), rospy.Duration(3.))
-#        tf_listener.lookupTransform(source, target, rospy.Time(0))
-#        return True
-#    except tf.LookupException, e:
-#        print 'LookupException', e
-#        return False
-#    except tf.ExtrapolationException, e:
-#        print 'ExtrapolationException', e
-#        return False
 
 class VelocityPriorityState(tu.StateBase):
 
@@ -209,7 +210,6 @@ class VelocityPriorityState(tu.StateBase):
         self.pose_stamps_list = pose_stamps_list
 
     def get_smach_state(self):
-        #return VelocityPriorityStateSmach(self.frame, self.remapping_for('origin'), self.poses_list)
         return VelocityPriorityStateSmach([p['data'] for p in self.pose_stamps_list])
 
 
@@ -230,7 +230,6 @@ class PlayTrajectory(threading.Thread):
         self.stop = True
 
     def run(self):
-        #Change duration to cumulative time.
         try:
             if len(self.messages) == 0:
                 return
@@ -281,16 +280,12 @@ class PlayTrajectory(threading.Thread):
             for idx, message in enumerate(messages[1:]):
                 timeslp.append(message['time'] + timeslp[idx])
 
-            current_pose = tfu.tf_as_matrix(self.tf_listener.lookupTransform(VelocityPriorityMoveTool.COMMAND_FRAME, 
-                self.controller_frame, rospy.Time(0)))
-            #print 'current_pose\n', current_pose
             wall_start_time = rospy.get_rostime().to_time()
             for t, el in zip(timeslp, messages):
                 #Sleep if needed
                 cur_time = rospy.get_rostime().to_time()
                 wall_time_from_start = cur_time - wall_start_time
                 sleep_time = (t - wall_time_from_start) - .005
-                #print 'sleeping for', sleep_time
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 
@@ -298,20 +293,14 @@ class PlayTrajectory(threading.Thread):
                     return
 
                 #Our command is in tip frame, but controller is operating in wrist frame
-                #print "tip\n", el['pose_stamped']
                 tip_torso = change_pose_stamped_frame(self.tf_listener, 
                         el['pose_stamped'], VelocityPriorityMoveTool.COMMAND_FRAME)
                 tll_T_tip = pose_to_mat(tip_torso.pose)
-                #print "tll_T_tip\n", tll_T_tip
                 tip_T_wrist = tfu.tf_as_matrix(self.tf_listener.lookupTransform(self.tip_frame, self.controller_frame, rospy.Time(0)))
-                #print 'tip_T_wrist\n', tip_T_wrist
                 tll_T_wrist = tll_T_tip * tip_T_wrist
-                #print 'tll_T_wrist\n', tll_T_wrist
                 wrist_torso = stamp_pose(mat_to_pose(tll_T_wrist), 'torso_lift_link')
 
                 #Send
-                #print 'sending\n', wrist_torso
-                #print '=============================================='
                 self.cart_pub.publish(wrist_torso)
         except (tf.Exception, tf.LookupException, tf.ConnectivityException):
             if self.messages[0]['pose_stamped'].header.frame_id == '/task_frame':
@@ -324,22 +313,29 @@ class PlayTrajectory(threading.Thread):
 
 
 
+
 class VelocityPriorityStateSmach(smach.State):
 
     LEFT_CONTROL_FRAME  = rospy.get_param('/l_cart/tip_name')
     RIGHT_CONTROL_FRAME = rospy.get_param('/r_cart/tip_name')
 
-    #def __init__(self, frame, source_for_origin, poses_list, robot):
+    ##
+    # Creates a new velocity priority SMACH state. 
+    #
+    # @param poses_list a list of dictionaries, each with the following keys: 'arm', 'pose_stamped', and 'time'.
+    # @return The usual succeeded, preempted, and failed but also
+    #           includes frame_invalid when the frame that the input
+    #           trajectory is described in is not defined.
     def __init__(self, poses_list):
         smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed'], 
                              input_keys = [], output_keys = [])
-        #self.frame = frame
-        #self.source_for_origin = source_for_origin
         self.poses_list = poses_list
         self.lcart = rospy.Publisher('/l_cart/command_pose', geo.PoseStamped)
         self.rcart = rospy.Publisher('/r_cart/command_pose', geo.PoseStamped)
         self.robot = None
 
+    ##
+    # @param robot_obj, a robot object containing a variable named controller_manager
     def set_robot(self, robot_obj):
         if robot_obj != None:
             self.controller_manager = robot_obj.controller_manager
@@ -350,8 +346,6 @@ class VelocityPriorityStateSmach(smach.State):
         lp = []
         rp = []
         for p in self.poses_list:
-            #print p
-            #print p.keys()
             if p['arm'] == 'left':
                 lp.append(p)
             else:
@@ -403,7 +397,6 @@ class VelocityPriorityStateSmach(smach.State):
             #we have been preempted
             if self.preempt_requested():
                 rospy.loginfo('VelocityPriorityStateSmach: preempt requested')
-                #self.action_client.cancel_goal()
                 lpthread.set_stop()
                 rpthread.set_stop()
                 self.service_preempt()
@@ -411,16 +404,11 @@ class VelocityPriorityStateSmach(smach.State):
                 break
 
             if not lpthread.is_alive() and not rpthread.is_alive():
-                #gripper_matrix = tfu.tf_as_matrix(self.robot.tf_listener.lookupTransform(
-                #    VelocityPriorityMoveTool.COMMAND_FRAME, self.tool_frame, rospy.Time(0)))
-                #gripper_ps = stamp_pose(mat_to_pose(gripper_matrix), VelocityPriorityMoveTool.COMMAND_FRAME)
-                #pose_distance(gripper_ps, ,self.robot.tf_listener)
                 finished = True
                 if lpthread.exception != None:
                     raise lpthread.exception
                 if rpthread.exception != None:
                     raise rpthread.exception
-                #Check that
             r.sleep()
 
         if preempted:
