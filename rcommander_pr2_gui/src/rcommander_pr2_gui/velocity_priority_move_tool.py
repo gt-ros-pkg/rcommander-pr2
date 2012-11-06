@@ -52,6 +52,19 @@ def interpolate_pose_stamped(pose_stamped_a, pose_stamped_b, frac):
     ps.pose.orientation.w = iq[3]
     return ps
 
+def has_frame(tf_listener, source, target):
+    try:
+        rospy.loginfo('waiting for transform between %s and %s' % (source, target))
+        tf_listener.waitForTransform(source, target, rospy.Time(0), rospy.Duration(3.))
+        tf_listener.lookupTransform(source, target, rospy.Time(0))
+        return True
+    except tf.LookupException, e:
+        print 'LookupException', e
+        return False
+    except tf.ExtrapolationException, e:
+        print 'ExtrapolationException', e
+        return False
+
 
 class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
 
@@ -154,18 +167,6 @@ class VelocityPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         self.list_manager.reset()
         self.list_manager.set_default_selection()
 
-def has_frame(tf_listener, source, target):
-    try:
-        rospy.loginfo('waiting for transform between %s and %s' % (source, target))
-        tf_listener.waitForTransform(source, target, rospy.Time(0), rospy.Duration(3.))
-        tf_listener.lookupTransform(source, target, rospy.Time(0))
-        return True
-    except tf.LookupException, e:
-        print 'LookupException', e
-        return False
-    except tf.ExtrapolationException, e:
-        print 'ExtrapolationException', e
-        return False
 
 class VelocityPriorityState(tu.StateBase):
 
@@ -175,7 +176,6 @@ class VelocityPriorityState(tu.StateBase):
         self.pose_stamps_list = pose_stamps_list
 
     def get_smach_state(self):
-        #return VelocityPriorityStateSmach(self.frame, self.remapping_for('origin'), self.poses_list)
         return VelocityPriorityStateSmach([p['data'] for p in self.pose_stamps_list])
 
 
@@ -207,8 +207,9 @@ class PlayTrajectory(threading.Thread):
         else:
             arm_tip_frame = VelocityPriorityMoveTool.RIGHT_TIP
         
-        p_arm = tfu.tf_as_matrix(self.tf_listener.lookupTransform(frame_described_in, arm_tip_frame, rospy.Time(0)))
-        trans, rotation = tr.translation_from_matrix(p_arm), tr.quaternion_from_matrix(p_arm)
+        self.tf_listener.waitForTransform(frame_described_in, arm_tip_frame, rospy.Duration(.5))
+        trans, rotation = self.tf_listener.lookupTransform(frame_described_in, arm_tip_frame, rospy.Time(0))
+
         initial_pose = geo.PoseStamped()
         initial_pose.pose.position.x = trans[0]
         initial_pose.pose.position.y = trans[1]
@@ -245,8 +246,8 @@ class PlayTrajectory(threading.Thread):
         for idx, message in enumerate(messages[1:]):
             timeslp.append(message['time'] + timeslp[idx])
 
-        current_pose = tfu.tf_as_matrix(self.tf_listener.lookupTransform(VelocityPriorityMoveTool.COMMAND_FRAME, 
-            self.controller_frame, rospy.Time(0)))
+        #current_pose = tfu.tf_as_matrix(self.tf_listener.lookupTransform(VelocityPriorityMoveTool.COMMAND_FRAME, 
+        #    self.controller_frame, rospy.Time(0)))
         #print 'current_pose\n', current_pose
         wall_start_time = rospy.get_rostime().to_time()
         for t, el in zip(timeslp, messages):
@@ -270,12 +271,9 @@ class PlayTrajectory(threading.Thread):
             tip_T_wrist = tfu.tf_as_matrix(self.tf_listener.lookupTransform(self.tip_frame, self.controller_frame, rospy.Time(0)))
             #print 'tip_T_wrist\n', tip_T_wrist
             tll_T_wrist = tll_T_tip * tip_T_wrist
-            #print 'tll_T_wrist\n', tll_T_wrist
             wrist_torso = stamp_pose(mat_to_pose(tll_T_wrist), 'torso_lift_link')
 
             #Send
-            #print 'sending\n', wrist_torso
-            #print '=============================================='
             self.cart_pub.publish(wrist_torso)
 
 
@@ -284,17 +282,23 @@ class VelocityPriorityStateSmach(smach.State):
     LEFT_CONTROL_FRAME  = rospy.get_param('/l_cart/tip_name')
     RIGHT_CONTROL_FRAME = rospy.get_param('/r_cart/tip_name')
 
-    #def __init__(self, frame, source_for_origin, poses_list, robot):
+    ##
+    # Creates a new velocity priority SMACH state. 
+    #
+    # @param poses_list a list of dictionaries, each with the following keys: 'arm', 'pose_stamped', and 'time'.
+    # @return The usual succeeded, preempted, and failed but also
+    #           includes frame_invalid when the frame that the input
+    #           trajectory is described in is not defined.
     def __init__(self, poses_list):
         smach.State.__init__(self, outcomes = ['succeeded', 'preempted', 'failed', 'frame_invalid'], 
                              input_keys = [], output_keys = [])
-        #self.frame = frame
-        #self.source_for_origin = source_for_origin
         self.poses_list = poses_list
         self.lcart = rospy.Publisher('/l_cart/command_pose', geo.PoseStamped)
         self.rcart = rospy.Publisher('/r_cart/command_pose', geo.PoseStamped)
         self.robot = None
 
+    ##
+    # @param robot_obj, a robot object containing a variable named controller_manager
     def set_robot(self, robot_obj):
         if robot_obj != None:
             self.controller_manager = robot_obj.controller_manager
@@ -305,8 +309,6 @@ class VelocityPriorityStateSmach(smach.State):
         lp = []
         rp = []
         for p in self.poses_list:
-            #print p
-            #print p.keys()
             if p['arm'] == 'left':
                 lp.append(p)
             else:
@@ -323,14 +325,17 @@ class VelocityPriorityStateSmach(smach.State):
 
         status, started, stopped = self.controller_manager.cart_mode(arm)
 
-
         frames_valid = True
 
         if len(lp) > 0:
-            frames_valid = frames_valid and has_frame(self.robot.tf_listener, lp[0]['pose_stamped'].header.frame_id, VelocityPriorityMoveTool.LEFT_TIP)
+            frames_valid = frames_valid and \
+                    has_frame(self.robot.tf_listener, lp[0]['pose_stamped'].header.frame_id, 
+                            VelocityPriorityMoveTool.LEFT_TIP)
 
         if len(rp) > 0:
-            frames_valid = frames_valid and has_frame(self.robot.tf_listener, rp[0]['pose_stamped'].header.frame_id, VelocityPriorityMoveTool.RIGHT_TIP)
+            frames_valid = frames_valid and \
+                    has_frame(self.robot.tf_listener, rp[0]['pose_stamped'].header.frame_id, 
+                            VelocityPriorityMoveTool.RIGHT_TIP)
 
         if not frames_valid:
             return 'frame_invalid'
@@ -349,7 +354,6 @@ class VelocityPriorityStateSmach(smach.State):
             #we have been preempted
             if self.preempt_requested():
                 rospy.loginfo('VelocityPriorityStateSmach: preempt requested')
-                #self.action_client.cancel_goal()
                 lpthread.set_stop()
                 rpthread.set_stop()
                 self.service_preempt()
@@ -362,7 +366,6 @@ class VelocityPriorityStateSmach(smach.State):
                 #gripper_ps = stamp_pose(mat_to_pose(gripper_matrix), VelocityPriorityMoveTool.COMMAND_FRAME)
                 #pose_distance(gripper_ps, ,self.robot.tf_listener)
                 finished = True
-                #Check that
             r.sleep()
 
         if preempted:
