@@ -60,16 +60,28 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
         motion_layout.addRow("&Arm", self.arm_radio_boxes)
         motion_layout.addRow('&Time Out', self.timeout_box)
 
+        self.pose_buttons_holder = QWidget(pbox)
         self.pose_button = QPushButton(pbox)
+        self.lbb_hlayout = QHBoxLayout(self.pose_buttons_holder)
+	self.grid_box = QWidget(pbox)
+        self.gridlayout = QGridLayout(self.grid_box)
+        
+	spacer = QSpacerItem(130, 0, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.pose_button.setText('Update')
         self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.get_current_pose)
+
+
 
         #formlayout.addRow(task_frame_box)
         formlayout.addRow('Frame', self.frame_box) 
         formlayout.addRow(motion_box)
         formlayout.addRow(group_boxes[0])
         formlayout.addRow(group_boxes[1])
-        formlayout.addRow(self.pose_button)
+
+	self.gridlayout.addItem(spacer,0,0)
+        self.gridlayout.addWidget(self.pose_button,0,1)
+  	formlayout.addRow(self.grid_box)
+        formlayout.addRow(self.pose_buttons_holder)
         self.reset()
 
     def get_current_pose(self):
