@@ -40,18 +40,174 @@ def create_color(a, r,g,b):
     palette.setColor(QPalette.Text, QColor(a, r, g, b))
     return palette
 
+
+## Mixin class for classes implementing live update functionality.
+class LiveUpdateTool:
+    ## Constructor
+    # @param rcommander RCommander object
+    def __init__(self, rcommander):
+        self.live_update = False
+        self.live_update_timer = QTimer()
+        self.current_update_color = create_color(0,0,0,255)
+        rcommander.connect(self.live_update_timer, SIGNAL('timeout()'), 
+                self.live_update_cb)
+
+    ## Create live update button, needs to be called by inherited classes
+    # @param qt_container A QT Container where the live update button can be
+    #                       inserted.
+    def create_live_update_controls(self, qt_container, connector):
+        self.live_update_button = QPushButton(qt_container)
+        self.live_update_button.setText('Live Update')
+        connector.connect(self.live_update_button, SIGNAL('clicked()'), 
+                self.live_update_button_cb)
+        qt_container.layout().addWidget(self.live_update_button)
+
+    ## Callback for live update button
+    def live_update_button_cb(self):
+        if self.live_update_button.text() == 'Live Update':
+            self.set_update_mode(True)
+        else:
+            self.set_update_mode(False)
+
+    ## Sets the update mode of dialog box 
+    # @param on Whether the update mode should be turned on (bool)
+    def set_update_mode(self, on):
+        self.live_update = on
+
+        if on:
+            self.live_update_toggle_cb(self.live_update)
+
+        if self.live_update:
+            self.live_update_button.setText('End Live Update')
+            self.live_update_button.setEnabled(True)
+            self.live_update_timer.start(30)
+            self.current_update_color = create_color(0,180,75,255)
+        else:
+            self.live_update_button.setText('Live Update')
+            self.live_update_timer.stop()
+            self.current_update_color = create_color(0,0,0,255)
+
+        for name in self.get_colorable_fields():      
+            palette = self.current_update_color
+            exec('self.%s.setPalette(palette)' % name)
+
+        if not on:
+            self.live_update_toggle_cb(self.live_update)
+
+    ## Function that inherited classes must implement.
+    # Has to return the name (as a string) of fields in class that should be
+    # colored green when live update turns on.
+    def get_colorable_fields(self):
+        return []
+
+    ## Function that inherited classes must implement.
+    # Called whenever update timer fires
+    def live_update_cb(self):
+        pass
+
+    ## Function that inherited classes must implement.
+    # Called whenever the live update button is toggled.
+    # @param state Current state of live update button (bool).
+    def live_update_toggle_cb(self, state):
+        pass
+
+class LiveUpdateListTool(LiveUpdateTool, tu.ToolBase):
+
+    def __init__(self, rcommander, name, button_name, smach_class):
+        tu.ToolBase.__init__(self, rcommander, name, button_name, smach_class)
+        LiveUpdateTool.__init__(self, rcommander)
+        self.reset_live_update = True
+        self.element_will_be_added = False
+
+    def make_live_update_gui_elements(self, live_update_container, 
+            name_preffix='point'):
+        self.create_live_update_controls(live_update_container, self.rcommander)
+        self.list_manager = ListManager(self.get_current_data_from_gui_fields_cb, 
+                self._set_current_data_to_gui_fields, 
+                self.list_manager_add_element_cb, 
+                name_preffix=name_preffix)
+        return self.list_manager
+
+    def list_manager_add_element_cb(self):
+        self.element_will_be_added = True
+
+    def live_update_cb(self):
+        self.reset_live_update = False
+        data = self.get_data_update_from_robot_cb()
+        if data != None:
+            self.list_manager.display_record(data)
+        self.reset_live_update = True
+
+    ## Inherited from JointTool
+    def live_update_toggle_cb(self, state):
+        if not state:
+            self.reset_live_update = False
+            selected_name = self.list_manager.get_selected_name()
+            if selected_name != None:
+                self.list_manager.set_selected_by_name(selected_name)
+            self.reset_live_update = True
+
+    def _set_current_data_to_gui_fields(self, data):
+        if self.reset_live_update and not self.element_will_be_added:
+            # - This is here so that when user selects another point live
+            #   update is turned OFF but add also uses this function, which turns
+            #   OFF live update!
+            # - The toggle button function only remembers the element activated
+            #   when it was clicked.
+            self.set_update_mode(False) 
+
+        self.set_current_data_to_gui_fields_cb(data)
+
+        if self.element_will_be_added:
+            self.element_will_be_added = False
+
+    ## Has to be implemented by inheriting class (see def. in LiveUpdateTool).
+    def get_colorable_fields(self):
+        return []
+
+    ## Has to be implemented to use list manager (see def. for
+    # get_current_data_from_gui_fields_cb in ListManager)
+    def get_current_data_from_gui_fields_cb(self):
+        pass
+
+    ## Has to be implemented by inheriting class.
+    # Must return the same ListManager list format as get_current_data_cb
+    # (see ListManager for ref).
+    def get_data_update_from_robot_cb(self):
+        pass
+
+    ## Has to be implemented to use list manager (see def. for
+    # set_current_data_cb in ListManager)
+    def set_current_data_to_gui_fields_cb(self, data):
+        pass
+
+    ## Has to be implemented and called by inheriting class (part of ToolBase)
+    def new_node(self, name=None):
+        self.list_manager.save_currently_selected_item()
+
+    ## Has to be implemented by inheriting class (part of ToolBase)
+    def set_node_properties(self, my_node):
+        pass
+
+    ## Has to be implemented and called by inheriting class (part of ToolBase)
+    def reset(self):
+        self.list_manager.reset()
+        self.list_manager.set_default_selection()
+        self.live_update_timer.stop()
+
 class JointTool:
 
     def __init__(self, robot, rcommander):
         self.limits = [robot.left.get_limits(), robot.right.get_limits()]
         self.current_update_color = create_color(0,0,0,255)
-        self.status_bar_timer = QTimer()
+        self.live_update_timer = QTimer()
         self.robot = robot
         self.live_update = False
-        rcommander.connect(self.status_bar_timer, SIGNAL('timeout()'), self.live_update_cb)
+        rcommander.connect(self.live_update_timer, SIGNAL('timeout()'), 
+                self.live_update_cb)
 
     def stop_timer(self):
-        self.status_bar_timer.stop()
+        self.live_update_timer.stop()
 
     def set_arm_radio(self, arm):
         if 'left' == arm:
@@ -73,7 +229,8 @@ class JointTool:
         fields = []
         formlayout = pbox.layout()
 
-        self.arm_radio_boxes, self.arm_radio_buttons = tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
+        self.arm_radio_boxes, self.arm_radio_buttons = tu.make_radio_box(pbox, 
+                ['Left', 'Right'], 'arm')
         for name, friendly_name in zip(JOINT_NAME_FIELDS, HUMAN_JOINT_NAMES):
             exec("self.%s = QDoubleSpinBox(pbox)" % name)
             exec('box = self.%s' % name)
@@ -90,7 +247,8 @@ class JointTool:
 
         self.live_update_button = QPushButton(self.update_buttons_holder)
         self.live_update_button.setText('Live Update')
-        connector.connect(self.live_update_button, SIGNAL('clicked()'), self.update_selected_cb)
+        connector.connect(self.live_update_button, SIGNAL('clicked()'), 
+                self.update_selected_cb)
 
         self.pose_button = QPushButton(self.update_buttons_holder)
         self.pose_button.setText('Update')
@@ -150,12 +308,12 @@ class JointTool:
             self.live_update_button.setText('End Live Update')
             self.live_update_button.setEnabled(True)
             self.pose_button.setEnabled(False)
-            self.status_bar_timer.start(30)
+            self.live_update_timer.start(30)
             self.current_update_color = create_color(0,180,75,255)
         else:
             self.live_update_button.setText('Live Update')
             self.pose_button.setEnabled(True)
-            self.status_bar_timer.stop()
+            self.live_update_timer.stop()
             self.current_update_color = create_color(0,0,0,255)
 
         for name in JOINT_NAME_FIELDS:      
@@ -171,7 +329,7 @@ class JointTool:
             self.live_update_toggle_cb(self.live_update)
 
     def get_robot_joint_angles(self):
-        arm = self.get_arm_radio()#tu.selected_radio_button(self.arm_radio_buttons).lower()
+        arm = self.get_arm_radio()
         if ('left' == arm):
             arm_obj = self.robot.left
         else:
@@ -234,7 +392,8 @@ def make_frame_box(pbox, frames_service):
             frames = frames_service().frames
             break
         except AttributeError, e:
-            frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
+            frames_service = rospy.ServiceProxy('get_transforms', 
+                    GetTransforms, persistent=True)
     for f in frames:
         frame_box.addItem(f)
     return frame_box, frames_service
@@ -243,15 +402,16 @@ def make_frame_box(pbox, frames_service):
 class SE3Tool:
 
     def __init__(self):
-        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
+        self.frames_service = rospy.ServiceProxy('get_transforms', 
+                GetTransforms, persistent=True)
 
     def make_se3_boxes(self, pbox):
-        self.xline = tu.double_spin_box(pbox, -200., 200.,.01) #QLineEdit(pbox)
-        self.yline = tu.double_spin_box(pbox, -200., 200.,.01) #QLineEdit(pbox)
-        self.zline = tu.double_spin_box(pbox, -200., 200.,.01) #QLineEdit(pbox)
-        self.phi_line   = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
-        self.theta_line = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
-        self.psi_line   = tu.double_spin_box(pbox, -360., 360., 1) #QLineEdit(pbox)
+        self.xline = tu.double_spin_box(pbox, -200., 200.,.01)
+        self.yline = tu.double_spin_box(pbox, -200., 200.,.01)
+        self.zline = tu.double_spin_box(pbox, -200., 200.,.01)
+        self.phi_line   = tu.double_spin_box(pbox, -360., 360., 1)
+        self.theta_line = tu.double_spin_box(pbox, -360., 360., 1)
+        self.psi_line   = tu.double_spin_box(pbox, -360., 360., 1)
     
         position_box = QGroupBox('Position', pbox)
         position_layout = QFormLayout(position_box)
@@ -275,17 +435,6 @@ class SE3Tool:
     def make_frame_box(self, pbox):
         frame_box, self.frames_service = make_frame_box(pbox, self.frames_service)
         return frame_box
-        #frame_box = QComboBox(pbox)
-        ##for f in self.tf_listener.getFrameStrings():
-        #for i in range(3):
-        #    try:
-        #        frames = self.frames_service().frames
-        #        break
-        #    except AttributeError, e:
-        #        self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=True)
-        #for f in frames:
-        #    frame_box.addItem(f)
-        #return frame_box
     
     def make_task_frame_box(self, pbox):
         self.frame_box = self.make_frame_box(pbox)
@@ -293,15 +442,21 @@ class SE3Tool:
 
     def get_posestamped(self):
         pose  = geo.Pose()
-        pose.position = geo.Point(*[float(vr.value()) for vr in [self.xline, self.yline, self.zline]])
-        pose.orientation = geo.Quaternion(*tr.quaternion_from_euler(*[float(np.radians(vr.value())) for vr in [self.phi_line, self.theta_line, self.psi_line]]))
+        pose.position = geo.Point(*[float(vr.value()) \
+                for vr in [self.xline, self.yline, self.zline]])
+        pose.orientation = geo.Quaternion(*tr.quaternion_from_euler(\
+                *[float(np.radians(vr.value())) for vr in \
+                [self.phi_line, self.theta_line, self.psi_line]]))
         ps = stamp_pose(pose, str(self.frame_box.currentText()))
         return ps
 
     def set_posestamped(self, pose_stamped):
-        for value, vr in zip(position(pose_stamped.pose.position), [self.xline, self.yline, self.zline]):
+        for value, vr in zip(position(pose_stamped.pose.position), \
+                [self.xline, self.yline, self.zline]):
             vr.setValue(value)
-        for value, vr in zip(tr.euler_from_quaternion(quaternion(pose_stamped.pose.orientation)), [self.phi_line, self.theta_line, self.psi_line]):
+        for value, vr in zip(tr.euler_from_quaternion(quaternion(\
+                pose_stamped.pose.orientation)),\
+                [self.phi_line, self.theta_line, self.psi_line]):
             vr.setValue(np.degrees(value))
         idx = tu.combobox_idx(self.frame_box, pose_stamped.header.frame_id)
         self.frame_box.setCurrentIndex(idx)
@@ -309,7 +464,8 @@ class SE3Tool:
 
 class ListManager:
 
-    def __init__(self, get_current_data_cb, set_current_data_cb, add_element_cb=None, name_preffix='point'):
+    def __init__(self, get_current_data_cb, set_current_data_cb, 
+            add_element_cb=None, name_preffix='point'):
         self.get_current_data_cb = get_current_data_cb
         self.set_current_data_cb = set_current_data_cb
         self.add_element_cb = add_element_cb
