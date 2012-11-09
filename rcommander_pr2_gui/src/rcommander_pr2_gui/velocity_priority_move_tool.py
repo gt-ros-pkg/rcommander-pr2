@@ -10,7 +10,7 @@ import tf
 import geometry_msgs.msg as geo
 import tf.transformations as tr
 import smach
-from object_manipulator.convert_functions import stamp_pose
+from object_manipulator.convert_functions import *
 
 import numpy as np
 import math

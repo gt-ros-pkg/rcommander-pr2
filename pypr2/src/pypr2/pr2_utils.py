@@ -50,7 +50,7 @@ class LiveUpdateTool(tu.ToolBase):
 
         self.live_update = False
         self.live_update_timer = QTimer()
-        self.current_update_color = create_color(0,0,0,255)
+        self.current_update_color = (0,0,0,255)
         rcommander.connect(self.live_update_timer, SIGNAL('timeout()'), 
                 self.live_update_cb)
 
@@ -83,14 +83,14 @@ class LiveUpdateTool(tu.ToolBase):
             self.live_update_button.setText('End Live Update')
             self.live_update_button.setEnabled(True)
             self.live_update_timer.start(30)
-            self.current_update_color = create_color(0,180,75,255)
+            self.current_update_color = (0,180,75,255)
         else:
             self.live_update_button.setText('Live Update')
             self.live_update_timer.stop()
-            self.current_update_color = create_color(0,0,0,255)
+            self.current_update_color = (0,0,0,255)
 
+        palette = create_color(*self.current_update_color)
         for name in self.get_colorable_fields():      
-            palette = self.current_update_color
             exec('self.%s.setPalette(palette)' % name)
 
         if not on:
@@ -206,7 +206,7 @@ class JointTool:
     def __init__(self, robot, rcommander):
         self.limits = [robot.left.get_limits(), robot.right.get_limits()]
         self.robot = robot
-        self.valid_color = create_color(0,0,0,255)
+        #self.current_update_color = create_color(0,0,0,255)
         #self.live_update_timer = QTimer()
         #self.live_update = False
         #rcommander.connect(self.live_update_timer, SIGNAL('timeout()'), 
@@ -310,13 +310,13 @@ class JointTool:
             exec('line_edit = self.%s' % name)
             line_edit.setValue(deg)
 
-    def check_all_joint_limits(self):
+    def check_all_joint_limits(self, valid_color):
         arm = self.get_arm_radio()
         for idx, name in enumerate(JOINT_NAME_FIELDS):
             exec('line_edit = self.%s' % name)
-            self.check_joint_limits(arm, line_edit.value(), name)
+            self.check_joint_limits(arm, line_edit.value(), name, valid_color)
 
-    def check_joint_limits(self, arm, value, joint):
+    def check_joint_limits(self, arm, value, joint, valid_color):
         if arm == 'left':
             idx = 0
             pref = 'l_'
@@ -331,17 +331,15 @@ class JointTool:
             mina, maxa = limits[jname]
             v = np.radians(value)
             if v < mina or v > maxa:
-                self.set_invalid_color(joint, True)
+                self.set_invalid_color(joint, True, valid_color)
             else:
-                self.set_invalid_color(joint, False)
+                self.set_invalid_color(joint, False, valid_color)
 
-    def set_invalid_color(self, joint_name, invalid, color = [255,0,0]):
-        r,g,b = color
+    def set_invalid_color(self, joint_name, invalid, valid_color, invalid_color = [255,0,0,255]):
         if invalid:
-            palette = QPalette(QColor(r, g, b, 255))
-            palette.setColor(QPalette.Text, QColor(r, g, b, 255))
+            palette = create_color(*invalid_color)
         else:
-            palette = self.valid_color
+            palette = create_color(*valid_color)
         exec('self.%s.setPalette(palette)' % joint_name)
 
     #def update_selected_cb(self):

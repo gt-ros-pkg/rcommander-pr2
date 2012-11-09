@@ -21,7 +21,7 @@ class SafeMoveArmTool(tu.ToolBase, p2u.JointTool):
 
     def _value_changed_validate(self, value, joint):
         arm = self.get_arm_radio()
-        self.check_joint_limits(arm, value, joint)
+        self.check_joint_limits(arm, value, joint, (0,0,0,255))
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
