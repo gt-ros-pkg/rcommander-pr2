@@ -42,10 +42,12 @@ def create_color(a, r,g,b):
 
 
 ## Mixin class for classes implementing live update functionality.
-class LiveUpdateTool:
+class LiveUpdateTool(tu.ToolBase):
+
     ## Constructor
-    # @param rcommander RCommander object
-    def __init__(self, rcommander):
+    def __init__(self, rcommander, name, button_name, smach_class):
+        tu.ToolBase.__init__(self, rcommander, name, button_name, smach_class)
+
         self.live_update = False
         self.live_update_timer = QTimer()
         self.current_update_color = create_color(0,0,0,255)
@@ -94,6 +96,11 @@ class LiveUpdateTool:
         if not on:
             self.live_update_toggle_cb(self.live_update)
 
+    ## Override ToolBase's deselect
+    def deselect_tool(self):
+        self.set_update_mode(False)
+        tu.ToolBase.deselect_tool(self)
+
     ## Function that inherited classes must implement.
     # Has to return the name (as a string) of fields in class that should be
     # colored green when live update turns on.
@@ -111,11 +118,10 @@ class LiveUpdateTool:
     def live_update_toggle_cb(self, state):
         pass
 
-class LiveUpdateListTool(LiveUpdateTool, tu.ToolBase):
+class LiveUpdateListTool(LiveUpdateTool):
 
     def __init__(self, rcommander, name, button_name, smach_class):
-        tu.ToolBase.__init__(self, rcommander, name, button_name, smach_class)
-        LiveUpdateTool.__init__(self, rcommander)
+        LiveUpdateTool.__init__(self, rcommander, name, button_name, smach_class)
         self.reset_live_update = True
         self.element_will_be_added = False
 
@@ -199,15 +205,15 @@ class JointTool:
 
     def __init__(self, robot, rcommander):
         self.limits = [robot.left.get_limits(), robot.right.get_limits()]
-        self.current_update_color = create_color(0,0,0,255)
-        self.live_update_timer = QTimer()
         self.robot = robot
-        self.live_update = False
-        rcommander.connect(self.live_update_timer, SIGNAL('timeout()'), 
-                self.live_update_cb)
+        self.valid_color = create_color(0,0,0,255)
+        #self.live_update_timer = QTimer()
+        #self.live_update = False
+        #rcommander.connect(self.live_update_timer, SIGNAL('timeout()'), 
+        #        self.live_update_cb)
 
-    def stop_timer(self):
-        self.live_update_timer.stop()
+    #def stop_timer(self):
+    #    self.live_update_timer.stop()
 
     def set_arm_radio(self, arm):
         if 'left' == arm:
@@ -241,23 +247,22 @@ class JointTool:
                            "item": box, 
                            'joint': name})
 
+        #self.update_buttons_holder = QWidget(pbox)
+        #self.lbb_hlayout = QHBoxLayout(self.update_buttons_holder)
 
-        self.update_buttons_holder = QWidget(pbox)
-        self.lbb_hlayout = QHBoxLayout(self.update_buttons_holder)
+        #self.live_update_button = QPushButton(self.update_buttons_holder)
+        #self.live_update_button.setText('Live Update')
+        #connector.connect(self.live_update_button, SIGNAL('clicked()'), 
+        #        self.update_selected_cb)
 
-        self.live_update_button = QPushButton(self.update_buttons_holder)
-        self.live_update_button.setText('Live Update')
-        connector.connect(self.live_update_button, SIGNAL('clicked()'), 
-                self.update_selected_cb)
+        #self.pose_button = QPushButton(self.update_buttons_holder)
+        #self.pose_button.setText('Update')
+        #connector.connect(self.pose_button, SIGNAL('clicked()'), self.current_pose_cb)
 
-        self.pose_button = QPushButton(self.update_buttons_holder)
-        self.pose_button.setText('Update')
-        connector.connect(self.pose_button, SIGNAL('clicked()'), self.current_pose_cb)
+        #self.lbb_hlayout.addWidget(self.live_update_button)
+        #self.lbb_hlayout.addWidget(self.pose_button)
 
-        self.lbb_hlayout.addWidget(self.live_update_button)
-        self.lbb_hlayout.addWidget(self.pose_button)
-
-        return fields, self.arm_radio_boxes, [self.update_buttons_holder]
+        return fields, self.arm_radio_boxes, []
 
     def set_joints_to_fields(self, joints):
         for idx, name in enumerate(JOINT_NAME_FIELDS):
@@ -286,48 +291,6 @@ class JointTool:
             joints.append(rad)
         return joints
 
-    def update_selected_cb(self):
-        if self.live_update_button.text() == 'Live Update':
-            self.set_update_mode(True)
-        else:
-            self.set_update_mode(False)
-
-    def get_live_update(self):
-        return self.live_update
-
-    def live_update_toggle_cb(self, state):
-        pass
-
-    def set_update_mode(self, on):
-        self.live_update = on
-
-        if on:
-            self.live_update_toggle_cb(self.live_update)
-
-        if self.live_update:
-            self.live_update_button.setText('End Live Update')
-            self.live_update_button.setEnabled(True)
-            self.pose_button.setEnabled(False)
-            self.live_update_timer.start(30)
-            self.current_update_color = create_color(0,180,75,255)
-        else:
-            self.live_update_button.setText('Live Update')
-            self.pose_button.setEnabled(True)
-            self.live_update_timer.stop()
-            self.current_update_color = create_color(0,0,0,255)
-
-        for name in JOINT_NAME_FIELDS:      
-            palette = self.current_update_color
-            exec('self.%s.setPalette(palette)' % name)
-
-        arm = self.get_arm_radio()
-        for idx, name in enumerate(JOINT_NAME_FIELDS):
-            exec('line_edit = self.%s' % name)
-            self.check_joint_limits(arm, line_edit.value(), name)
-
-        if not on:
-            self.live_update_toggle_cb(self.live_update)
-
     def get_robot_joint_angles(self):
         arm = self.get_arm_radio()
         if ('left' == arm):
@@ -339,9 +302,6 @@ class JointTool:
         pose_mat[6,0] = pose_mat[6,0] % (np.pi*2)
 
         return pose_mat
-
-    def live_update_cb(self):
-        self.current_pose_cb()
 
     def current_pose_cb(self):
         pose_mat = self.get_robot_joint_angles()
@@ -381,8 +341,55 @@ class JointTool:
             palette = QPalette(QColor(r, g, b, 255))
             palette.setColor(QPalette.Text, QColor(r, g, b, 255))
         else:
-            palette = self.current_update_color
+            palette = self.valid_color
         exec('self.%s.setPalette(palette)' % joint_name)
+
+    #def update_selected_cb(self):
+    #    if self.live_update_button.text() == 'Live Update':
+    #        self.set_update_mode(True)
+    #    else:
+    #        self.set_update_mode(False)
+
+    #def get_live_update(self):
+    #    return self.live_update
+
+    #def live_update_toggle_cb(self, state):
+    #    pass
+
+    #def set_update_mode(self, on):
+    #    self.live_update = on
+
+    #    if on:
+    #        self.live_update_toggle_cb(self.live_update)
+
+    #    if self.live_update:
+    #        self.live_update_button.setText('End Live Update')
+    #        self.live_update_button.setEnabled(True)
+    #        self.pose_button.setEnabled(False)
+    #        self.live_update_timer.start(30)
+    #        self.current_update_color = create_color(0,180,75,255)
+    #    else:
+    #        self.live_update_button.setText('Live Update')
+    #        self.pose_button.setEnabled(True)
+    #        self.live_update_timer.stop()
+    #        self.current_update_color = create_color(0,0,0,255)
+
+    #    for name in JOINT_NAME_FIELDS:      
+    #        palette = self.current_update_color
+    #        exec('self.%s.setPalette(palette)' % name)
+
+    #    arm = self.get_arm_radio()
+    #    for idx, name in enumerate(JOINT_NAME_FIELDS):
+    #        exec('line_edit = self.%s' % name)
+    #        self.check_joint_limits(arm, line_edit.value(), name)
+
+    #    if not on:
+    #        self.live_update_toggle_cb(self.live_update)
+
+
+    #def live_update_cb(self):
+    #    self.current_pose_cb()
+
 
 
 def make_frame_box(pbox, frames_service):

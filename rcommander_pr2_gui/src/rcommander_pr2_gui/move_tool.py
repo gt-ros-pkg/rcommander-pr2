@@ -25,16 +25,14 @@ def split_joints_list(jlist):
     return left, right
 
 
-class JointSequenceTool(tu.ToolBase, p2u.JointTool):
+class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
 
     def __init__(self, rcommander):
-        tu.ToolBase.__init__(self, rcommander, 'joint_sequence', \
+        p2u.LiveUpdateListTool.__init__(self, rcommander, 'joint_sequence', \
                 'Joint Sequence', JointSequenceState)
         p2u.JointTool.__init__(self, rcommander.robot, rcommander)
         self.min_time_service = rospy.ServiceProxy('min_time_to_move', \
                 MinTime, persistent=True)
-        self.reset_live_update = True
-        self.element_will_be_added = False
 
     def _value_changed_validate(self, value, joint):
         arm = self.get_arm_radio()
@@ -108,51 +106,26 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
     def _time_changed_validate(self, value):
         self._check_time_validity(value)
 
-    def get_current_data_cb(self):
+    def get_current_data_from_gui_fields_cb(self):
         return {'arm': self.get_arm_radio(),
                 'time': self.time_box.value(), 
                 'angs': self.read_joints_from_fields(True)}
 
-    def set_current_data_cb(self, data):
-        if self.reset_live_update and not self.element_will_be_added:
-            # - This is here so that when user selects another point live
-            #   update is turned OFF but add also uses this function, which turns
-            #   OFF live update!
-            # - The toggle button function only remembers the element activated
-            #   when it was clicked.
-            self.set_update_mode(False) 
-
+    def set_current_data_to_gui_fields_cb(self, data):
         self.set_joints_to_fields(data['angs'])
         self.time_box.setValue(data['time'])
         self._time_changed_validate(data['time'])
         self.set_arm_radio(data['arm'])
 
-        if self.element_will_be_added:
-            self.element_will_be_added = False
+    def get_colorable_fields(self):
+        return p2u.JOINT_NAME_FIELDS
 
-    ## Inherited from JointTool
-    def live_update_cb(self):
+    def get_data_update_from_robot_cb(self):
         pos_mat = self.get_robot_joint_angles()
-        pos_mat[4,:] = pos_mat[4,:] % (2.*np.pi)
-        pos_mat[6,:] = pos_mat[6,:] % (2.*np.pi)
+        return {'arm': self.get_arm_radio(),
+                'time': self.time_box.value(),
+                'angs': pos_mat.A1.tolist()}
 
-        self.reset_live_update = False
-        self.list_manager.display_record({'arm': self.get_arm_radio(),
-                                          'time': self.time_box.value(),
-                                          'angs': pos_mat.A1.tolist()})
-        self.reset_live_update = True
-
-    ## Inherited from JointTool
-    def live_update_toggle_cb(self, state):
-        if not state:
-            self.reset_live_update = False
-            selected_name = self.list_manager.get_selected_name()
-            if selected_name != None:
-                self.list_manager.set_selected_by_name(selected_name)
-            self.reset_live_update = True
-
-    def add_element_cb(self):
-        self.element_will_be_added = True
 
     ## Callback for toggling of arm selection button
     def arm_radio_toggled(self, state):
@@ -187,18 +160,25 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
             formlayout.addRow(button)
 
         #Controls for getting the current joint states
-        self.list_manager = p2u.ListManager(self.get_current_data_cb, 
-                self.set_current_data_cb, self.add_element_cb, name_preffix='point')
-        list_widgets = self.list_manager.make_widgets(pbox, self.rcommander)
-        self.list_manager.monitor_changing_values_in(self.rcommander, items_to_monitor)
+        #self.list_manager = p2u.ListManager(self.get_current_data_cb, 
+        #        self.set_current_data_cb, self.add_element_cb, name_preffix='point')
 
-        formlayout.addRow('\n', list_widgets[0])
+        self.pose_buttons_holder = QWidget(pbox)
+        self.lbb_hlayout = QHBoxLayout(self.pose_buttons_holder)
+
+        list_manager = self.make_live_update_gui_elements(self.pose_buttons_holder, 'point')
+        list_widgets = list_manager.make_widgets(pbox, self.rcommander)
+        list_manager.monitor_changing_values_in(self.rcommander, items_to_monitor)
+
+        formlayout.addRow(list_widgets[0])
+        formlayout.addRow(self.pose_buttons_holder)
         formlayout.addRow('&Sequence:', list_widgets[0])
         for gb in list_widgets:
             formlayout.addRow(gb)
         self.reset()
 
     def new_node(self, name=None):
+        p2u.LiveUpdateListTool.new_node(self, name)
         self.list_manager.save_currently_selected_item()
         if name == None:
             nname = self.name + str(self.counter)
@@ -213,14 +193,12 @@ class JointSequenceTool(tu.ToolBase, p2u.JointTool):
     def set_node_properties(self, my_node):
         self.list_manager.set_data(my_node.joint_waypoints)
         self.list_manager.select_default_item()
-        #self.set_arm_radio(my_node.arm)
 
     def reset(self):
         self.set_arm_radio('right')
         self.set_all_fields_to_zero()
-        self.pose_button.setEnabled(True)
-        self.list_manager.reset()
-        self.stop_timer()
+        #self.pose_button.setEnabled(True)
+        p2u.LiveUpdateListTool.reset(self)
 
 
 class JointSequenceState(tu.StateBase): 
@@ -291,3 +269,36 @@ class JointSequenceStateSmach(smach.State):
         return result
 
 
+    #def set_current_data_cb(self, data):
+    #    if self.reset_live_update and not self.element_will_be_added:
+    #        # - This is here so that when user selects another point live
+    #        #   update is turned OFF but add also uses this function, which turns
+    #        #   OFF live update!
+    #        # - The toggle button function only remembers the element activated
+    #        #   when it was clicked.
+    #        self.set_update_mode(False) 
+    #    if self.element_will_be_added:
+    #        self.element_will_be_added = False
+
+    ## Inherited from JointTool
+    #def live_update_cb(self):
+    #    pos_mat = self.get_robot_joint_angles()
+    #    pos_mat[4,:] = pos_mat[4,:] % (2.*np.pi)
+    #    pos_mat[6,:] = pos_mat[6,:] % (2.*np.pi)
+
+    #    self.reset_live_update = False
+    #    self.list_manager.display_record({'arm': self.get_arm_radio(),
+    #                                      'time': self.time_box.value(),
+    #                                      'angs': pos_mat.A1.tolist()})
+    #    self.reset_live_update = True
+
+    ## Inherited from JointTool
+    #def live_update_toggle_cb(self, state):
+    #    if not state:
+    #        self.reset_live_update = False
+    #        selected_name = self.list_manager.get_selected_name()
+    #        if selected_name != None:
+    #            self.list_manager.set_selected_by_name(selected_name)
+    #        self.reset_live_update = True
+    #def add_element_cb(self):
+    #    self.element_will_be_added = True

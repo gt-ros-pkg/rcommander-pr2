@@ -35,6 +35,11 @@ class SafeMoveArmTool(tu.ToolBase, p2u.JointTool):
         for button in buttons:
             formlayout.addRow(button)
 
+        self.pose_button = QPushButton(pbox)
+        self.pose_button.setText('Update')
+        formlayout.addRow(self.pose_button)
+
+        self.rcommander.connect(self.pose_button, SIGNAL('clicked()'), self.current_pose_cb)
         self.reset()
 
     def new_node(self, name=None):
@@ -52,7 +57,7 @@ class SafeMoveArmTool(tu.ToolBase, p2u.JointTool):
         self.set_joints_to_fields(my_node.joints)
 
     def reset(self):
-        self.set_update_mode(False)
+        #self.set_update_mode(False)
         self.set_arm_radio('right')
         self.set_all_fields_to_zero()
 

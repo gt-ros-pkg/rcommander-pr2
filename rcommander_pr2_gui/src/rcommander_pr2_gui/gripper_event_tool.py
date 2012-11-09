@@ -29,8 +29,8 @@ class GripperEventTool(tu.ToolBase):
         self.event_box = QComboBox(pbox)
         for event in GripperEventStateSmach.EVENT_LIST:
             self.event_box.addItem(event)
-        self.accel_box = tu.SliderBox(pbox, 8.25, 30, 0., .25, 'gripper_accel', units='m/s^2')
-        self.slip_box = tu.SliderBox(pbox, .01, -.5, .5, .1, 'gripper_slip', units='')
+        self.accel_box = tu.SliderBox(pbox, 8.25, 30, 0., 1, 'gripper_accel', unit='m/s^2')
+        self.slip_box = tu.SliderBox(pbox, .01, -.5, .5, .1, 'gripper_slip', unit='')
 
         formlayout.addRow('&Gripper', self.gripper_radio_boxes)
         formlayout.addRow('&Event', self.event_box)

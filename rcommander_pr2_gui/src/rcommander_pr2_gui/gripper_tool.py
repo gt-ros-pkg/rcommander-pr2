@@ -18,9 +18,9 @@ class GripperTool(tu.ToolBase):
         #Left or right
         self.radio_boxes, self.radio_buttons = tu.make_radio_box(pbox, ['Left', 'Right'], 'gripper_arm')
         #Opening distance
-        self.gripper_box = tu.SliderBox(pbox, 0.01, 8.4, 0.02, .01, 'gripper', units='cm')
+        self.gripper_box = tu.SliderBox(pbox, 0.01, 8.4, 0.02, .01, 'gripper', unit='cm')
         #Effort
-        self.effort_box = tu.SliderBox(pbox, 50., 200., 0., 40., 'effort', units='')
+        self.effort_box = tu.SliderBox(pbox, 50., 200., 0., 40., 'effort', unit='')
 
         formlayout.addRow('&Side', self.radio_boxes)
         formlayout.addRow('&Gripper Opening', self.gripper_box.container)

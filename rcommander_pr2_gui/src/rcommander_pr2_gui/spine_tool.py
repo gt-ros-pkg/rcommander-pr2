@@ -13,7 +13,7 @@ class SpineTool(tu.ToolBase):
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
-        self.spine_box = tu.SliderBox(pbox, 15., 29.5, 1., .05, 'spine', units='cm')
+        self.spine_box = tu.SliderBox(pbox, 15., 29.5, 1., .05, 'spine', unit='cm')
         formlayout.addRow('&Height', self.spine_box.container)
         pbox.update()
 
