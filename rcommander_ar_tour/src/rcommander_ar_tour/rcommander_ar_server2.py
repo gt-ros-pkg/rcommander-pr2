@@ -1051,7 +1051,6 @@ class BehaviorServer:
             if marker.pose.pose.position.z > 0 \
                     and marker.pose.pose.position.z < MAX_MARKER_DIST:
                 valid_markers.append(marker)
-        rospy.loginfo(str(valid_markers))
         self.visible_markers = valid_markers
 
     def _load_action_at_path(self, action):
