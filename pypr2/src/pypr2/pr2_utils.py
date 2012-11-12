@@ -172,7 +172,7 @@ class LiveUpdateListTool(LiveUpdateTool):
         return []
 
     ## Has to be implemented to use list manager (see def. for
-    # get_current_data_from_gui_fields_cb in ListManager)
+    # get_current_data_cb in ListManager)
     def get_current_data_from_gui_fields_cb(self):
         pass
 

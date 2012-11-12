@@ -66,6 +66,10 @@ class GripperTool(tu.ToolBase):
 class GripperState(tu.SimpleStateBase): 
 
     ## Constructor
+    # @param name Name of node.
+    # @param arm One of 'left' or 'right'.
+    # @param gripper_size Gripper opening size in cm.
+    # @param effort Amount of effort to use (in unit of who-knows-what).
     def __init__(self, name, arm, gripper_size, effort):
         if arm == 'left':
             action = 'l_gripper_controller/gripper_action'

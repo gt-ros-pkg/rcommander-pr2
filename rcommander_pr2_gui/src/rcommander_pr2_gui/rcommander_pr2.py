@@ -1,4 +1,6 @@
 #!/usr/bin/python
+
+## Launches RCommander PR2's main window.
 import roslib; roslib.load_manifest('rcommander_pr2_gui')
 import rcommander.rcommander as rc
 import pypr2.pr2_utils as pu

@@ -63,6 +63,9 @@ class FaceDetectTool(tu.ToolBase):
 class FaceDetectState(tu.StateBase):
 
     ## Constructor
+    # @param name Name of node.
+    # @param orientation_frame Frame used to copy orientation data from.
+    # @param time_out How long to wait for results.
     def __init__(self, name, orientation_frame, time_out):
         tu.StateBase.__init__(self, name)
         self.orientation_frame = orientation_frame

@@ -22,7 +22,6 @@ import os
 import os.path as pt
 import numpy as np
 import inspect as insp
-#from inspect import isfunction
 
 import detect_robot_move as drm
 import rcommander_web.rcommander_auto_server as ras

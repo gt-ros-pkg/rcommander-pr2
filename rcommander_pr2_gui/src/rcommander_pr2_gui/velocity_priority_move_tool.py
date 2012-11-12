@@ -17,19 +17,10 @@ import math
 import threading
 import time
 
-def pose_distance(ps_a, ps_b, tflistener):
-    #put both into the same frame
-    ps_a_fb = change_pose_stamped_frame(tflistener, ps_a, ps_b.header.frame_id)
-    g_T_a = pose_to_mat(ps_a_fb.pose)
-    g_T_b = pose_to_mat(ps_b.pose)
-
-    a_T_b = g_T_a**-1 * g_T_b
-
-    desired_trans = a_T_b[0:3, 3].copy()
-    a_T_b[0:3, 3] = 0
-    desired_angle, desired_axis, _ = tf.transformations.rotation_from_matrix(a_T_b)
-    return desired_trans, desired_angle, desired_axis
-
+## Takes two poses and interpolates between them
+# @param pose_stamped_a First pose.
+# @param pose_stamped_b Second pose.
+# @param frac Fraction between a and b to interpolate
 def interpolate_pose_stamped(pose_stamped_a, pose_stamped_b, frac):
     apose = pose_stamped_a.pose
     bpose = pose_stamped_b.pose
@@ -54,7 +45,8 @@ def interpolate_pose_stamped(pose_stamped_a, pose_stamped_b, frac):
     ps.pose.orientation.w = iq[3]
     return ps
 
-
+## Tool that allows definition of a trajectory that sends Cartesian
+# goals according to a schedule.
 class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
 
     LEFT_CONTROL_FRAME = rospy.get_param('/l_cart/tip_name')
@@ -64,6 +56,7 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
     MIN_TIME = .01
     COMMAND_FRAME = '/torso_lift_link'
 
+    ## Constructor
     def __init__(self, rcommander):
         p2u.SE3Tool.__init__(self)
         p2u.LiveUpdateListTool.__init__(self, rcommander, 'velocity_priority', 
@@ -71,7 +64,7 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
         self.default_frame = '/torso_lift_link'
         self.tf_listener = rcommander.tf_listener
 
-
+    ## Inherited (ToolBase)
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
         frame_box = self.make_task_frame_box(pbox)
@@ -79,14 +72,11 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
         self.arm_radio_boxes, self.arm_radio_buttons =\
                 tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
 
-        #self.list_manager = p2u.ListManager(self.get_current_data_cb, 
-        #        self.set_current_data_cb, None, name_preffix='point')
-
         self.pose_buttons_holder = QWidget(pbox)
         self.lbb_hlayout = QHBoxLayout(self.pose_buttons_holder)
 
-        self.list_manager = self.make_live_update_gui_elements(self.pose_buttons_holder, 
-                                                                'point')
+        self.list_manager = self.make_live_update_gui_elements(\
+                self.pose_buttons_holder, 'point')
         list_widgets = self.list_manager.make_widgets(pbox, self.rcommander)
 
         self.time_box = QDoubleSpinBox(pbox)
@@ -103,8 +93,6 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
         for gb in group_boxes:
             formlayout.addRow(gb)
 
-        #self.lbb_hlayout.addWidget(self.pose_button)
-        #self.lbb_hlayout.addWidget(self.add_pose_button)
 
         formlayout.addRow(self.pose_buttons_holder)
 
@@ -118,6 +106,7 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
 
         self.reset()
 
+    ## Inherited (LiveUpdateListTool)
     def get_data_update_from_robot_cb(self):
         try:
             frame_described_in = str(self.frame_box.currentText())
@@ -137,25 +126,31 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
             pose.position = geo.Point(*trans)
             pose.orientation = geo.Quaternion(*quat)
             
-            return {'arm': arm, 'pose_stamped': stamp_pose(pose, frame_described_in),
+            return {'arm': arm, 
+                    'pose_stamped': stamp_pose(pose, frame_described_in),
                     'time': self.time_box.value()}
 
         except (tf.Exception, tf.LookupException, tf.ConnectivityException):
             self.set_update_mode(False)
             QMessageBox.information(self.rcommander, self.button_name, 
-             'Error looking up frame named "%s".  If this is a task frame, is it highlighted red?' % str(self.frame_box.currentText()))
+             ('Error looking up frame named "%s".  '\
+                     % str(self.frame_box.currentText()))\
+             +'If this is a task frame, is it highlighted red?')
             return None
 
-    ## Inherited.  Returns field names from p2u.SE3Tool for live updating purposes.
+    ## Inherited.  Returns field names from p2u.SE3Tool for live
+    # updating purposes.
     def get_colorable_fields(self):
         return ['xline', 'yline', 'zline', 'phi_line', 'theta_line', 'psi_line']
 
+    ## Inherited (LiveUpdateListTool)
     def get_current_data_from_gui_fields_cb(self):
         arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
         posestamped = self.get_posestamped()
         t = self.time_box.value()
         return {'arm': arm, 'pose_stamped': posestamped, 'time': t}
 
+    ## Inherited (LiveUpdateListTool)
     def set_current_data_to_gui_fields_cb(self, data):
         if 'left' == data['arm']:
             self.arm_radio_buttons[0].setChecked(True)
@@ -164,6 +159,7 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
         self.set_posestamped(data['pose_stamped'])
         self.time_box.setValue(data['time'])
 
+    ## Inherited (ToolBase)
     def new_node(self, name=None):
         p2u.LiveUpdateListTool.new_node(self, name)
         if name == None:
@@ -177,10 +173,12 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
 
         return VelocityPriorityState(nname, data)
 
+    ## Inherited (ToolBase)
     def set_node_properties(self, node):
         self.list_manager.set_data(node.pose_stamps_list)
         self.list_manager.select_default_item()
 
+    ## Inherited (ToolBase)
     def reset(self):
         self.arm_radio_buttons[1].setChecked(True)
         for vr in [self.xline, self.yline, self.zline, self.phi_line, \
@@ -194,17 +192,29 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
 
 class VelocityPriorityState(tu.StateBase):
 
+    ## Constructor
+    # @param name Name of state.
+    # @param pose_stamps_list List with elements of the form 
+    #   {'pose_stamped': x, 'arm': y, 'time': z}
     def __init__(self, name, pose_stamps_list):
         tu.StateBase.__init__(self, name)
         self.pose_stamps_list = pose_stamps_list
 
+    ## Inherited (StateBase)
     def get_smach_state(self):
         return VelocityPriorityStateSmach([p['data'] for p in \
                 self.pose_stamps_list])
 
 
+## Playback a trajectory by publishing to the Cartesian controller
+# in its own Thread.  Loops N hz, and publishes a Cartesian goal
+# at each cycle that is interpolated between poses in input list.
 class PlayTrajectory(threading.Thread):
 
+    ## Constructor
+    # @param cart_pub Cartesian controller's rospy publisher.
+    # @param messages Messages to publish to controller (a list of dicts)
+    # @param controller_frame Frame that the controller controls.
     def __init__(self, cart_pub, messages, controller_frame, 
             tip_frame, tf_listener):
         threading.Thread.__init__(self)
@@ -214,9 +224,10 @@ class PlayTrajectory(threading.Thread):
         self.controller_frame = controller_frame
         self.tip_frame = tip_frame
         self.tf_listener = tf_listener
-        self.step_resolution = 1./100. #50hz
+        self.step_resolution = 1./100.
         self.exception = None
 
+    ## Tells this thread to stop playback.
     def set_stop(self):
         self.stop = True
 
@@ -323,12 +334,12 @@ class PlayTrajectory(threading.Thread):
             self.exception = e
 
 
-
 class VelocityPriorityStateSmach(smach.State):
 
     LEFT_CONTROL_FRAME  = rospy.get_param('/l_cart/tip_name')
     RIGHT_CONTROL_FRAME = rospy.get_param('/r_cart/tip_name')
 
+    ## Constructor
     def __init__(self, poses_list):
         smach.State.__init__(self, 
                 outcomes = ['succeeded', 'preempted', 'failed'], 
@@ -338,11 +349,13 @@ class VelocityPriorityStateSmach(smach.State):
         self.rcart = rospy.Publisher('/r_cart/command_pose', geo.PoseStamped)
         self.robot = None
 
+    ## Mimics set_robot method in ToolBase
     def set_robot(self, robot_obj):
         if robot_obj != None:
             self.controller_manager = robot_obj.controller_manager
             self.robot = robot_obj
 
+    ## Sends trajectories to both arms at the same time
     def execute(self, userdata):
         #Sort into two lists
         lp = []
@@ -369,14 +382,18 @@ class VelocityPriorityStateSmach(smach.State):
 
         try:
             if len(lp) > 0:
-                is_task_frame = lp[0]['pose_stamped'].header.frame_id == '/task_frame'
-                self.robot.tf_listener.waitForTransform(lp[0]['pose_stamped'].header.frame_id,
+                is_task_frame = lp[0]['pose_stamped'].header.frame_id \
+                            == '/task_frame'
+                self.robot.tf_listener.waitForTransform(
+                        lp[0]['pose_stamped'].header.frame_id,
                         VelocityPriorityMoveTool.LEFT_TIP,
                         rospy.Time(), rospy.Duration(5.))
 
             if len(rp) > 0:
-                is_task_frame = rp[0]['pose_stamped'].header.frame_id == '/task_frame'
-                self.robot.tf_listener.waitForTransform(rp[0]['pose_stamped'].header.frame_id,
+                is_task_frame = rp[0]['pose_stamped'].header.frame_id \
+                        == '/task_frame'
+                self.robot.tf_listener.waitForTransform(
+                        rp[0]['pose_stamped'].header.frame_id,
                         VelocityPriorityMoveTool.RIGHT_TIP,
                         rospy.Time(), rospy.Duration(5.))
 
@@ -429,17 +446,4 @@ class VelocityPriorityStateSmach(smach.State):
             return 'succeeded'
 
         return 'failed'
-
-
-
-
-
-
-
-
-
-
-
-
-
 
