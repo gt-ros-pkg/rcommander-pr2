@@ -1,18 +1,18 @@
-#import roslib; roslib.load_manifest('rcommander_pr2_gui')
 import rcommander.tool_utils as tu
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-#import time
 import pr2_common_action_msgs.msg as ca 
 import functools as ft
 import pr2_controllers_msgs.msg as pm
 
-
+## Tool for setting how wide the gripper opens/closes and with how much effort
 class GripperTool(tu.ToolBase):
 
+    ## Constructor
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'gripper', 'Gripper', GripperState)
 
+    ## Inherited
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
         #Left or right
@@ -28,6 +28,7 @@ class GripperTool(tu.ToolBase):
         pbox.update()
         self.reset()
 
+    ## Inherited
     def new_node(self, name=None):
         selected_arm = None
         for r in self.radio_buttons:
@@ -45,6 +46,7 @@ class GripperTool(tu.ToolBase):
             nname = name
         return GripperState(nname, selected_arm, gsize, effort)
     
+    ## Inherited
     def set_node_properties(self, gripper_state):
         if gripper_state.arm == 'left':
             self.radio_buttons[0].setChecked(True)
@@ -54,14 +56,16 @@ class GripperTool(tu.ToolBase):
         self.gripper_box.set_value(gripper_state.gripper_size)
         self.effort_box.set_value(gripper_state.effort)
 
+    ## Inherited
     def reset(self):
         self.gripper_box.set_value(0.0)
         self.effort_box.set_value(50.)
         self.radio_buttons[1].setChecked(True)
 
 
-class GripperState(tu.SimpleStateBase): # smach_ros.SimpleActionState):
+class GripperState(tu.SimpleStateBase): 
 
+    ## Constructor
     def __init__(self, name, arm, gripper_size, effort):
         if arm == 'left':
             action = 'l_gripper_controller/gripper_action'
@@ -76,18 +80,8 @@ class GripperState(tu.SimpleStateBase): # smach_ros.SimpleActionState):
         self.effort = effort
         self.arm = arm
 
+    ## Inherited
     def ros_goal(self, userdata, default_goal):
-        #import time
-        #while True:
-        #    time.sleep(.01)
-        return pm.Pr2GripperCommandGoal(pm.Pr2GripperCommand(position=self.gripper_size/100., max_effort=self.effort))
-
-    #def __getstate__(self):
-    #    state = tu.SimpleStateBase.__getstate__(self)
-    #    my_state = [self.gripper_size, self.effort, self.arm]
-    #    return {'simple_state': state, 'self': my_state}
-
-    #def __setstate__(self, state):
-    #    tu.SimpleStateBase.__setstate__(self, state['simple_state'])
-    #    self.gripper_size, self.effort, self.arm = state['self']
+        return pm.Pr2GripperCommandGoal(pm.Pr2GripperCommand(
+            position=self.gripper_size/100., max_effort=self.effort))
 

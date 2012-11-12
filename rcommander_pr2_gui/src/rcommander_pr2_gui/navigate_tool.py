@@ -1,6 +1,4 @@
-#import roslib; roslib.load_manifest('rcommander_pr2')
 import rcommander.tool_utils as tu
-#import smach_ros
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import rospy
@@ -13,27 +11,16 @@ import numpy as np
 import smach
 import actionlib
 import tf
-#import tf.tranformations as tr
 
 ROBOT_FRAME_NAME = '/base_link'
 
-#
-# controller and view
-# create and edits smach states
+## Sends the PR2 to a given position & orientation using the navstack
 class NavigateTool(tu.ToolBase, p2u.SE3Tool):
 
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'navigate', 'Navigate (planner)', NavigateState)
         p2u.SE3Tool.__init__(self)
         self.tf_listener = rcommander.tf_listener
-        #self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=False)
-        #gravity_aligned_frames = ['/map', '/base_link', '/task_frame']
-        #self.allowed_frames = []
-        #fourfour = re.compile('^/4x4_\d+')
-        #for f in self.frames_service().frames:
-        #    mobj = fourfour.match(f)
-        #    if f in gravity_aligned_frames or mobj != None:
-        #        self.allowed_frames.append(f)
 
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
@@ -145,9 +132,3 @@ class NavigateSmach(smach.State):
             else:
                 raise tu.FrameError(str(self.__class__), self.pose_stamped.header.frame_id, '/map')
         
-
-
-
-
-
-
