@@ -9,24 +9,15 @@ import ar_pose.msg as ar_msg
 import geometry_msgs.msg as gmsg
 
 import sys
-#import pdb
-#for s in sys.path:
-#    print s
-#pdb.set_trace()
 from rcommander_web.srv import ActionInfo, ActionInfoResponse
 import rcommander_ar_tour.srv as rsrv
 import geometry_msgs.msg as gmsg
 
 import rcommander_web.msg as rmsg
 import rcommander_ar_tour.msg as atmsg
-#from rcommander_web.msg import *
-#import rcommander_ar_pose.utils as rap
 import pypr2.tf_utils as tfu
-#import rcommander.graph_model as gm
 
 from PyQt4 import QtCore#, QtGui
-#import sys
-#import signal
 import os
 import os.path as pt
 import numpy as np
@@ -48,6 +39,7 @@ import glob
 
 DEFAULT_LOC = [[0.,0.,0.], [0.,0.,0.,1.]]
 HEAD_MARKER_LOC = ([0,0,1.], tr.quaternion_from_euler(0, 0, np.radians(180.)))
+MAX_MARKER_DIST = 1.8
 
 def tag_name(tagid, behavior_name):
     if tagid != None:
@@ -1056,7 +1048,8 @@ class BehaviorServer:
         #Filter out markers detected as being behind head
         valid_markers = []
         for marker in msg.markers:
-            if marker.pose.pose.position.z > 0:
+            if marker.pose.pose.position.z > 0 \
+                    and marker.pose.pose.position.z < MAX_MARKER_DIST:
                 valid_markers.append(marker)
         self.visible_markers = valid_markers
 
