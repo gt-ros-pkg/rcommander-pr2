@@ -17,7 +17,7 @@ import rcommander_web.msg as rmsg
 import rcommander_ar_tour.msg as atmsg
 import pypr2.tf_utils as tfu
 
-from PyQt4 import QtCore#, QtGui
+from PyQt4 import QtCore
 import os
 import os.path as pt
 import numpy as np

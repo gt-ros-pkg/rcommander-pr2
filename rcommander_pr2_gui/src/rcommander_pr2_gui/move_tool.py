@@ -144,16 +144,19 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
         formlayout = pbox.layout()
         items_to_monitor = []
 
-        fields, arm_radio_boxes, buttons = self.make_joint_boxes(pbox, self.rcommander)
+        fields, arm_radio_boxes, buttons = self.make_joint_boxes(pbox)
         arm_radio_buttons = self.get_arm_radio_buttons()
         for b in arm_radio_buttons:
-            self.rcommander.connect(b, SIGNAL('toggled(bool)'), self.arm_radio_toggled)
+            self.rcommander.connect(b, SIGNAL('toggled(bool)'), 
+                    self.arm_radio_toggled)
 
         formlayout.addRow('&Arm', arm_radio_boxes)
         for field in fields:
             formlayout.addRow(field['name'], field['item'])
-            vchanged_func = ft.partial(self._value_changed_validate, joint=field['joint'])
-            self.rcommander.connect(field['item'], SIGNAL('valueChanged(double)'),
+            vchanged_func = ft.partial(self._value_changed_validate, 
+                    joint=field['joint'])
+            self.rcommander.connect(field['item'], 
+                    SIGNAL('valueChanged(double)'),
                     vchanged_func)
             items_to_monitor.append(field['item'])
 
