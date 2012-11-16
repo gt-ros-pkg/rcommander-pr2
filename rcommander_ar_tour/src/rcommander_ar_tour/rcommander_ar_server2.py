@@ -330,6 +330,9 @@ class ActionMarker:
         self.remove()
         self.movement_controls = not self.movement_controls
         self._make_marker()
+        self.server_lock.acquire()
+        self.marker_server.applyChanges()
+        self.server_lock.release()
 
     def train_cb(self, feedback):
         rospy.loginfo('train_cb called %s' % str(feedback))
