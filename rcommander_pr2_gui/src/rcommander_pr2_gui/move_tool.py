@@ -1,4 +1,3 @@
-#import roslib; roslib.load_manifest('rcommander_pr2')
 import rospy
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -14,6 +13,9 @@ import os.path as pt
 import roslib
 import pypr2.pr2_utils as p2u
 
+## Creates two list from one joint angle list
+# @param jlist A list with elements of the form {'arm': x} where x is
+#               'left' or 'right'
 def split_joints_list(jlist):
     left = []
     right = []
@@ -24,9 +26,11 @@ def split_joints_list(jlist):
             right.append(d)
     return left, right
 
-
+## Creates a sequence of joint angles useful for defining static
+# gestures.
 class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
 
+    ## Constructor
     def __init__(self, rcommander):
         p2u.LiveUpdateListTool.__init__(self, rcommander, 'joint_sequence', \
                 'Joint Sequence', JointSequenceState)
@@ -34,14 +38,23 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
         self.min_time_service = rospy.ServiceProxy('min_time_to_move', \
                 MinTime, persistent=True)
 
+    ## Checks whether the keyframe currently specified in the GUI is
+    # feasible.
+    # @param value A joint angle (a float).
+    # @param joint A field name defined on this object (string).
     def _value_changed_validate(self, value, joint):
         arm = self.get_arm_radio()
-        self.check_joint_limits(arm, value, joint, self.current_update_color)
+        self.check_joint_limits(arm, value, joint, 
+                self.current_update_color)
         self._check_time_validity(self.time_box.value())
 
+    ## Gets a list of joint angles from ListManager instance.
     def get_joint_angs_list(self):
         return self.list_manager.get_data(clean=True)
 
+    ## Checks to see if trying to get to the specified pose within this
+    # given amount of time is feasible.
+    # @param value Time in seconds.
     def _check_time_validity(self, value):
         r,g,b = 0,0,0
         palette = QPalette(QColor(r, g, b, 255))
@@ -53,12 +66,10 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
 
         arm = self.get_arm_radio()
         if arm == 'left':
-            #idx = 0
             pref = 'l_'
             left_arm = True
             ang_list = left_list
         else:
-            #idx = 1
             pref = 'r_'
             left_arm = False
             ang_list = right_list
@@ -103,49 +114,49 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
                 self.time_box.setPalette(palette)
                 return
 
-    def _time_changed_validate(self, value):
-        self._check_time_validity(value)
-
+    ## Callback inherited from LiveUpdateListTool
     def get_current_data_from_gui_fields_cb(self):
         return {'arm': self.get_arm_radio(),
                 'time': self.time_box.value(), 
                 'angs': self.read_joints_from_fields(True)}
 
+    ## Callback inherited from LiveUpdateListTool
     def set_current_data_to_gui_fields_cb(self, data):
         self.set_joints_to_fields(data['angs'])
         self.time_box.setValue(data['time'])
-        self._time_changed_validate(data['time'])
+        self._check_time_validity(data['time'])
         self.set_arm_radio(data['arm'])
 
+    ## Get fields that should be colored depending on live update
+    # state
     def get_colorable_fields(self):
         return p2u.JOINT_NAME_FIELDS
 
-    def get_data_update_from_robot_cb(self):
-        pos_mat = self.get_robot_joint_angles()
-        return {'arm': self.get_arm_radio(),
-                'time': self.time_box.value(),
-                'angs': pos_mat.A1.tolist()}
 
-
-    ## Callback for toggling of arm selection button
+    ## Callback for toggling of arm selection button to verify that
+    # joint angles are still valid.
     def arm_radio_toggled(self, state):
         self.check_all_joint_limits(self.current_update_color)
         self._check_time_validity(self.time_box.value())
 
+    ## Inherited
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
         items_to_monitor = []
 
-        fields, arm_radio_boxes, buttons = self.make_joint_boxes(pbox, self.rcommander)
+        fields, arm_radio_boxes, buttons = self.make_joint_boxes(pbox)
         arm_radio_buttons = self.get_arm_radio_buttons()
         for b in arm_radio_buttons:
-            self.rcommander.connect(b, SIGNAL('toggled(bool)'), self.arm_radio_toggled)
+            self.rcommander.connect(b, SIGNAL('toggled(bool)'), 
+                    self.arm_radio_toggled)
 
         formlayout.addRow('&Arm', arm_radio_boxes)
         for field in fields:
             formlayout.addRow(field['name'], field['item'])
-            vchanged_func = ft.partial(self._value_changed_validate, joint=field['joint'])
-            self.rcommander.connect(field['item'], SIGNAL('valueChanged(double)'),
+            vchanged_func = ft.partial(self._value_changed_validate, 
+                    joint=field['joint'])
+            self.rcommander.connect(field['item'], 
+                    SIGNAL('valueChanged(double)'),
                     vchanged_func)
             items_to_monitor.append(field['item'])
 
@@ -153,7 +164,7 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
         self.time_box.setValue(3.)
         formlayout.addRow('&Time', self.time_box)
         self.rcommander.connect(self.time_box, SIGNAL('valueChanged(double)'), 
-                self._time_changed_validate)
+                self._check_time_validity)
         items_to_monitor.append(self.time_box)
 
         for button in buttons:
@@ -173,6 +184,7 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
             formlayout.addRow(gb)
         self.reset()
 
+    ## Inherited
     def new_node(self, name=None):
         p2u.LiveUpdateListTool.new_node(self, name)
         self.list_manager.save_currently_selected_item()
@@ -186,19 +198,23 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
         sstate = JointSequenceState(nname, self.list_manager.get_data())
         return sstate
 
+    ## Inherited
     def set_node_properties(self, my_node):
         self.list_manager.set_data(my_node.joint_waypoints)
         self.list_manager.select_default_item()
 
+    ## Inherited
     def reset(self):
         self.set_arm_radio('right')
         self.set_all_fields_to_zero()
-        #self.pose_button.setEnabled(True)
         p2u.LiveUpdateListTool.reset(self)
-
 
 class JointSequenceState(tu.StateBase): 
 
+    ## Constructor
+    # @param name Name of node.
+    # @param joint_waypoints a list with elements of the form
+    # {'data': {'arm': a, 'time': t, 'angs': len 7 list of floats}}
     def __init__(self, name, joint_waypoints):
         tu.StateBase.__init__(self, name)
         self.joint_waypoints = joint_waypoints
@@ -211,6 +227,7 @@ class JointSequenceStateSmach(smach.State):
 
     TIME_OUT_FACTOR = 3.
 
+    ## Constructor
     def __init__(self, joint_waypoints):
         smach.State.__init__(self, outcomes = ['aborted', 'succeeded', \
                                                'preempted', 'timed_out'], 
@@ -220,6 +237,7 @@ class JointSequenceStateSmach(smach.State):
         self.r_arm_obj = None
 
 
+    ## Inherited
     def set_robot(self, pr2):
         if pr2 == None:
             return
@@ -228,6 +246,7 @@ class JointSequenceStateSmach(smach.State):
         self.controller_manager = pr2.controller_manager
 
 
+    ## Inherited
     def execute(self, userdata):
         left_points, right_points = split_joints_list([wp['data'] for wp in self.joint_waypoints])
         if len(left_points) > 0 and len(right_points) > 0:

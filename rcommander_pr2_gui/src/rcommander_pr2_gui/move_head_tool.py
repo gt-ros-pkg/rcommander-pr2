@@ -157,6 +157,11 @@ class MoveHeadTool(tu.ToolBase):
 class MoveHeadState(tu.StateBase):
 
     ## Constructor
+    # @param name Name of state.
+    # @param joint_waypoints A list dictionaries of the format
+    #  {'data': {'angs': [theta1, theta2], 'time': t}} where theta1 and
+    #  theta2 are pan & tilt angles and t is the time allowed to get
+    #  there.
     def __init__(self, name, joint_waypoints):
         tu.StateBase.__init__(self, name)
         self.joint_waypoints = joint_waypoints

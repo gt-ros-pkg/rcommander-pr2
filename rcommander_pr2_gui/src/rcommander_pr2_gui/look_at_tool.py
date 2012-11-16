@@ -13,7 +13,8 @@ import actionlib
 from tf_broadcast_server.srv import GetTransforms
 
 ## Points the robot's head at a 3D point defined in some frame.  Used for
-# pointing the robot's head at defined task frames.
+# keeping some object of interest in the field-of-view of the robot's sensors.
+# TODO: LookAt shouldn't use full 6D poses, only 3D will suffice.
 class LookAtTool(tu.ToolBase, p2u.SE3Tool):
 
     ## Constructor
@@ -52,13 +53,17 @@ class LookAtTool(tu.ToolBase, p2u.SE3Tool):
 
     ## Inherited
     def reset(self):
-        for vr in [self.xline, self.yline, self.zline, self.phi_line, self.theta_line, self.psi_line]:
+        for vr in [self.xline, self.yline, self.zline, self.phi_line, \
+                self.theta_line, self.psi_line]:
             vr.setValue(0.0)
         self.frame_box.setCurrentIndex(self.frame_box.findText('/task_frame'))
 
 class LookAtState(tu.StateBase): 
 
     ## Constructor
+    # @param name Name of node
+    # @param pose_stamped PoseStamped object representing the 3D point
+    # to look at.
     def __init__(self, name, pose_stamped):
         tu.StateBase.__init__(self, name)
         self.pose_stamped = pose_stamped
@@ -72,7 +77,8 @@ class LookAtSmach(smach.State):
 
     ## Constructor
     def __init__(self, pose_stamped):
-        smach.State.__init__(self, outcomes = ['succeeded', 'failed'], input_keys = [], output_keys = [])
+        smach.State.__init__(self, outcomes = ['succeeded', 'failed'], 
+                input_keys = [], output_keys = [])
         self.pose_stamped = pose_stamped
 
     ## Inherited
@@ -83,7 +89,8 @@ class LookAtSmach(smach.State):
 
     ## Inherited
     def execute(self, userdata):
-        pt = np.matrix([self.pose_stamped.pose.position.x, self.pose_stamped.pose.position.y, self.pose_stamped.pose.position.z]).T
+        pt = np.matrix([self.pose_stamped.pose.position.x, self.pose_stamped.pose.position.y, 
+            self.pose_stamped.pose.position.z]).T
         if self.head.look_at(pt, frame=self.pose_stamped.header.frame_id):
             return 'succeeded'
         else:

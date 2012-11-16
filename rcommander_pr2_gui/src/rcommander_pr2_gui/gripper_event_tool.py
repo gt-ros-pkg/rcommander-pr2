@@ -85,6 +85,34 @@ class GripperEventTool(tu.ToolBase):
         self.slip_box.set_value(.01)
         self.child_gm = None
 
+
+class GripperEventState(tu.EmbeddableState):
+
+    ## Constructor
+    # @param name Name of node.
+    # @param child_gm Child state machine.
+    # @param arm either 'left' or 'right'
+    # @param event_type One of the strings defined in
+    #       GripperEventStateSmach.EVENT_LIST.
+    # @param accel Acceleration parameter of event detector.
+    # @param slip Slip parameter of event detector.
+    def __init__(self, name, child_gm, arm, event_type, accel, slip):
+        tu.EmbeddableState.__init__(self, name, child_gm)
+        self.arm = arm
+        self.event_type = event_type
+        self.accel = accel
+        self.slip = slip
+
+    ## Inherited
+    def get_smach_state(self):
+        return GripperEventStateSmach(self.get_child(),
+                self.arm, self.event_type, self.accel, self.slip)
+
+    ## Inherited
+    def recreate(self, new_graph_model):
+        return GripperEventState(self.get_name(), new_graph_model, 
+                self.arm, self.event_type, self.accel, self.slip)
+
 class GripperEventStateSmach(smach.State): 
 
     EVENT_LIST = ['accel', 'slip', 'finger side or accel', 'slip and accel', 'finger side, slip or accel']
@@ -180,24 +208,5 @@ class GripperEventStateSmach(smach.State):
         else:
             return rthread.outcome
 
-
-class GripperEventState(tu.EmbeddableState):
-
-    def __init__(self, name, child_gm, arm, event_type, accel, slip):
-        tu.EmbeddableState.__init__(self, name, child_gm)
-        self.arm = arm
-        self.event_type = event_type
-        self.accel = accel
-        self.slip = slip
-
-    ## Inherited
-    def get_smach_state(self):
-        return GripperEventStateSmach(self.get_child(),
-                self.arm, self.event_type, self.accel, self.slip)
-
-    ## Inherited
-    def recreate(self, new_graph_model):
-        return GripperEventState(self.get_name(), new_graph_model, 
-                self.arm, self.event_type, self.accel, self.slip)
 
 

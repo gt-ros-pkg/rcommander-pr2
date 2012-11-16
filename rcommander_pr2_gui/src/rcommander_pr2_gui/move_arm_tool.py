@@ -28,8 +28,7 @@ class SafeMoveArmTool(tu.ToolBase, p2u.JointTool):
     ## Inherited
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
-        fields, arm_radio_boxes, buttons = self.make_joint_boxes(pbox, 
-                self.rcommander)
+        fields, arm_radio_boxes, buttons = self.make_joint_boxes(pbox)
         formlayout.addRow('&Arm', arm_radio_boxes)
         for field in fields:
             formlayout.addRow(field['name'], field['item'])
