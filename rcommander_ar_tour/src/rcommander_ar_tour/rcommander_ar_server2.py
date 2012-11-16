@@ -581,6 +581,7 @@ class ActionMarker:
         self.marker_server.applyChanges()
         self.server_lock.release()
 
+    ## Callback from InteractiveMarkerServer when user clicks on this marker
     def marker_cb(self, feedback):
         if feedback.event_type == ims.InteractiveMarkerFeedback.POSE_UPDATE:
             self.update(feedback.pose, True)
@@ -593,9 +594,10 @@ class ActionMarker:
             self.marker_server.applyChanges()
             self.server_lock.release()
 
-
+## Keeps track of ActionMarkers
 class ActionMarkersManager:
 
+    ## Constructor
     def __init__(self, action_marker_database_name, server_lock, 
            behavior_server, marker_server, actions_db_changed_cb, tf_listener):
         self.server_lock = server_lock
@@ -617,6 +619,9 @@ class ActionMarkersManager:
         self.marker_server.applyChanges()
         self.server_lock.release()
 
+    ## Callback for when user clicks on broadcast point on interactive marker
+    # point cloud. Not hooked up right now for user study...
+    # @param posestamped PoseStamped message when user clicks on the point cloud.
     def cloud_clicked_cb(self, posestamped):
         marker_obj = None
         for actionid in self.markers.keys():
@@ -643,6 +648,10 @@ class ActionMarkersManager:
                 fps.pose.orientation.w = current_orientation[3]
                 marker_obj.update(fps.pose, True)
 
+    ## Get the ActionMarker current selected as the task frame (highlighted red)
+    # @return actionid ID of ActionMarker, frame marker is defined in, location
+    #           of marker
+    #           or None
     def get_current_task_frame(self):
         for actionid in self.markers.keys():
             marker = self.markers[actionid]
@@ -650,12 +659,20 @@ class ActionMarkersManager:
                 return actionid, marker.frame, marker.location_in_frame
         return None
 
+    ## Get just the name part of a behavior from a behavior's file path
+    # @param rec an ActionDatabase record
+    # @return a string (or None)
     def _get_behavior_name(self, rec):
         if rec['behavior_path'] != None:
             return pt.split(rec['behavior_path'])[1]
         else:
             return None
 
+    ## Creates an action (defined as a frame associated with a behavior)
+    # @param parent_frame Frame that this action's frame is defined with respect to (string).
+    # @param tagid ID of the AR Tag that this action is defined on (integer)
+    # @param loc location of this action's frame (as a tf tuple)
+    # @param name Prefix name of action (string)
     def create_action(self, parent_frame, tagid, loc=DEFAULT_LOC, 
             name='action'):
         actionid = self.marker_db.insert(name, parent_frame, tagid, 
@@ -667,7 +684,8 @@ class ActionMarkersManager:
         self.server_lock.release()
         return actionid
     
-    # create the interactive marker obj
+    ## Creates an ActionMarker when given an actionid using the ActionDatabase
+    # @param actionid Action ID of marker to create (has to be in database) (a string)
     def _create_marker(self, actionid):
         rec = self.marker_db.get(actionid)
         self.markers[actionid] = ActionMarker(self, actionid, rec['loc'], 
@@ -675,6 +693,9 @@ class ActionMarkersManager:
                 self.marker_server, self.server_lock, self.tf_listener, 
                 self._create_menu_handler(actionid))
 
+    ## Creates a menu handler given an actionid
+    # @param actionid Action ID of marker to create menu handler on
+    # @return a MenuHandler
     def _create_menu_handler(self, actionid):
         tree = self.behavior_server.get_actions_tree()
         if tree == None:
@@ -692,6 +713,8 @@ class ActionMarkersManager:
         else:
             return None
 
+    ## Deletes marker with given action ID
+    # @param actionid Action ID to delete.
     def delete_marker_cb(self, actionid):
         if self.marker_db.has_property(actionid, 'complement'):
             cactionid = self.marker_db.get(actionid)['complement']
@@ -708,16 +731,22 @@ class ActionMarkersManager:
         self.server_lock.release()
         self.actions_db_changed_cb()
 
-    # callback from ARTagMarker to perform selection
+    ## Callback from ARTagMarker to perform selection
+    # @param actionid Action ID to delete
     def set_task_frame(self, actionid):
         for k in self.markers.keys():
             self.markers[k].set_selected(k == actionid)
 
-    # callback from ARTagMarker to update location of action
+    ## Callback from ARTagMarker to update location of action
+    # @param actionid Action ID to delete
+    # @param loc TF tuple of translation and rotation.
+    # @param update_database whether to allow updating of database or not (boolean) 
+    #           TODO: remove this
     def update_loc(self, actionid, loc, update_database=True):
         if update_database:
             self.marker_db.update_loc(actionid, loc)
 
+    ## Update menus containing lists of behaviors
     def update_behavior_menus(self):
         self.server_lock.acquire()
         for actionid in self.markers.keys():
@@ -726,6 +755,11 @@ class ActionMarkersManager:
         self.marker_server.applyChanges()
         self.server_lock.release()
 
+    ## Callback for when an action is selected on menu created by update_behavior_menus
+    # @param actionid Action ID of marker
+    # @param menu_item menu item clicked on
+    # @param full_action_path Full path of action clicked on.
+    # @param int_feedback Interactive marker's feedback object.
     def _action_selection_menu_cb(self, actionid, menu_item, 
             full_action_path, int_feedback):
         rospy.loginfo('Clicked behavior %s on action %s' \
@@ -734,14 +768,21 @@ class ActionMarkersManager:
         self.markers[actionid].update_name(pt.split(full_action_path)[1])
         self.actions_db_changed_cb()
 
+    ## Gets the ActionMarker associated with an actionid
+    # @param actionid
     def get_marker(self, actionid):
         return self.markers[actionid]
 
+## A database of where AR tags are in the map frame
 class ARTagDatabase(Database):
 
+    ## Constructor
     def __init__(self):
         Database.__init__(self)
 
+    ## Store the location of an AR Tag
+    # @param tag_id ID of tag (integer)
+    # @param tag_location TF tuple of translation rotation
     def set_location(self, tag_id, tag_location): 
         self.database[tag_id] = tag_location 
         self.modified = True
@@ -751,6 +792,11 @@ class ARTagDatabase(Database):
 # User can create multiple different action markers from ar tag markers
 class ARTagMarker:
 
+    ## Constructor
+    # @param tagid ID of AR Tag (integer).
+    # @param pose_in_map_frame Tuple in TF format (translation, rotation).
+    # @param action_marker_manager an ActionMarkersManager instance (used for
+    #                   creating new actions)
     def __init__(self, tagid, pose_in_map_frame, action_marker_manager, 
             server_lock, marker_server, scale=.2):
         self.tagid = tagid
@@ -786,15 +832,19 @@ class ARTagMarker:
         self.menu.apply(self.marker_server, int_marker.name)
         self.server_lock.release()
 
+    ## Callback for create new actions button
+    # @param feedback Feedback object from interactive marker server
     def create_new_action_cb(self, feedback):
         #print 'create_new_action_cb', feedback
         rospy.loginfo('New action created! Tag id %d.' % self.tagid)
         self.action_marker_manager.create_action(ar_frame_name(self.tagid), 
                 self.tagid)
 
+    ## Ignore feedback for this marker
     def marker_cb(self, feedback):
         pass
 
+    ## Update the pose of this AR Tag wrt to the map frame
     def update(self, pose_in_map_frame):
         pose = tup_to_pose(pose_in_map_frame)
 
@@ -802,18 +852,25 @@ class ARTagMarker:
         self.marker_server.setPose(self.marker_name, pose)
         self.server_lock.release()
 
+    ## Remove this marker from view
     def remove(self):
         self.server_lock.acquire()
         self.marker_server.erase(self.marker_name)
         self.server_lock.release()
 
-
 def ar_frame_name(tagid):
     return '4x4_' + str(tagid)
 
-
+## Allows managing of interactive markers based on detection by ARToolKit Tag detectors 
 class ARMarkersManager:
 
+    ## Constructor
+    # @param ar_tag_database_name Filename of the AR tag database.
+    # @param action_marker_manager ActionMarkersManager instance
+    # @param server_lock RLock instance to lock marker_server
+    # @param marker_server InteractiveMarkerServer instance
+    # @param tf_listener TFListener instance
+    # @param tf_broadcaster TransformBroadcaster instance
     def __init__(self, ar_tag_database_name, action_marker_manager, 
             server_lock, marker_server, tf_listener, tf_broadcaster):
 
@@ -833,16 +890,20 @@ class ARMarkersManager:
         self.marker_server.applyChanges()
         self.server_lock.release()
 
+    ## Create an AR Tag marker (green sphere)
     def create_marker(self, tagid, location):
         self.markers[tagid] = ARTagMarker(tagid, location, 
                 self.action_marker_manager, self.server_lock, 
                 self.marker_server)
 
+    ## Remove an AR Tag marker from viz
     def remove_marker(self, tagid):
         self.markers[tagid].remove()
         self.markers.pop(tagid)
         self.marker_db.remove(tagid)
 
+    ## Update the list of visible AR Tag markers with list of currently detected markers.
+    # @param visible_markers a list of ARMarkers messages.
     def update(self, visible_markers):
         visible_ids = [m.id for m in visible_markers]
         markers_changed = False
@@ -870,9 +931,15 @@ class ARMarkersManager:
 
         return markers_changed
 
-
+## Main class for serving up, visualizing and executing behaviors.
 class BehaviorServer:
 
+    ## Constructor
+    # @param action_tag_database_name Filename of an ActionDatabase.
+    # @param ar_tag_database_name Filename of ARTagDatabase. 
+    # @param path_to_rcommander_files Path to saved behaviors.
+    # @param tf_listener TFListener object.
+    # @param robot Robot object (like in RCommander)
     def __init__(self, action_tag_database_name, ar_tag_database_name, 
                     path_to_rcommander_files, tf_listener, robot):
 
@@ -909,6 +976,10 @@ class BehaviorServer:
         self.start_execution_action_server()
         self.create_head_menu()
 
+    ## Callback for selection of a learnable behavior 
+    # @param menu_item name of action clicked on
+    # @param full_action_path full file path to action
+    # @param int_feedback Interactive Marker feedback.
     def learnable_behavior_menu_cb(self, menu_item, full_action_path, 
             int_feedback):
         clicked_action = full_action_path
@@ -955,6 +1026,7 @@ class BehaviorServer:
                 'complement', actionid)
 
 
+    ## Creates the menu that floats on top of the robot's head (as a white sphere)
     def create_head_menu(self):
         if self.head_menu_marker != None:
             self.marker_server_lock.acquire()
@@ -998,9 +1070,14 @@ class BehaviorServer:
         self.marker_server_lock.release()
         self.head_menu_marker = int_marker
 
+    ## Gets the actions_tree
+    # @return Structure returned by list_actions_and_folders_at_path.
+    #   Has the format {'path':   full path 'actions': [{another folder},
+    #                   {another folder2}, rcom_file}
     def get_actions_tree(self):
         return self.actions_tree
 
+    ## Start the InteractiveMarkerServer, loads database files, etc.
     def start_marker_server(self):
         self.marker_server = ims.InteractiveMarkerServer(self.SERVER_NAME)
 
@@ -1020,27 +1097,33 @@ class BehaviorServer:
                 ar_msg.ARMarkers, self.ar_marker_cb)
         rospy.loginfo('Ready!')
 
-    #For listing / serving actions
+    ## Start services that this node offers
+    # For listing / serving actions
     def start_services(self):
+        ## List ROS Commander actions available at given path
         rospy.Service('list_rcommander_actions', ActionInfo, 
                 self.list_action_cb)
+        ## Get named property given an action ID and attribute name
         rospy.Service('get_behavior_property', rsrv.ActionProperty, 
                 self.get_behavior_property_cb)
+        ## Set the translation/rotation of given behavior  
         rospy.Service('set_behavior_pose', rsrv.SetBehaviorPose, 
                 self.set_behavior_pose_cb)
+        ## Get the translation/rotation of given behavior  
         rospy.Service('get_behavior_pose', rsrv.GetBehaviorPose, 
                 self.get_behavior_pose_cb)
+        ## Get the action ID of the frame currenty designated as the task frame
         rospy.Service('get_active_action_id', rsrv.GetActiveActionID, 
                 self.get_active_action_id_cb)
 
-
+    ## Start the server that executes actions called through the web.
     def start_execution_action_server(self):
         self.actserv_runweb = actionlib.SimpleActionServer(\
                 'run_rcommander_action_web', rmsg.RunScriptAction, 
                 execute_cb=self.run_action_web_cb, auto_start=False)
         self.actserv_runweb.start()
 
-
+    ## Callback: Get the action ID of the frame currenty designated as the task frame
     def get_active_action_id_cb(self, req):
         task_frame_info = self.action_marker_manager.get_current_task_frame()
         if task_frame_info != None:
@@ -1050,6 +1133,7 @@ class BehaviorServer:
             return rsrv.GetActiveActionIDResponse('')
 
 
+    ## Callback: Set the translation/rotation of given behavior  
     def set_behavior_pose_cb(self, req):
         pose = req.posestamped.pose
         actionid = req.actionid
@@ -1065,6 +1149,7 @@ class BehaviorServer:
 
         return rsrv.SetBehaviorPoseResponse()
 
+    ## Callback: Get the translation/rotation of given behavior  
     def get_behavior_pose_cb(self, req):
         ps = gmsg.PoseStamped()
         ps.pose = tup_to_pose(self.action_marker_manager.marker_db.get(\
@@ -1073,6 +1158,7 @@ class BehaviorServer:
                 req.actionid)['frame']
         return rsrv.GetBehaviorPoseResponse(ps)
 
+    ## Callback: Get named property given an action ID and attribute name
     def get_behavior_property_cb(self, req):
         actionid = req.actionid
         prop = req.attribute
@@ -1082,6 +1168,7 @@ class BehaviorServer:
         else:
             return rsrv.ActionPropertyResponse(pk.dumps(value))
 
+    ## Callback: List ROS Commander actions available at given path
     def list_action_cb(self, req):
         path = req.path
         if path == '.':
@@ -1099,6 +1186,11 @@ class BehaviorServer:
         rospy.loginfo('responded to %s' % path)
         return ActionInfoResponse(fnames, fpaths, anames, apaths)
 
+    ## Finds valid ROS Comander behaviors given a path
+    # @param path file path to actions
+    # @param actions_tree tree that 
+    #   with elements has the format {'path':   full path 'actions': [{another folder},
+    #                   {another folder2}, rcom_file}
     def list_actions_and_folders_at_path(self, path, actions_tree):
         path = os.path.normpath(path)
         fnames, fpaths = [], []
@@ -1127,18 +1219,22 @@ class BehaviorServer:
 
         return fnames, fpaths, anames, apaths
 
+    
+    ## Callback: called by ActionMarkersManager whenever an action disappears from selectable list
     def actions_db_changed_cb(self):
         loc_folder, loc_idx = find_folder_idx(self.actions_tree, 'Locations')
         self.actions_tree['actions'].pop(loc_idx)
         self.insert_locations_folder()
         self.insert_database_actions()
 
+    ## Add the "Locations" folder as a menue
     def insert_locations_folder(self):
         loc_folder = find_folder(self.actions_tree, 'Locations')
         if loc_folder == None:
             self.actions_tree['actions'].append({'path':'Locations', 
                 'actions':[]})
 
+    ## Insert actions loaded from on disk databases
     def insert_database_actions(self):
         #loaded actions is keyed with the full behavior path
         locations_tree = find_folder(self.actions_tree, 'Locations')
