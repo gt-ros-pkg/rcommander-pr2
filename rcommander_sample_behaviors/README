@@ -1,0 +1,5 @@
+The robot_behaviors folder has to have two nested folders (Behaviors and
+Behaviors/AR) for ROS Commander to work.  The rosbridge server looks for
+behaviors in the AR folder to use for associating with frames defined
+by ARToolKit tags.  Once "AR" behaviors are associated with a frame, they
+show up in the "Locations" menu.
