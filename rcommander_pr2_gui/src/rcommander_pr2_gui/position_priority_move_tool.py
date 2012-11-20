@@ -107,8 +107,7 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
                 vr.setValue(np.degrees(value))
         except (tf.Exception, tf.LookupException, tf.ConnectivityException):
                 QMessageBox.information(self.rcommander, self.button_name, 
-                    'Error looking up frame named '+\
-                    '"%s".  If this is a task frame, is it highlighted red?'\ 
+                'Error looking up frame named "%s".  If this is a task frame, is it highlighted red?'\
                     % str(self.frame_box.currentText()))
 
     ## Inherited
