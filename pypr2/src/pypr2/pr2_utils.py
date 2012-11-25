@@ -21,7 +21,7 @@ from pycontroller_manager.pycontroller_manager import ControllerManager
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import tf_utils as tfu
-from object_manipulator.convert_functions import stamp_pose
+from object_manipulator.convert_functions import stamp_pose, change_pose_stamped_frame
 import tf.transformations as tr
 from tf_broadcast_server.srv import GetTransforms
 import rcommander.tool_utils as tu
@@ -479,9 +479,11 @@ def make_frame_box(pbox, frames_service):
 class SE3Tool:
 
     ## Constructor
-    def __init__(self):
+    def __init__(self, tf_listener):
         self.frames_service = rospy.ServiceProxy('get_transforms', 
                 GetTransforms, persistent=True)
+        self.tf_listener = tf_listener
+        self.current_frame = None
 
     ## Should be called by children to make GUI widgets
     # @return A list with two widgets that should be inserted into an
@@ -517,11 +519,37 @@ class SE3Tool:
                 self.phi_line, self.theta_line, self.psi_line]
     
     ## Create a task frame drop down 
-    def make_task_frame_box(self, pbox):
+    # @param pbox parent QT container for task frame selector
+    # @param connector an object with a QT connect method
+    def make_task_frame_box(self, pbox, connector):
         self.frame_box, self.frames_service = \
                 make_frame_box(pbox, self.frames_service)
-
+        connector.connect(self.frame_box, 
+                SIGNAL('currentIndexChanged(int)'), 
+                self.frame_changed_cb)
         return self.frame_box
+
+    ## Callback to transform the pose displayed to the new frame selected
+    # @param new_index integer
+    def frame_changed_cb(self, new_index):
+        if new_index == -1 :
+            return
+
+        new_frame = str(self.frame_box.itemText(new_index))
+        current_frame = self.current_frame
+        self.current_frame = new_frame
+
+        #If this is the first time that the frame is being set
+        #don't transform pose, just return
+        if current_frame == None:
+            return
+        
+        p_initial = self.get_posestamped()
+        p_initial.header.frame_id = current_frame
+
+        p_changed = change_pose_stamped_frame(self.tf_listener, p_initial, new_frame)
+        self.set_posestamped(p_changed)
+
 
     ## Get data contained in text fields as a PoseStamped 
     def get_posestamped(self):

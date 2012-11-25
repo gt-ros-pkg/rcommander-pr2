@@ -36,7 +36,7 @@ class PreciseNavigateTool(tu.ToolBase, p2u.SE3Tool):
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'navigate_refined', 
                 'Navigate (precise)', PreciseNavigateState)
-        p2u.SE3Tool.__init__(self)
+        p2u.SE3Tool.__init__(self, rcommander.tf_listener)
         self.tf_listener = rcommander.tf_listener
 
     ## Inherited
@@ -47,7 +47,7 @@ class PreciseNavigateTool(tu.ToolBase, p2u.SE3Tool):
 
         self.pose_button = QPushButton(pbox)
         self.pose_button.setText('Update')
-        frame_box = self.make_task_frame_box(pbox)
+        frame_box = self.make_task_frame_box(pbox, self.rcommander)
 
         formlayout.addRow("&Time Out", self.time_out)
         formlayout.addRow("&Frame", frame_box)

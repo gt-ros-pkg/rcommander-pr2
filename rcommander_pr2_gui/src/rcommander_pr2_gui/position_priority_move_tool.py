@@ -26,7 +26,7 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'position_priority', 
                 'Position Priority', PositionPriorityState)
-        p2u.SE3Tool.__init__(self)
+        p2u.SE3Tool.__init__(self, rcommander.tf_listener)
         self.default_frame = '/torso_lift_link'
         self.tf_listener = rcommander.tf_listener
 
@@ -34,7 +34,7 @@ class PositionPriorityMoveTool(tu.ToolBase, p2u.SE3Tool):
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
 
-        frame_box = self.make_task_frame_box(pbox)
+        frame_box = self.make_task_frame_box(pbox, self.rcommander)
         self.trans_vel_line = tu.double_spin_box(pbox, 0, 1., .02)
         self.rot_vel_line   = tu.double_spin_box(pbox, 0, np.pi, .02)
         group_boxes = self.make_se3_boxes(pbox)

@@ -58,7 +58,7 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
 
     ## Constructor
     def __init__(self, rcommander):
-        p2u.SE3Tool.__init__(self)
+        p2u.SE3Tool.__init__(self, rcommander.tf_listener)
         p2u.LiveUpdateListTool.__init__(self, rcommander, 'velocity_priority', 
                 'Velocity Priority', VelocityPriorityState)
         self.default_frame = '/torso_lift_link'
@@ -73,7 +73,7 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
     ## Inherited (ToolBase)
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
-        frame_box = self.make_task_frame_box(pbox)
+        frame_box = self.make_task_frame_box(pbox, self.rcommander)
         group_boxes = self.make_se3_boxes(pbox)
         self.arm_radio_containers, self.arm_radio_buttons =\
                 tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
