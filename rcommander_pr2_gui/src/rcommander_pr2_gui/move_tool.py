@@ -133,9 +133,8 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
         self._check_time_validity(data['time'])
         self.set_arm_radio(data['arm'])
 
-
     def get_data_update_from_robot_cb(self):
-        arm = self.arm_selector.get_moving_arm(self.get_arm_radio)
+        arm = self.arm_selector.get_moving_arm(self.get_arm_radio())
         joint_angles = self.get_robot_joint_angles(arm)
         
         return {'arm': arm,
