@@ -23,7 +23,7 @@ import os.path as pt
 import numpy as np
 import inspect as insp
 
-import detect_robot_move as drm
+import pypr2.detect_robot_move as drm
 import rcommander_web.rcommander_auto_server as ras
 import tf
 import tf.transformations as tr
@@ -874,7 +874,7 @@ class ARMarkersManager:
     def __init__(self, ar_tag_database_name, action_marker_manager, 
             server_lock, marker_server, tf_listener, tf_broadcaster):
 
-        self.robot_movement_detector = drm.DetectRobotMove()
+        self.robot_movement_detector = drm.DetectRobotMove(drm.get_joint_group('all_except_arms'))
         self.marker_db = Database_load(ar_tag_database_name, ARTagDatabase)
         self.action_marker_manager = action_marker_manager
         self.server_lock = server_lock

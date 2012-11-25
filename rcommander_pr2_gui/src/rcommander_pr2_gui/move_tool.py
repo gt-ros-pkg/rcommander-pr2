@@ -35,6 +35,7 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
         p2u.LiveUpdateListTool.__init__(self, rcommander, 'joint_sequence', \
                 'Joint Sequence', JointSequenceState)
         p2u.JointTool.__init__(self, rcommander.robot, rcommander)
+        self.arm_selector = p2u.MovingArmSelector()
         self.min_time_service = rospy.ServiceProxy('min_time_to_move', \
                 MinTime, persistent=True)
 
@@ -51,6 +52,11 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
     ## Gets a list of joint angles from ListManager instance.
     def get_joint_angs_list(self):
         return self.list_manager.get_data(clean=True)
+
+    def live_update_toggle_cb(self, state):
+        p2u.LiveUpdateListTool.live_update_toggle_cb(self, state)
+        self.lock_arm_check_box.setDisabled(not state)
+        self.lock_arm_check_box.setCheckState(Qt.Unchecked)
 
     ## Checks to see if trying to get to the specified pose within this
     # given amount of time is feasible.
@@ -127,11 +133,19 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
         self._check_time_validity(data['time'])
         self.set_arm_radio(data['arm'])
 
+
+    def get_data_update_from_robot_cb(self):
+        arm = self.arm_selector.get_moving_arm(self.get_arm_radio)
+        joint_angles = self.get_robot_joint_angles(arm)
+        
+        return {'arm': arm,
+                'time': self.time_box.value(),
+                'angs': joint_angles.A1.tolist()}
+
     ## Get fields that should be colored depending on live update
     # state
     def get_colorable_fields(self):
         return p2u.JOINT_NAME_FIELDS
-
 
     ## Callback for toggling of arm selection button to verify that
     # joint angles are still valid.
@@ -144,13 +158,16 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
         formlayout = pbox.layout()
         items_to_monitor = []
 
-        fields, arm_radio_boxes, buttons = self.make_joint_boxes(pbox)
+        fields, arm_controls_container, buttons = self.make_joint_boxes(pbox)
         arm_radio_buttons = self.get_arm_radio_buttons()
         for b in arm_radio_buttons:
             self.rcommander.connect(b, SIGNAL('toggled(bool)'), 
                     self.arm_radio_toggled)
 
-        formlayout.addRow('&Arm', arm_radio_boxes)
+        self.lock_arm_check_box = self.arm_selector.create_checkbox(pbox, arm_controls_container)
+        self.lock_arm_check_box.setDisabled(True)
+        arm_controls_container.layout().addWidget(self.lock_arm_check_box)
+        formlayout.addRow('&Arm', arm_controls_container)
         for field in fields:
             formlayout.addRow(field['name'], field['item'])
             vchanged_func = ft.partial(self._value_changed_validate, 
@@ -208,6 +225,7 @@ class JointSequenceTool(p2u.JointTool, p2u.LiveUpdateListTool):
         self.set_arm_radio('right')
         self.set_all_fields_to_zero()
         p2u.LiveUpdateListTool.reset(self)
+        self.lock_arm_check_box.setCheckState(Qt.Unchecked)
 
 class JointSequenceState(tu.StateBase): 
 

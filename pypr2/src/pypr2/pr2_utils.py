@@ -32,6 +32,7 @@ import unittest
 import math
 
 import pypr2.msg as hm #TODO move this somewhere
+import pypr2.detect_robot_move as drm
 
 ## PR2 joint names
 JOINT_NAME_FIELDS = ["shoulder_pan_joint", "shoulder_lift_joint", 
@@ -233,6 +234,40 @@ class LiveUpdateListTool(LiveUpdateTool):
         self.list_manager.set_default_selection()
         self.live_update_timer.stop()
 
+class MovingArmSelector:
+
+    def __init__(self):
+        self.arm_movement_detectors = {\
+                'left_arm': drm.DetectRobotMove(drm.get_joint_group('left_arm'), .2),
+                'right_arm': drm.DetectRobotMove(drm.get_joint_group('right_arm'), .2)}
+
+    def create_checkbox(self, pbox, container):
+        self.lock_arm_check_box = QCheckBox('Lock', pbox)
+        container.layout().addWidget(self.lock_arm_check_box)
+        return self.lock_arm_check_box
+
+    def get_moving_arm(self, default_selected_arm):
+        if self.lock_arm_check_box.isChecked():
+            arm = default_selected_arm
+        else:
+            lmove = self.arm_movement_detectors['left_arm'].is_moving()
+            rmove = self.arm_movement_detectors['right_arm'].is_moving()
+
+            if lmove and rmove:
+                ltime = self.arm_movement_detectors['left_arm'].last_moved_at_time()
+                rtime = self.arm_movement_detectors['right_arm'].last_moved_at_time()
+                if ltime > rtime:
+                    arm = 'left'
+                else:
+                    arm = 'right'
+            elif lmove:
+                arm = 'left'
+            elif rmove:
+                arm = 'right'
+            else:
+                arm = default_selected_arm
+        return arm
+
 ## Mixin for classes implementing ToolBase to display/edit PR2 joint angles
 class JointTool:
 
@@ -242,6 +277,9 @@ class JointTool:
     def __init__(self, robot, rcommander):
         self.limits = [robot.left.get_limits(), robot.right.get_limits()]
         self.robot = robot
+        #self.arm_movement_detectors = {\
+        #        'left_arm': drm.DetectRobotMove(drm.get_joint_group('left_arm'), .2),
+        #        'right_arm': drm.DetectRobotMove(drm.get_joint_group('right_arm'), .2)}
 
     ## Set the arm radio buttons
     # @param arm either 'left' or 'right'
@@ -271,8 +309,12 @@ class JointTool:
         fields = []
         formlayout = pbox.layout()
 
-        self.arm_radio_boxes, self.arm_radio_buttons = tu.make_radio_box(pbox, 
+        self.arm_radio_container, self.arm_radio_buttons = tu.make_radio_box(pbox, 
                 ['Left', 'Right'], 'arm')
+
+        #self.lock_arm_check_box = QCheckBox('Lock', pbox)
+        #self.arm_radio_container.layout().addWidget(self.lock_arm_check_box)
+
         for name, friendly_name in zip(JOINT_NAME_FIELDS, HUMAN_JOINT_NAMES):
             exec("self.%s = QDoubleSpinBox(pbox)" % name)
             exec('box = self.%s' % name)
@@ -283,7 +325,7 @@ class JointTool:
                            "item": box, 
                            'joint': name})
 
-        return fields, self.arm_radio_boxes, []
+        return fields, self.arm_radio_container, []
 
     ## Update the data fields
     # @param joints A list of 7 doubles.
@@ -318,17 +360,48 @@ class JointTool:
 
     ## Get the current joint angles from the robot
     # @return pose_mat 7x1 numpy matrix
-    def get_robot_joint_angles(self):
-        arm = self.get_arm_radio()
+    def get_robot_joint_angles(self, arm=None):
+        if arm == None:
+            arm = self.get_arm_radio()
+
         if ('left' == arm):
             arm_obj = self.robot.left
         else:
             arm_obj = self.robot.right
+
         pose_mat = arm_obj.pose()
         pose_mat[4,0] = pose_mat[4,0] % (np.pi*2)
         pose_mat[6,0] = pose_mat[6,0] % (np.pi*2)
 
         return pose_mat
+
+    ## Get the current joint angles of the arm that's determined to be moving
+    #   or if nothing is moving, the arm current selected.  If self.lock_arm_check_box
+    #   is checked, will just get the currently selected arm.
+    # @return a 2 tuple (7x1 numpy matrix in radians, string either 'left' or 'right')
+    #def get_robot_joint_angles_of_moving_arm(self):
+    #    if self.lock_arm_check_box.isChecked():
+    #        arm = self.get_arm_radio()
+    #    else:
+    #        lmove = self.arm_movement_detectors['left_arm'].is_moving()
+    #        rmove = self.arm_movement_detectors['right_arm'].is_moving()
+
+    #        if lmove and rmove:
+    #            ltime = self.arm_movement_detectors['left_arm'].last_moved_at_time()
+    #            rtime = self.arm_movement_detectors['right_arm'].last_moved_at_time()
+    #            if ltime > rtime:
+    #                arm = 'left'
+    #            else:
+    #                arm = 'right'
+    #        elif lmove:
+    #            arm = 'left'
+    #        elif rmove:
+    #            arm = 'right'
+    #        else:
+    #            arm = self.get_arm_radio()
+
+    #    return self.get_robot_joint_angles(arm), arm
+
 
     ## Get the current joint angles from the robot and set them in the
     # QDoubleSpinBoxes.
@@ -1408,6 +1481,7 @@ class PR2:
         self.head  = PR2Head(joint_provider)
         self.base  = PR2Base(tf_listener)
         self.controller_manager = ControllerManager()
+        self.joint_provider = joint_provider
 
 if __name__ == '__main__':
     unittest.main()

@@ -63,14 +63,24 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
                 'Velocity Priority', VelocityPriorityState)
         self.default_frame = '/torso_lift_link'
         self.tf_listener = rcommander.tf_listener
+        self.arm_selector = p2u.MovingArmSelector()
+
+    def live_update_toggle_cb(self, state):
+        p2u.LiveUpdateListTool.live_update_toggle_cb(self, state)
+        self.lock_arm_checkbox.setDisabled(not state)
+        self.lock_arm_checkbox.setCheckState(Qt.Unchecked)
 
     ## Inherited (ToolBase)
     def fill_property_box(self, pbox):
         formlayout = pbox.layout()
         frame_box = self.make_task_frame_box(pbox)
         group_boxes = self.make_se3_boxes(pbox)
-        self.arm_radio_boxes, self.arm_radio_buttons =\
+        self.arm_radio_containers, self.arm_radio_buttons =\
                 tu.make_radio_box(pbox, ['Left', 'Right'], 'arm')
+
+        self.lock_arm_checkbox = self.arm_selector.create_checkbox(
+                pbox, self.arm_radio_containers)
+        self.lock_arm_checkbox.setDisabled(True)
 
         self.pose_buttons_holder = QWidget(pbox)
         self.lbb_hlayout = QHBoxLayout(self.pose_buttons_holder)
@@ -87,12 +97,11 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
         self.joint_angles_hidden = None
 
         formlayout.addRow('&Frame', frame_box)
-        formlayout.addRow('&Arm', self.arm_radio_boxes)
+        formlayout.addRow('&Arm', self.arm_radio_containers)
         formlayout.addRow('&Duration', self.time_box)
 
         for gb in group_boxes:
             formlayout.addRow(gb)
-
 
         formlayout.addRow(self.pose_buttons_holder)
 
@@ -110,7 +119,9 @@ class VelocityPriorityMoveTool(p2u.SE3Tool, p2u.LiveUpdateListTool):
     def get_data_update_from_robot_cb(self):
         try:
             frame_described_in = str(self.frame_box.currentText())
-            arm = tu.selected_radio_button(self.arm_radio_buttons).lower()
+            arm = self.arm_selector.get_moving_arm(
+                    tu.selected_radio_button(self.arm_radio_buttons).lower())
+
             if arm == 'right':
                 arm_tip_frame = VelocityPriorityMoveTool.RIGHT_TIP
             else:
