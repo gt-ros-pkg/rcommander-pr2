@@ -90,12 +90,14 @@ class PreciseNavigateTool(tu.ToolBase, p2u.SE3Tool):
             nname = name
 
         pose_stamped = self.get_posestamped()
+        #rospy.loginfo('new_node ' + str(pose_stamped))
         state = PreciseNavigateState(nname, pose_stamped, 
                 self.time_out.value())
         return state
 
     ## Inherited
     def set_node_properties(self, node):
+        #rospy.loginfo('setting properties ' + str(node.pose_stamped))
         self.set_posestamped(node.pose_stamped)
         self.time_out.setValue(node.time_out)
 

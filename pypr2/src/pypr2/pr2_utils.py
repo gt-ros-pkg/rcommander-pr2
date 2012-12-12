@@ -21,6 +21,7 @@ from pycontroller_manager.pycontroller_manager import ControllerManager
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import tf_utils as tfu
+import tf
 from object_manipulator.convert_functions import stamp_pose, change_pose_stamped_frame
 import tf.transformations as tr
 from tf_broadcast_server.srv import GetTransforms
@@ -534,21 +535,28 @@ class SE3Tool:
     def frame_changed_cb(self, new_index):
         if new_index == -1 :
             return
+        try:
+            new_frame = str(self.frame_box.itemText(new_index))
+            current_frame = self.current_frame
+            self.current_frame = new_frame
 
-        new_frame = str(self.frame_box.itemText(new_index))
-        current_frame = self.current_frame
-        self.current_frame = new_frame
-
-        #If this is the first time that the frame is being set
-        #don't transform pose, just return
-        if current_frame == None:
-            return
+            #If this is the first time that the frame is being set
+            #don't transform pose, just return
+            if current_frame == None:
+                return
+            
+            p_initial = self.get_posestamped()
+            p_initial.header.frame_id = current_frame
         
-        p_initial = self.get_posestamped()
-        p_initial.header.frame_id = current_frame
-
-        p_changed = change_pose_stamped_frame(self.tf_listener, p_initial, new_frame)
-        self.set_posestamped(p_changed)
+            #rospy.loginfo(new_frame)
+            p_changed = change_pose_stamped_frame(self.tf_listener, p_initial, new_frame)
+            self.set_posestamped(p_changed)
+        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
+            new_frame = str(self.frame_box.itemText(new_index))
+            QMessageBox.information(self.rcommander, self.button_name, 
+                'Unable to display node, encountered an error when looking up frame named '+
+                '"%s".  If this is a task frame, please make sure that you have highlighed a frame in red.'\
+                        % str(new_frame))
 
 
     ## Get data contained in text fields as a PoseStamped 
@@ -564,6 +572,8 @@ class SE3Tool:
 
     ## Set the text fields as a PoseStamped
     def set_posestamped(self, pose_stamped):
+        idx = tu.combobox_idx(self.frame_box, pose_stamped.header.frame_id)
+        self.frame_box.setCurrentIndex(idx)
         for value, vr in zip(position(pose_stamped.pose.position), \
                 [self.xline, self.yline, self.zline]):
             vr.setValue(value)
@@ -571,8 +581,6 @@ class SE3Tool:
                 pose_stamped.pose.orientation)),\
                 [self.phi_line, self.theta_line, self.psi_line]):
             vr.setValue(np.degrees(value))
-        idx = tu.combobox_idx(self.frame_box, pose_stamped.header.frame_id)
-        self.frame_box.setCurrentIndex(idx)
 
 
 ## Creates a list box with controls for adding, removing, sorting items.
