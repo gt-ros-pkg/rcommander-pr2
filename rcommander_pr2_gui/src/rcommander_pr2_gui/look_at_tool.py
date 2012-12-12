@@ -20,6 +20,7 @@ class LookAtTool(tu.ToolBase, p2u.SE3Tool):
     ## Constructor
     def __init__(self, rcommander):
         tu.ToolBase.__init__(self, rcommander, 'look_at', 'Look At', LookAtState)
+        p2u.SE3Tool.__init__(self, rcommander.tf_listener)
         self.tf_listener = rcommander.tf_listener
         self.frames_service = rospy.ServiceProxy('get_transforms', GetTransforms, persistent=False)
 
