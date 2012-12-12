@@ -28,7 +28,7 @@ class LookAtTool(tu.ToolBase, p2u.SE3Tool):
         formlayout = pbox.layout()
 
         group_boxes = self.make_se3_boxes(pbox)
-        frame_box = self.make_task_frame_box(pbox)
+        frame_box = self.make_task_frame_box(pbox, self.rcommander)
 
         formlayout.addRow("&Frame", frame_box)
         formlayout.addRow(group_boxes[0])
