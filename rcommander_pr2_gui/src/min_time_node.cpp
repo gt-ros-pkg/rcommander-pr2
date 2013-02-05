@@ -123,7 +123,7 @@ double minSegmentTime(const double &q0,
                       const double &q1, 
                       const double &v0, 
                       const double &v1, 
-                      const arm_navigation_msgs::JointLimits &limit)
+                      const moveit_msgs::JointLimits &limit)
 {
    //    double dq = jointDiff(q0,q1,limit);
    double dq = q1-q0;
@@ -217,7 +217,8 @@ double minSegmentTime(const double &q0,
 
 double calculateMinimumTime(const trajectory_msgs::JointTrajectoryPoint &start, 
                             const trajectory_msgs::JointTrajectoryPoint &end, 
-                            const std::vector<arm_navigation_msgs::JointLimits> &limits)
+                            //const std::vector<arm_navigation_msgs::JointLimits> &limits)
+                            const std::vector<moveit_msgs::JointLimits> &limits)
 {
     double minJointTime(FLT_MAX);
     double segmentTime(0);
@@ -225,7 +226,8 @@ double calculateMinimumTime(const trajectory_msgs::JointTrajectoryPoint &start,
 
     for(int i = 0; i < num_joints; i++)
     {
-        minJointTime = minSegmentTime(start.positions[i],end.positions[i],start.velocities[i],end.velocities[i],limits[i]);
+        minJointTime = minSegmentTime(start.positions[i],end.positions[i],
+		start.velocities[i],end.velocities[i],limits[i]);
         if(segmentTime < minJointTime)
             segmentTime = minJointTime;
     }
@@ -265,11 +267,13 @@ bool MinTimeNode::min_time_srv_cb(rcommander_pr2_gui::MinTime::Request &req,
     double mtime = 0.0;
     if (req.left == true and has_left)
     {
-        mtime = calculateMinimumTime(req.start_point, req.end_point, left_info.response.kinematic_solver_info.limits);
+        mtime = calculateMinimumTime(req.start_point, req.end_point, 
+			left_info.response.kinematic_solver_info.limits);
     } else
     {
         if (has_right)
-            mtime = calculateMinimumTime(req.start_point, req.end_point, right_info.response.kinematic_solver_info.limits);
+            mtime = calculateMinimumTime(req.start_point, req.end_point, 
+			right_info.response.kinematic_solver_info.limits);
     }
     res.time = mtime;
     //req.start_point
