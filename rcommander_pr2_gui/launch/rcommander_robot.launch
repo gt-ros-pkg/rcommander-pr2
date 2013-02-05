@@ -15,7 +15,7 @@
 
     <group if="$(arg maps)">
         <group if="$(arg aware_home)">
-            <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find rcommander_pr2_gui)/maps/aware_home_025.yaml"/>
+            <node name="$(anon mapserver)" pkg="map_server" type="map_server" args="$(find rcommander_pr2_gui)/maps/aware_home_11_09_2012.yaml"/>
         </group>
 
         <group if="$(arg wg)">
