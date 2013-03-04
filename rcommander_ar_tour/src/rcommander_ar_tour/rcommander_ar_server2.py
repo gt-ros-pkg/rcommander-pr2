@@ -426,6 +426,8 @@ class ActionMarker:
         menu_handler.insert('-----------------', parent=None, callback=None)
         menu_handler.insert('Toggle Controls', parent=None, 
                 callback=self.toggle_controls_cb)
+        menu_handler.insert('Train', parent=None, 
+                callback=self.train_cb)
         menu_handler.insert('Delete', parent=None, 
                 callback=self.delete_action_cb)
 
