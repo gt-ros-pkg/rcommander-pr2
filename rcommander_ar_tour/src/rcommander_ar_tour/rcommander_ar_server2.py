@@ -428,6 +428,8 @@ class ActionMarker:
                 callback=self.toggle_controls_cb)
         menu_handler.insert('Train', parent=None, 
                 callback=self.train_cb)
+        menu_handler.insert('Give Example', parent=None,
+                callback=self.user_click_cb)
         menu_handler.insert('Delete', parent=None, 
                 callback=self.delete_action_cb)
 
@@ -440,6 +442,10 @@ class ActionMarker:
         self.server_lock.acquire()
         self.marker_server.applyChanges()
         self.server_lock.release()
+
+    def user_click_cb(self, feedback):
+        rospy.loginfo('user_click_cb called %s' % str(feedback))
+        self.manager.user_click_publisher.publish(atmsg.TrainAction(self.actionid))
 
     ## Callback for train option (not in list due to user study)
     def train_cb(self, feedback):
@@ -608,6 +614,8 @@ class ActionMarkersManager:
         self.actions_db_changed_cb = actions_db_changed_cb
         self.tf_listener = tf_listener
         self.train_publisher = rospy.Publisher('train_action', 
+                atmsg.TrainAction)
+        self.user_click_publisher = rospy.Publisher('user_guided_click',
                 atmsg.TrainAction)
 
         #Database and marker list has to be in sync!
@@ -986,7 +994,10 @@ class BehaviorServer:
             int_feedback):
         clicked_action = full_action_path
         folder, action_name = pt.split(full_action_path)
-        all_actions = glob.glob(pt.join(folder, '*'))
+
+        all_actions = glob.glob(pt.join(folder, '*_action'))
+        stubs = glob.glob(pt.join(folder, '*_stub'))
+
         nonmatchings = []
 
         for a in all_actions:
@@ -1024,8 +1035,13 @@ class BehaviorServer:
 
         self.action_marker_manager.marker_db.set_property(actionid, 
                 'complement', cactionid)
+        self.action_marker_manager.marker_db.set_property(actionid,
+                'stub', stubs[0])
+
         self.action_marker_manager.marker_db.set_property(cactionid, 
                 'complement', actionid)
+        self.action_marker_manager.marker_db.set_property(cactionid,
+                'stub', stubs[0])
 
 
     ## Creates the menu that floats on top of the robot's head (as a white sphere)
