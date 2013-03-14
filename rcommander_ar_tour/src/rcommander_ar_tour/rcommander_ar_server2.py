@@ -490,6 +490,7 @@ class ActionMarker:
         self.marker_obj.pose = pose_in_defined_frame
         self.location_in_frame = pose_to_tup(pose_in_defined_frame)
 
+
     ## Convert a point in the frame defined by this marker into the
     # 'map' frame.
     def _to_map_frame(self, p_ar):
@@ -703,6 +704,9 @@ class ActionMarkersManager:
                 self.marker_server, self.server_lock, self.tf_listener, 
                 self._create_menu_handler(actionid))
 
+    def get_marker_db(self):
+        return self.marker_db
+
     ## Creates a menu handler given an actionid
     # @param actionid Action ID of marker to create menu handler on
     # @return a MenuHandler
@@ -746,6 +750,16 @@ class ActionMarkersManager:
     def set_task_frame(self, actionid):
         for k in self.markers.keys():
             self.markers[k].set_selected(k == actionid)
+
+    def reset_to_db_loc(self, actionid):
+        rec = self.marker_db.get(actionid)
+        db_pose = tup_to_pose(rec['loc'])
+        action_marker = self.get_marker(actionid)
+        action_marker.update(db_pose, False)
+        self.server_lock.acquire()
+        self.marker_server.setPose(action_marker.marker_name, db_pose)
+        self.marker_server.applyChanges()
+        self.server_lock.release()
 
     ## Callback from ARTagMarker to update location of action
     # @param actionid Action ID to delete
@@ -1305,6 +1319,7 @@ class BehaviorServer:
 
     def _execute_database_action_cb(self, actionid, actserv):
         entry = self.action_marker_manager.marker_db.get(actionid)
+        self.action_marker_manager.reset_to_db_loc(actionid)
         self.action_marker_manager.set_task_frame(actionid)
         self.loaded_actions[entry['behavior_path']]['function'](actserv)
         #This will stop the publishing process
