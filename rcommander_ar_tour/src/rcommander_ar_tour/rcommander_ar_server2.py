@@ -752,6 +752,7 @@ class ActionMarkersManager:
             self.markers[k].set_selected(k == actionid)
 
     def reset_to_db_loc(self, actionid):
+        #pdb.set_trace()
         rec = self.marker_db.get(actionid)
         db_pose = tup_to_pose(rec['loc'])
         action_marker = self.get_marker(actionid)
@@ -1323,6 +1324,7 @@ class BehaviorServer:
         self.action_marker_manager.set_task_frame(actionid)
         self.loaded_actions[entry['behavior_path']]['function'](actserv)
         #This will stop the publishing process
+        self.action_marker_manager.reset_to_db_loc(actionid)
         self.action_marker_manager.set_task_frame(None) 
 
     def ar_marker_cb(self, msg):
