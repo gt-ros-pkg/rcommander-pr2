@@ -221,7 +221,7 @@ class ScriptedActionServer:
     #
     # @param actserver the action server to check for state changes
     # @param state_machine_modifier is a function that takes in (graph_model, robot_object)
-    def execute(self, actserver, state_machine_modifier=None):
+    def execute(self, actserver, state_machine_modifier=None, set_result=True):
         self.last_msg = ''
         r = rospy.Rate(30)
 
@@ -265,10 +265,13 @@ class ScriptedActionServer:
         if success:
             result = RunScriptResult(state_machine_output)
             rospy.loginfo("%s: succeeded with %s" % (self.action_name, state_machine_output))
-            actserver.set_succeeded(result)
+            if set_result:
+                actserver.set_succeeded(result)
+            return True
         else:
             rospy.loginfo('Aborted')
             actserver.set_aborted()
+            return False
 
 def run(robot, path):
 #    from optparse import OptionParser
