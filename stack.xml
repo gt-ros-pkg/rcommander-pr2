@@ -17,5 +17,5 @@
   <depend stack="pr2_controllers" /> <!-- pr2_controllers_msgs -->
   <depend stack="pr2_mechanism" /> <!-- pr2_mechanism_msgs -->
 
-  <depend stack="hrl_pr2" /> <!-- pr2_mechanism_msgs -->
+  <depend stack="hrl-pr2" /> <!-- pr2_mechanism_msgs -->
 </stack>
